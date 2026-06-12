@@ -6,7 +6,7 @@ This project grew out of a recurring request from customers: they wanted a **sin
 pane of glass** to see all the Microsoft updates that affect them — Power Platform
 release plans, the Microsoft 365 roadmap, Azure announcements, tenant-specific
 Message Center posts, and Service Health incidents — without bouncing between half a
-dozen portals, RSS feeds, and admin centers. The Microsoft Communications Portal
+dozen portals, RSS feeds, and admin centers. Just like the https://www.mspulse360.app site I created, but something they could run internally as a Canvas App (Code app type) or on an app server in Azure. The Microsoft Communications Portal
 brings those streams together into one filterable, dark-mode-friendly UI backed by
 a small local Node.js server that proxies the upstream APIs and handles Microsoft
 Graph authentication.
