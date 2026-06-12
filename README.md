@@ -20,7 +20,7 @@ tenant-side incidents in one place.
 
 | Page | Route | Source file | Backend |
 |---|---|---|---|
-| Power Platform Release Planner | `/` | `index.html` | `releaseplans.microsoft.com` (proxied) |
+| Power Platform Release Planner | `/powerplatform` | `index.html` | `releaseplans.microsoft.com` (proxied) |
 | Microsoft 365 Roadmap | `/m365updates` | `m365updates.html` | M365 Roadmap RSS |
 | Azure Updates | `/azureupdates` | `azureupdates.html` | Azure Updates RSS |
 | Microsoft 365 Message Center | `/messagecenter` | `messagecenter.html` | Microsoft Graph |
@@ -28,6 +28,8 @@ tenant-side incidents in one place.
 
 Every page supports light and dark themes. Pass `?clawpilotTheme=light` or
 `?clawpilotTheme=dark` on the URL, or click the theme toggle in the header.
+
+The site root (`/`) redirects to `/powerplatform`.
 
 ## Screenshots
 
@@ -73,20 +75,67 @@ on `http://localhost:3000`.
    ```
 
 2. **Configure Entra ID credentials** (required only for Message Center and Service Health):
-   - Copy `.env.example` to `.env`
-   - Register an app in Entra:
-     https://portal.azure.com/#view/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade/~/AppRegistrations
-   - Grant the app the following Microsoft Graph **application** permissions and admin-consent them:
-     - `ServiceMessage.Read.All` (Message Center)
-     - `ServiceHealth.Read.All` (Service Health)
-   - Add your credentials to `.env`:
-     ```
-     M365_CLIENT_ID=your-client-id
-     M365_CLIENT_SECRET=your-client-secret
-     M365_TENANT_ID=your-tenant-id
-     ```
 
-   The Power Platform, M365 Roadmap, and Azure Updates pages work without credentials.
+   The Power Platform, M365 Roadmap, and Azure Updates pages work without credentials —
+   skip this step if you only need those.
+
+   **2a. Create the app registration**
+
+   1. Sign in to the [Entra admin center](https://entra.microsoft.com) (or
+      [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade/~/AppRegistrations))
+      with an account that can register apps and grant tenant-wide admin consent
+      (Global Administrator, Privileged Role Administrator, or Cloud Application Administrator).
+   2. Go to **Identity → Applications → App registrations** and click **+ New registration**.
+   3. Fill in:
+      - **Name:** `Microsoft Communications Portal` (or any name you like)
+      - **Supported account types:** *Accounts in this organizational directory only (Single tenant)*
+      - **Redirect URI:** leave blank — this app uses the client-credentials flow, no redirect is needed.
+   4. Click **Register**.
+   5. On the **Overview** blade, copy these two values — you'll paste them into `.env` later:
+      - **Application (client) ID** → `M365_CLIENT_ID`
+      - **Directory (tenant) ID** → `M365_TENANT_ID`
+
+   **2b. Add Microsoft Graph API permissions**
+
+   1. In the new app registration, go to **API permissions → + Add a permission**.
+   2. Choose **Microsoft Graph → Application permissions** (NOT delegated).
+   3. Search for and add each of these permissions:
+      - `ServiceMessage.Read.All` — required for the Message Center page
+      - `ServiceHealth.Read.All` — required for the Service Health page
+   4. Click **Add permissions**.
+   5. Back on the **API permissions** blade, click **Grant admin consent for &lt;your tenant&gt;**
+      and confirm. The **Status** column should show a green check for both permissions.
+
+   **2c. Create a client secret**
+
+   1. Go to **Certificates & secrets → Client secrets → + New client secret**.
+   2. Enter a description (e.g. `portal-local-dev`) and pick an expiration (6–24 months).
+   3. Click **Add**.
+   4. **Immediately copy the secret's `Value`** (not the Secret ID) — it's only shown once.
+      This is your `M365_CLIENT_SECRET`. If you navigate away before copying it, delete it
+      and create a new one.
+
+   > Treat the secret like a password. Never commit `.env` to source control —
+   > the included `.gitignore` already excludes it.
+
+   **2d. Configure `.env`**
+
+   1. Copy the template:
+      ```bash
+      # macOS / Linux
+      cp .env.example .env
+
+      # Windows PowerShell
+      Copy-Item .env.example .env
+      ```
+   2. Open `.env` and paste in the three values you collected above:
+      ```
+      M365_CLIENT_ID=00000000-0000-0000-0000-000000000000
+      M365_CLIENT_SECRET=your-client-secret-value
+      M365_TENANT_ID=00000000-0000-0000-0000-000000000000
+      ```
+   3. Save the file. The server reads `.env` at startup, so restart `node server.js`
+      after any change.
 
 3. **Run the server:**
    ```bash

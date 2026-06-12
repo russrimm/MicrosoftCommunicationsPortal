@@ -9,7 +9,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const OUT  = path.join(__dirname, '..', 'screenshots');
 
 const PAGES = [
-  { slug: 'power-platform', url: '/' },
+  { slug: 'power-platform', url: '/powerplatform' },
   { slug: 'm365-roadmap',   url: '/m365updates' },
   { slug: 'azure-updates',  url: '/azureupdates' },
   { slug: 'message-center', url: '/messagecenter' },
