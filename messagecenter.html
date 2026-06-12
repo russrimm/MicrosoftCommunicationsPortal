@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microsoft 365 Message Center – Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5; --cp-border: #dedede; --cp-border-strong: #919191;
+      --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
+      --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
+      --cp-warning: #f59e0b; --cp-link: #0078d4;
+      --cp-highlight: rgba(177,31,75,0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e; --cp-border: #474747; --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede; --cp-text-muted: #919191; --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
+      --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
+      --cp-warning: #fbbf24; --cp-link: #4da6ff;
+      --cp-highlight: rgba(253,142,161,0.12);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Screen-reader-only text (visually hidden but accessible) */
+    .sr-only {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+
+    /* Visible focus indicator for keyboard navigation */
+    a:focus-visible, button:focus-visible, input:focus-visible,
+    select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--cp-accent);
+      outline-offset: 2px;
+    }
+    body {
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px; line-height: 1.5;
+      background: var(--cp-bg); color: var(--cp-text);
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    /* Header */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--cp-surface);
+      border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem;
+      display: flex; align-items: center; gap: 0.875rem;
+      height: 56px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      flex-shrink: 0;
+    }
+    .header-logo {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-logo svg { display: block; width: 28px; height: 28px; }
+    .header-title { font-size: 15px; font-weight: 700; color: var(--cp-text); }
+    .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted, #605e5c); margin-top: 1px; }
+    .header-subtitle a { color: inherit; text-decoration: none; }
+    .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
+    .header-sub { font-size: 11px; color: var(--cp-text-muted); }
+    .page-heading {
+      font-size: 22px; font-weight: 700;
+      color: var(--cp-text);
+      margin: 0 0 0.875rem;
+      padding: 0 0 0.625rem;
+      border-bottom: 1px solid var(--cp-border);
+      display: flex; align-items: center; gap: 0.625rem;
+      letter-spacing: -0.005em;
+      flex-shrink: 0;
+    }
+    .page-heading::before {
+      content: ""; display: inline-block;
+      width: 4px; height: 22px;
+      background: var(--cp-accent);
+      border-radius: 2px;
+    }
+    .page-tabs {
+      position: sticky; top: 56px; z-index: 99;
+      background: var(--cp-surface);
+      border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem;
+      display: flex; align-items: stretch; justify-content: center;
+      gap: 0.25rem;
+      height: 48px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      overflow-x: auto;
+    }
+    .page-tabs::-webkit-scrollbar { height: 0; }
+    .nav-tab {
+      display: inline-flex; align-items: center;
+      padding: 0 1rem;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      color: var(--cp-text-muted);
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+      margin-bottom: -1px;
+    }
+    .nav-tab:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
+    .nav-tab.active {
+      color: var(--cp-accent);
+      border-bottom-color: var(--cp-accent);
+      background: transparent;
+    }
+    .theme-btn {
+      margin-left: auto;
+      background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+      border-radius: 0.625rem; padding: 0.3rem 0.75rem;
+      cursor: pointer; font-size: 12px; color: var(--cp-text-muted);
+      font-family: inherit; transition: all 0.15s;
+    }
+    .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
+    /* Main layout */
+    .page-content {
+      flex: 1; display: flex; flex-direction: column;
+      padding: 1.125rem; overflow: hidden;
+      height: calc(100vh - 104px);
+    }
+    /* Search + filters */
+    .mc-search-bar { margin-bottom: 0.625rem; }
+    .mc-search-input {
+      width: 100%; padding: 0.5rem 0.875rem;
+      border: 1px solid var(--cp-border); border-radius: 0.625rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 13px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .mc-search-input:focus { border-color: var(--cp-accent); }
+    .mc-search-input::placeholder { color: var(--cp-text-muted); }
+    .mc-filters {
+      display: flex; gap: 1rem; margin-bottom: 1rem;
+      flex-wrap: wrap; align-items: center;
+    }
+    .mc-filter-group { display: flex; align-items: center; gap: 0.5rem; }
+    .mc-filter-label { font-size: 12px; color: var(--cp-text-muted); font-weight: 600; }
+    .mc-filter-input, .mc-filter-select {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--cp-border); border-radius: 0.375rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 12px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .mc-filter-input:focus, .mc-filter-select:focus { border-color: var(--cp-accent); }
+
+    /* Multi-select dropdown */
+    .mc-multi {
+      position: relative; min-width: 180px;
+    }
+    .mc-multi-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--cp-border); border-radius: 0.375rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 12px; font-family: inherit; cursor: pointer;
+      width: 100%; text-align: left;
+    }
+    .mc-multi-toggle:hover { border-color: var(--cp-border-strong); }
+    .mc-multi.open .mc-multi-toggle { border-color: var(--cp-accent); }
+    .mc-multi-toggle .mc-multi-caret { font-size: 9px; color: var(--cp-text-muted); }
+    .mc-multi-toggle .mc-multi-clear {
+      font-size: 14px; color: var(--cp-text-muted);
+      padding: 0 0.2rem; line-height: 1; border-radius: 3px;
+    }
+    .mc-multi-toggle .mc-multi-clear:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
+    .mc-multi-panel {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      max-height: 320px; overflow-y: auto;
+      background: var(--cp-surface); border: 1px solid var(--cp-border);
+      border-radius: 0.375rem; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      z-index: 50; padding: 0.25rem;
+    }
+    .mc-multi.open .mc-multi-panel { display: block; }
+    .mc-multi-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.5rem; border-radius: 0.25rem;
+      font-size: 12px; color: var(--cp-text); cursor: pointer;
+      user-select: none;
+    }
+    .mc-multi-option:hover { background: var(--cp-surface-soft); }
+    .mc-multi-option input { margin: 0; cursor: pointer; }
+    .mc-multi-actions {
+      display: flex; gap: 0.4rem; padding: 0.25rem 0.5rem 0.5rem;
+      border-bottom: 1px solid var(--cp-border); margin-bottom: 0.25rem;
+    }
+    .mc-multi-actions button {
+      flex: 1; font-size: 11px; font-family: inherit;
+      padding: 0.3rem 0.4rem; border-radius: 0.25rem;
+      border: 1px solid var(--cp-border); background: var(--cp-surface);
+      color: var(--cp-text-soft); cursor: pointer;
+    }
+    .mc-multi-actions button:hover { background: var(--cp-surface-soft); color: var(--cp-text); }
+    /* Message list */
+    .mc-messages {
+      flex: 1; overflow-y: auto; align-content: start;
+      display: grid; gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+    .mc-messages.is-grouped {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+    }
+    .mc-messages::-webkit-scrollbar { width: 6px; }
+    .mc-messages::-webkit-scrollbar-track { background: transparent; }
+    .mc-messages::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+
+    .mc-message {
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 0.625rem;
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .mc-major-banner {
+      display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      background: rgba(220,38,38,0.12);
+      color: var(--cp-danger);
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      border-bottom: 1px solid rgba(220,38,38,0.25);
+    }
+    .mc-card-body {
+      padding: 0.75rem 0.875rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      flex: 1;
+    }
+    .mc-card-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .mc-card-id {
+      font-size: 12px; font-weight: 600; color: var(--cp-link);
+      font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+      letter-spacing: 0.01em; flex-shrink: 0;
+    }
+    .mc-card-status {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      padding: 0.15rem 0.5rem; border-radius: 999px;
+      letter-spacing: 0.04em; flex-shrink: 0;
+    }
+    .mc-card-status.new { background: rgba(0,120,212,0.12); color: var(--cp-link); border: 1px solid rgba(0,120,212,0.3); }
+    .mc-card-status.updated { background: rgba(22,163,74,0.12); color: var(--cp-success); border: 1px solid rgba(22,163,74,0.3); }
+    .mc-card-product {
+      display: flex; align-items: center; gap: 0.35rem;
+      font-size: 12px; color: var(--cp-text-soft);
+      flex-shrink: 0; min-width: 0;
+      max-width: 60%;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .mc-card-product-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--cp-accent); flex-shrink: 0;
+    }
+    .mc-card-date {
+      font-size: 11px; color: var(--cp-text-muted);
+    }
+    .mc-card-date strong { color: var(--cp-text-soft); font-weight: 600; }
+    .mc-card-title {
+      font-size: 13px; font-weight: 600; color: var(--cp-text);
+      line-height: 1.4; cursor: pointer;
+    }
+    .mc-card-title:hover { color: var(--cp-accent); }
+    .mc-card-impact {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
+      font-size: 11px; color: var(--cp-text-muted);
+      margin-top: auto;
+    }
+    .mc-card-impact-label { font-weight: 600; }
+    .mc-impact-pill {
+      font-size: 10px; font-weight: 600;
+      padding: 0.1rem 0.5rem; border-radius: 999px;
+      border: 1px solid;
+    }
+    .mc-impact-pill.user  { color: #f59e0b; border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.08); }
+    .mc-impact-pill.admin { color: var(--cp-danger); border-color: rgba(220,38,38,0.4); background: rgba(220,38,38,0.08); }
+    .mc-impact-pill.feature { color: var(--cp-link); border-color: rgba(0,120,212,0.4); background: rgba(0,120,212,0.08); }
+    .mc-impact-pill.action { color: var(--cp-warning); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.08); }
+
+    .mc-product-group { display: flex; flex-direction: column; gap: 0.5rem; }
+    .mc-product-group + .mc-product-group { margin-top: 0.75rem; }
+    .mc-product-header {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 0.5rem; margin: 0;
+      font-size: 12px; font-weight: 700; color: var(--cp-text);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--cp-border);
+      position: sticky; top: 0;
+      background: var(--cp-bg);
+      z-index: 1;
+    }
+    .mc-product-cards {
+      display: grid; gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+    .mc-product-count {
+      font-size: 11px; font-weight: 500; color: var(--cp-text-muted);
+      text-transform: none; letter-spacing: 0;
+    }
+    .mc-empty { text-align: center; padding: 2rem; color: var(--cp-text-muted); }
+    .mc-loading {
+      text-align: center; padding: 2rem;
+      display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+      color: var(--cp-accent);
+    }
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid var(--cp-accent-soft); border-top-color: var(--cp-accent);
+      border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .export-btn {
+      padding: 0.3rem 0.75rem; background: var(--cp-accent);
+      border: 1px solid var(--cp-accent); border-radius: 0.5rem;
+      color: var(--cp-accent-fg); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
+    }
+    .export-btn:hover { background: var(--cp-accent-hover); border-color: var(--cp-accent-hover); }
+
+    /* Clickable cards */
+    .mc-message { cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+    .mc-message:hover { border-color: var(--cp-accent); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+    /* Modal */
+    .mc-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: none; align-items: center; justify-content: center;
+      z-index: 200; padding: 1.5rem;
+    }
+    .mc-modal-overlay.open { display: flex; }
+    .mc-modal {
+      background: var(--cp-surface); border: 1px solid var(--cp-border);
+      border-radius: 0.75rem; max-width: 900px; width: 100%;
+      max-height: 90vh; display: flex; flex-direction: column;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    }
+    .mc-modal-header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--cp-border);
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 1rem; flex-shrink: 0;
+    }
+    .mc-modal-title { font-size: 16px; font-weight: 600; color: var(--cp-text); line-height: 1.4; }
+    .mc-modal-meta { font-size: 12px; color: var(--cp-text-muted); margin-top: 0.25rem; }
+    .mc-modal-close {
+      background: transparent; border: none; cursor: pointer;
+      font-size: 22px; line-height: 1; color: var(--cp-text-muted);
+      padding: 0 0.25rem; flex-shrink: 0;
+    }
+    .mc-modal-close:hover { color: var(--cp-text); }
+    .mc-modal-body {
+      padding: 1rem 1.25rem; overflow-y: auto; flex: 1;
+      font-size: 13px; line-height: 1.55; color: var(--cp-text);
+    }
+    .mc-modal-body::-webkit-scrollbar { width: 6px; }
+    .mc-modal-body::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .mc-modal-section { margin-bottom: 1.25rem; }
+    .mc-modal-section:last-child { margin-bottom: 0; }
+    .mc-modal-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--cp-text-muted);
+      margin-bottom: 0.5rem;
+    }
+    .mc-modal-body p { margin: 0 0 0.75rem; }
+    .mc-modal-body p:last-child { margin-bottom: 0; }
+    .mc-modal-body a { color: var(--cp-link); text-decoration: none; }
+    .mc-modal-body a:hover { text-decoration: underline; }
+    .mc-modal-body ul, .mc-modal-body ol { margin: 0 0 0.75rem 1.25rem; }
+    .mc-modal-body li { margin-bottom: 0.25rem; }
+    .mc-modal-body img { max-width: 100%; border-radius: 6px; margin: 0.5rem 0; }
+    .mc-modal-body table { border-collapse: collapse; margin: 0.5rem 0; }
+    .mc-modal-body th, .mc-modal-body td { border: 1px solid var(--cp-border); padding: 0.4rem 0.6rem; text-align: left; }
+    .mc-detail-list { display: grid; grid-template-columns: 160px 1fr; gap: 0.4rem 1rem; font-size: 12.5px; }
+    .mc-detail-list dt { font-weight: 600; color: var(--cp-text-muted); }
+    .mc-detail-list dd { color: var(--cp-text); margin: 0; word-break: break-word; }
+    .mc-tag-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .mc-tag-pill {
+      font-size: 11px; padding: 0.2rem 0.55rem;
+      background: var(--cp-surface-soft); color: var(--cp-text-soft);
+      border: 1px solid var(--cp-border); border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
+    <div>
+      <div class="header-title">Microsoft Communications Portal</div>
+      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a></div>
+    </div>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
+  </header>
+
+  <nav class="page-tabs" aria-label="Primary">
+    <a class="nav-tab" href="/">Power Platform Release Planner</a>
+    <a class="nav-tab active" href="/messagecenter" aria-current="page">Microsoft 365 Message Center</a>
+    <a class="nav-tab" href="/m365updates">Microsoft 365 Roadmap</a>
+    <a class="nav-tab" href="/servicehealth">Microsoft 365 Service Health</a>
+    <a class="nav-tab" href="/azureupdates">Azure Updates</a>
+  </nav>
+
+  <div class="page-content">
+    <h1 class="page-heading">Microsoft 365 Message Center</h1>
+    <div class="mc-search-bar">
+      <label for="mc-search" class="sr-only">Search messages by title or description</label>
+      <input type="text" class="mc-search-input" id="mc-search"
+             placeholder="Search messages by title or description…"
+             aria-label="Search messages by title or description" oninput="debouncedSearch()">
+    </div>
+    <div class="mc-filters">
+      <div class="mc-filter-group">
+        <label class="mc-filter-label" for="mc-severity-filter">Severity:</label>
+        <select class="mc-filter-select" id="mc-severity-filter" onchange="filterMessages()">
+          <option value="">All Severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="normal">Normal</option>
+        </select>
+      </div>
+      <div class="mc-filter-group">
+        <label class="mc-filter-label" id="mc-product-label">Product:</label>
+        <div class="mc-multi" id="mc-service-multi">
+          <button type="button" class="mc-multi-toggle" id="mc-service-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="mc-product-label mc-service-label" onclick="toggleServiceMenu(event)">
+            <span id="mc-service-label">All Products</span>
+            <span class="mc-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="mc-multi-panel" id="mc-service-panel" onclick="event.stopPropagation()">
+            <div class="mc-multi-actions">
+              <button type="button" onclick="setAllServices(true)">Select all</button>
+              <button type="button" onclick="setAllServices(false)">Clear</button>
+            </div>
+            <div id="mc-service-options"></div>
+          </div>
+        </div>
+      </div>
+      <div class="mc-filter-group">
+        <label class="mc-filter-label" for="mc-sort">Sort:</label>
+        <select class="mc-filter-select" id="mc-sort" onchange="filterMessages()">
+          <option value="date-desc">Newest First</option>
+          <option value="date-asc">Oldest First</option>
+          <option value="product">Group by Product</option>
+        </select>
+      </div>
+      <div class="mc-filter-group">
+        <label class="mc-filter-label" for="mc-date-from">From:</label>
+        <input type="date" class="mc-filter-input" id="mc-date-from" onchange="filterMessages()">
+      </div>
+      <div class="mc-filter-group">
+        <label class="mc-filter-label" for="mc-date-to">To:</label>
+        <input type="date" class="mc-filter-input" id="mc-date-to" onchange="filterMessages()">
+      </div>
+      <div class="mc-filter-group" style="margin-left:auto;gap:0.75rem">
+        <span id="mc-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
+        <button class="export-btn" onclick="loadMessageCenter()">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="mc-messages" id="mc-messages-container">
+      <div class="mc-loading" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span>Loading Microsoft 365 Message Center…</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mc-modal-overlay" id="mc-modal" onclick="handleModalBackdrop(event)">
+    <div class="mc-modal" role="dialog" aria-modal="true" aria-labelledby="mc-modal-title">
+      <div class="mc-modal-header">
+        <div>
+          <div class="mc-modal-title" id="mc-modal-title"></div>
+          <div class="mc-modal-meta" id="mc-modal-meta"></div>
+        </div>
+        <button class="mc-modal-close" onclick="closeMessage()" aria-label="Close">×</button>
+      </div>
+      <div class="mc-modal-body" id="mc-modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    let allMessages = [];
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.getElementById('theme-btn').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
+    }
+    const curTheme = document.documentElement.getAttribute('data-theme');
+    document.getElementById('theme-btn').textContent = curTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+
+    async function loadMessageCenter() {
+      const container = document.getElementById('mc-messages-container');
+      container.innerHTML = '<div class="mc-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading…</span></div>';
+      try {
+        const res = await fetch('/api/messagecenter');
+        const data = await res.json();
+        if (data.error) {
+          container.innerHTML = `<div class="mc-empty">⚠️ ${escapeHtml(data.error)}</div>`;
+          return;
+        }
+        allMessages = data.messages || [];
+        populateServiceFilter();
+        filterMessages();
+      } catch (err) {
+        container.innerHTML = `<div class="mc-empty">❌ Failed to load: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function getServiceName(service) {
+      if (typeof service === 'string') return service;
+      if (!service || typeof service !== 'object') return '';
+      return service.displayName || service.serviceName || service.name || '';
+    }
+
+    function getMessageDescription(msg) {
+      const details = msg.details;
+
+      if (Array.isArray(details) && details.length > 0) {
+        const summaryItem = details.find(d => {
+          const key = (d && d.name ? String(d.name) : '').toLowerCase();
+          return key === 'summary';
+        });
+        if (summaryItem && summaryItem.value) {
+          return String(summaryItem.value);
+        }
+
+        const values = details
+          .map(d => (d && d.value ? String(d.value).trim() : ''))
+          .filter(Boolean);
+        if (values.length) {
+          return values.join(' · ');
+        }
+      }
+
+      const bodyContent = msg.body && typeof msg.body.content === 'string' ? msg.body.content : '';
+      const bodyText = bodyContent
+        ? bodyContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        : '';
+
+      const fallback = msg.description || msg.summary || bodyText || 'No details available.';
+      return typeof fallback === 'string' ? fallback : String(fallback);
+    }
+
+    let selectedServices = new Set();
+    let allServiceNames = [];
+
+    function populateServiceFilter() {
+      const services = new Set();
+      allMessages.forEach(msg => {
+        (msg.services || []).forEach(s => {
+          const name = getServiceName(s);
+          if (name) services.add(name);
+        });
+      });
+      allServiceNames = [...services].sort();
+
+      // Drop any previously selected items that no longer exist
+      [...selectedServices].forEach(s => { if (!services.has(s)) selectedServices.delete(s); });
+
+      const optsEl = document.getElementById('mc-service-options');
+      optsEl.innerHTML = allServiceNames.map(name => {
+        const id = 'mc-svc-' + name.replace(/[^a-z0-9]/gi, '_');
+        const checked = selectedServices.has(name) ? 'checked' : '';
+        return `
+          <label class="mc-multi-option">
+            <input type="checkbox" id="${id}" value="${escapeHtml(name)}" ${checked} onchange="onServiceToggle(this)">
+            <span>${escapeHtml(name)}</span>
+          </label>`;
+      }).join('');
+      updateServiceLabel();
+    }
+
+    function onServiceToggle(cb) {
+      if (cb.checked) selectedServices.add(cb.value);
+      else selectedServices.delete(cb.value);
+      updateServiceLabel();
+      filterMessages();
+    }
+
+    function setAllServices(select) {
+      selectedServices = select ? new Set(allServiceNames) : new Set();
+      document.querySelectorAll('#mc-service-options input[type=checkbox]').forEach(cb => {
+        cb.checked = select;
+      });
+      updateServiceLabel();
+      filterMessages();
+    }
+
+    function updateServiceLabel() {
+      const lbl = document.getElementById('mc-service-label');
+      const n = selectedServices.size;
+      if (n === 0 || n === allServiceNames.length) lbl.textContent = 'All Products';
+      else if (n === 1) lbl.textContent = [...selectedServices][0];
+      else lbl.textContent = `${n} products`;
+    }
+
+    function toggleServiceMenu(e) {
+      e.stopPropagation();
+      const wrap = document.getElementById('mc-service-multi');
+      const isOpen = wrap.classList.toggle('open');
+      const toggle = document.getElementById('mc-service-toggle');
+      if (toggle) toggle.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    document.addEventListener('click', (e) => {
+      const m = document.getElementById('mc-service-multi');
+      if (m && !m.contains(e.target)) {
+        m.classList.remove('open');
+        const toggle = document.getElementById('mc-service-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    function getMessageDate(msg) {
+      return new Date(msg.startDateTime || msg.lastModifiedDateTime || 0);
+    }
+
+    let __searchTimer = null;
+    function debouncedSearch() {
+      clearTimeout(__searchTimer);
+      __searchTimer = setTimeout(filterMessages, 150);
+    }
+
+    function filterMessages() {
+      const severity = document.getElementById('mc-severity-filter').value;
+      const sortBy   = document.getElementById('mc-sort').value;
+      const search   = (document.getElementById('mc-search').value || '').toLowerCase().trim();
+      const dateFrom = new Date(document.getElementById('mc-date-from').value || '1970-01-01');
+      const dateTo   = new Date(document.getElementById('mc-date-to').value || '2099-12-31');
+      const serviceFilterActive = selectedServices.size > 0 && selectedServices.size < allServiceNames.length;
+
+      const filtered = allMessages.filter(msg => {
+        const msgDate     = getMessageDate(msg);
+        const msgSeverity = (msg.severity || 'normal').toLowerCase();
+        const msgServices = (msg.services || []).map(s => getServiceName(s)).filter(Boolean);
+        const msgText     = ((msg.title || '') + ' ' + (msg.details || msg.description || msg.summary || '')).toLowerCase();
+
+        return msgDate >= dateFrom && msgDate <= dateTo &&
+               (!severity || msgSeverity === severity) &&
+               (!serviceFilterActive || msgServices.some(s => selectedServices.has(s))) &&
+               (!search   || msgText.includes(search));
+      });
+
+      filtered.sort((a, b) => {
+        const timeA = getMessageDate(a).getTime();
+        const timeB = getMessageDate(b).getTime();
+        return sortBy === 'date-asc' ? timeA - timeB : timeB - timeA;
+      });
+
+      const countEl = document.getElementById('mc-result-count');
+      if (countEl) countEl.textContent = `${filtered.length} of ${allMessages.length}`;
+      renderMessages(filtered);
+    }
+
+    function renderMessages(messages) {
+      const container = document.getElementById('mc-messages-container');
+      if (!messages || messages.length === 0) {
+        container.classList.remove('is-grouped');
+        container.innerHTML = '<div class="mc-empty">No messages match the current filters.</div>';
+        currentFiltered = [];
+        return;
+      }
+      currentFiltered = messages;
+      const sortBy = document.getElementById('mc-sort').value;
+
+      if (sortBy === 'product') {
+        container.classList.add('is-grouped');
+        // Group by primary service. If a message has no services, label "General".
+        const groups = new Map();
+        messages.forEach((msg, idx) => {
+          const svcList = (msg.services || []).map(getServiceName).filter(Boolean);
+          const key = svcList[0] || 'General';
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push({ msg, idx });
+        });
+        const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+        container.innerHTML = sortedKeys.map(key => {
+          const items = groups.get(key).sort((a, b) =>
+            new Date(b.msg.startDateTime || b.msg.lastModifiedDateTime || 0).getTime() -
+            new Date(a.msg.startDateTime || a.msg.lastModifiedDateTime || 0).getTime()
+          );
+          const cards = items.map(({ msg, idx }) => renderMessageCard(msg, idx)).join('');
+          return `
+            <div class="mc-product-group">
+              <div class="mc-product-header">${escapeHtml(key)} <span class="mc-product-count">(${items.length})</span></div>
+              <div class="mc-product-cards">${cards}</div>
+            </div>`;
+        }).join('');
+        return;
+      }
+
+      container.classList.remove('is-grouped');
+      container.innerHTML = messages.map((msg, idx) => renderMessageCard(msg, idx)).join('');
+    }
+
+    function renderMessageCard(msg, idx) {
+      const tags = (msg.tags || []).map(t => String(t).toLowerCase());
+      const isMajor = !!msg.isMajorChange || tags.some(t => t.includes('major'));
+      const isUpdated = tags.some(t => t.includes('updated'));
+      const status = isUpdated ? 'Updated' : 'New';
+      const statusClass = isUpdated ? 'updated' : 'new';
+      const product = (msg.services || []).map(getServiceName).filter(Boolean)[0] || 'General';
+      const id = msg.id || '';
+      const title = msg.title || 'Untitled';
+
+      const startDt = msg.startDateTime ? new Date(msg.startDateTime) : null;
+      const modDt = msg.lastModifiedDateTime ? new Date(msg.lastModifiedDateTime) : null;
+      const fmt = d => d && !isNaN(d.getTime())
+        ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      const dateLine = (() => {
+        const parts = [];
+        if (startDt) parts.push(`<span><strong>Published</strong> ${fmt(startDt)}</span>`);
+        if (isUpdated && modDt && fmt(modDt) !== fmt(startDt)) {
+          parts.push(`<span><strong>Updated</strong> ${fmt(modDt)}</span>`);
+        }
+        return parts.join(' &nbsp;•&nbsp; ');
+      })();
+
+      // Impact pills derived from tags / category / actionRequiredByDateTime
+      const impacts = [];
+      if (tags.some(t => t.includes('user impact'))) impacts.push({ cls: 'user', label: 'User' });
+      if (tags.some(t => t.includes('admin impact'))) impacts.push({ cls: 'admin', label: 'Admin' });
+      if (tags.some(t => t.includes('new feature'))) impacts.push({ cls: 'feature', label: 'New feature' });
+      if (msg.actionRequiredByDateTime) impacts.push({ cls: 'action', label: 'Action required' });
+      const impactHtml = impacts.length
+        ? `<div class="mc-card-impact">
+             <span class="mc-card-impact-label">Impact</span>
+             ${impacts.map(i => `<span class="mc-impact-pill ${i.cls}">${i.label}</span>`).join('')}
+           </div>`
+        : '';
+
+      return `
+        <div class="mc-message" onclick="openMessage(${idx})" data-idx="${idx}" title="${escapeHtml(title)}">
+          ${isMajor ? '<div class="mc-major-banner">⚠ Major Change</div>' : ''}
+          <div class="mc-card-body">
+            <div class="mc-card-top">
+              <div style="display:flex; align-items:center; gap:0.5rem; min-width:0;">
+                ${id ? `<span class="mc-card-id">${escapeHtml(id)}</span>` : ''}
+                <span class="mc-card-status ${statusClass}">${status}</span>
+              </div>
+              <div class="mc-card-product">
+                <span class="mc-card-product-dot"></span>
+                <span>${escapeHtml(product)}</span>
+              </div>
+            </div>
+            ${dateLine ? `<div class="mc-card-date">${dateLine}</div>` : ''}
+            <div class="mc-card-title">${escapeHtml(title)}</div>
+            ${impactHtml}
+          </div>
+        </div>`;
+    }
+
+    let currentFiltered = [];
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '—';
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return String(value);
+      return d.toLocaleString();
+    }
+
+    function openMessage(idx) {
+      const msg = currentFiltered[idx];
+      if (!msg) return;
+
+      document.getElementById('mc-modal-title').textContent = msg.title || 'Untitled';
+
+      const severity = (msg.severity || 'normal').toLowerCase();
+      const services = (msg.services || []).map(getServiceName).filter(Boolean).join(', ') || 'General';
+      const startStr = formatDateTime(msg.startDateTime);
+      document.getElementById('mc-modal-meta').textContent =
+        `${severity.toUpperCase()} • ${services} • ${startStr}${msg.id ? ' • ' + msg.id : ''}`;
+
+      const sections = [];
+
+      // Body (HTML, sanitized lightly via DOMParser to remove scripts)
+      if (msg.body && typeof msg.body.content === 'string') {
+        sections.push(`
+          <div class="mc-modal-section">
+            <div class="mc-modal-section-title">Message</div>
+            <div>${sanitizeHtml(msg.body.content, msg.body.contentType)}</div>
+          </div>`);
+      }
+
+      // Details key-value pairs
+      if (Array.isArray(msg.details) && msg.details.length) {
+        const rows = msg.details.map(d => `
+          <dt>${escapeHtml(d && d.name ? d.name : '')}</dt>
+          <dd>${escapeHtml(d && d.value != null ? d.value : '')}</dd>`).join('');
+        sections.push(`
+          <div class="mc-modal-section">
+            <div class="mc-modal-section-title">Details</div>
+            <dl class="mc-detail-list">${rows}</dl>
+          </div>`);
+      }
+
+      // Tags
+      if (Array.isArray(msg.tags) && msg.tags.length) {
+        const pills = msg.tags.map(t => `<span class="mc-tag-pill">${escapeHtml(t)}</span>`).join('');
+        sections.push(`
+          <div class="mc-modal-section">
+            <div class="mc-modal-section-title">Tags</div>
+            <div class="mc-tag-list">${pills}</div>
+          </div>`);
+      }
+
+      // Properties (everything else)
+      const propRows = [
+        ['ID', msg.id],
+        ['Category', msg.category],
+        ['Severity', msg.severity],
+        ['Services', (msg.services || []).map(getServiceName).filter(Boolean).join(', ')],
+        ['Start', formatDateTime(msg.startDateTime)],
+        ['End', formatDateTime(msg.endDateTime)],
+        ['Last Modified', formatDateTime(msg.lastModifiedDateTime)],
+        ['Action Required By', formatDateTime(msg.actionRequiredByDateTime)],
+        ['Major Change', msg.isMajorChange != null ? String(msg.isMajorChange) : ''],
+        ['Has Attachments', msg.hasAttachments != null ? String(msg.hasAttachments) : ''],
+      ].filter(([, v]) => v != null && v !== '');
+      if (propRows.length) {
+        const html = propRows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
+        sections.push(`
+          <div class="mc-modal-section">
+            <div class="mc-modal-section-title">Properties</div>
+            <dl class="mc-detail-list">${html}</dl>
+          </div>`);
+      }
+
+      document.getElementById('mc-modal-body').innerHTML = sections.join('') || '<div class="mc-empty">No additional details.</div>';
+      document.getElementById('mc-modal').classList.add('open');
+    }
+
+    function closeMessage() {
+      document.getElementById('mc-modal').classList.remove('open');
+    }
+
+    function handleModalBackdrop(e) {
+      if (e.target.id === 'mc-modal') closeMessage();
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeMessage();
+    });
+
+    function safeUrl(value) {
+      if (!value) return '#';
+      const trimmed = String(value).trim();
+      // Reject javascript:, data:, vbscript:, file:, and other non-safe schemes.
+      if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+        if (!/^(https?|mailto|tel):/i.test(trimmed)) return '#';
+      }
+      return trimmed;
+    }
+
+    function sanitizeHtml(content, contentType) {
+      if (contentType !== 'html') {
+        return `<p>${escapeHtml(content)}</p>`;
+      }
+      // Parse and strip dangerous nodes
+      const doc = new DOMParser().parseFromString(content, 'text/html');
+      doc.querySelectorAll('script, style, iframe, object, embed, form, base, meta, link, svg').forEach(n => n.remove());
+      doc.querySelectorAll('*').forEach(el => {
+        for (const attr of [...el.attributes]) {
+          const name = attr.name.toLowerCase();
+          const value = attr.value || '';
+          if (/^on/i.test(name) || name === 'formaction' || name === 'srcdoc') {
+            el.removeAttribute(attr.name);
+            continue;
+          }
+          if ((name === 'href' || name === 'src' || name === 'xlink:href') &&
+              /^\s*(javascript|data|vbscript|file):/i.test(value)) {
+            el.removeAttribute(attr.name);
+          }
+        }
+        if (el.tagName === 'A') {
+          el.setAttribute('target', '_blank');
+          el.setAttribute('rel', 'noopener noreferrer');
+        }
+      });
+      return doc.body.innerHTML;
+    }
+
+    // Load immediately on page open
+    loadMessageCenter();
+  </script>
+</body>
+</html>

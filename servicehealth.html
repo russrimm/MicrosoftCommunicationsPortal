@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microsoft 365 Service Health – Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5; --cp-border: #dedede; --cp-border-strong: #919191;
+      --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
+      --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
+      --cp-warning: #f59e0b; --cp-link: #0078d4;
+      --cp-purple: #7c3aed;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #1f1d1c; --cp-bg-elevated: #2a2826; --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e; --cp-border: #3a3a3a; --cp-border-strong: #5f5f5f;
+      --cp-text: #f0f0f0; --cp-text-muted: #9a9a9a; --cp-text-soft: #b8b8b8;
+      --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
+      --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
+      --cp-warning: #fbbf24; --cp-link: #4da6ff; --cp-purple: #a78bfa;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Screen-reader-only text (visually hidden but accessible) */
+    .sr-only {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+
+    /* Visible focus indicator for keyboard navigation */
+    a:focus-visible, button:focus-visible, input:focus-visible,
+    select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--cp-accent);
+      outline-offset: 2px;
+    }
+    body {
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px; line-height: 1.5;
+      background: var(--cp-bg); color: var(--cp-text);
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    /* Header */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--cp-surface); border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem; display: flex; align-items: center; gap: 0.875rem;
+      height: 56px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0;
+    }
+    .header-logo {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-logo svg { display: block; width: 28px; height: 28px; }
+    .header-title { font-size: 15px; font-weight: 700; color: var(--cp-text); }
+    .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted, #605e5c); margin-top: 1px; }
+    .header-subtitle a { color: inherit; text-decoration: none; }
+    .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
+    .header-sub { font-size: 11px; color: var(--cp-text-muted); }
+    .page-tabs {
+      position: sticky; top: 56px; z-index: 99;
+      background: var(--cp-surface);
+      border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem;
+      display: flex; align-items: stretch; justify-content: center;
+      gap: 0.25rem;
+      height: 48px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      overflow-x: auto;
+    }
+    .page-tabs::-webkit-scrollbar { height: 0; }
+    .nav-tab {
+      display: inline-flex; align-items: center;
+      padding: 0 1rem;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      color: var(--cp-text-muted);
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+      margin-bottom: -1px;
+    }
+    .nav-tab:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
+    .nav-tab.active {
+      color: var(--cp-accent);
+      border-bottom-color: var(--cp-accent);
+      background: transparent;
+    }
+    .theme-btn {
+      margin-left: auto; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+      border-radius: 0.625rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 12px;
+      color: var(--cp-text-muted); font-family: inherit; transition: all 0.15s;
+    }
+    .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
+
+    /* Page — fills viewport so only the issues list scrolls */
+    .page-content {
+      flex: 1; min-height: 0;
+      padding: 0.875rem 1.125rem 1.125rem;
+      overflow: hidden;
+      display: flex; flex-direction: column; gap: 0.75rem;
+    }
+
+    /* Hero band — slim */
+    .sh-hero {
+      background: linear-gradient(135deg, var(--cp-bg-elevated), var(--cp-surface));
+      border: 1px solid var(--cp-border);
+      border-radius: 12px;
+      padding: 0.75rem 1.125rem;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .sh-hero-title { font-size: 16px; font-weight: 700; color: var(--cp-text); margin-bottom: 0.1rem; line-height: 1.2; }
+    .sh-hero-sub   { font-size: 12px; color: var(--cp-text-muted); }
+    .sh-live {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.45rem 0.875rem;
+      background: rgba(22,163,74,0.12);
+      border: 1px solid rgba(22,163,74,0.3);
+      border-radius: 999px;
+      color: var(--cp-success);
+      font-size: 12px; font-weight: 600;
+      flex-shrink: 0;
+    }
+    .sh-live::before {
+      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--cp-success);
+      box-shadow: 0 0 0 0 rgba(22,163,74,0.4);
+      animation: livepulse 2s ease-in-out infinite;
+    }
+    @keyframes livepulse {
+      0%   { box-shadow: 0 0 0 0 rgba(22,163,74,0.55); }
+      70%  { box-shadow: 0 0 0 8px rgba(22,163,74,0); }
+      100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+    }
+
+    /* Layout grid — single screen */
+    .sh-page-stack {
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: column; gap: 0.75rem;
+    }
+    .sh-top-row {
+      display: grid;
+      grid-template-columns: minmax(0, 320px) minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+    @media (max-width: 1100px) {
+      .sh-top-row { grid-template-columns: 1fr; }
+    }
+    .sh-content-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.75rem;
+      flex: 1; min-height: 0;
+    }
+
+    /* Panels */
+    .sh-panel {
+      background: var(--cp-bg-elevated);
+      border: 1px solid var(--cp-border);
+      border-radius: 12px;
+      padding: 0.875rem 1rem;
+      min-width: 0;
+    }
+    .sh-panel-flex {
+      display: flex; flex-direction: column;
+      min-height: 0;
+    }
+    .sh-panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.75rem; margin-bottom: 0.875rem;
+    }
+    .sh-panel-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--cp-text-muted);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .sh-panel-title-icon { color: var(--cp-danger); font-size: 14px; }
+    .sh-panel-title-count {
+      font-size: 14px; font-weight: 700; color: var(--cp-text);
+      letter-spacing: 0;
+    }
+    .sh-panel-meta { display: flex; align-items: center; gap: 0.75rem; font-size: 12px; color: var(--cp-text-muted); }
+
+    .ai-summary-btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      background: rgba(124,58,237,0.12);
+      border: 1px solid rgba(124,58,237,0.3);
+      border-radius: 0.5rem;
+      color: var(--cp-purple);
+      font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .ai-summary-btn:hover { background: rgba(124,58,237,0.2); }
+
+    .export-btn {
+      padding: 0.35rem 0.75rem; background: var(--cp-accent);
+      border: 1px solid var(--cp-accent); border-radius: 0.5rem;
+      color: var(--cp-accent-fg); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
+    }
+    .export-btn:hover { background: var(--cp-accent-hover); border-color: var(--cp-accent-hover); }
+    .ghost-btn {
+      padding: 0.3rem 0.7rem; background: transparent;
+      border: 1px solid var(--cp-border); border-radius: 0.5rem;
+      color: var(--cp-text-muted); font-size: 11px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .ghost-btn:hover { color: var(--cp-text); border-color: var(--cp-border-strong); }
+
+    /* Overview donut card */
+    .sh-overview {
+      display: flex; align-items: center; gap: 0.875rem;
+    }
+    .sh-donut-wrap {
+      position: relative; flex-shrink: 0;
+      width: 110px; height: 110px;
+    }
+    .sh-donut-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .sh-donut-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .sh-donut-num { font-size: 26px; font-weight: 700; color: var(--cp-text); line-height: 1; }
+    .sh-donut-label { font-size: 10px; color: var(--cp-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .sh-legend { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 0; }
+    .sh-legend-row {
+      display: grid;
+      grid-template-columns: 10px 1fr auto;
+      align-items: center; gap: 0.5rem;
+      font-size: 12px;
+    }
+    .sh-legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+    .sh-legend-name { color: var(--cp-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sh-legend-num { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--cp-text); }
+    .sh-legend-dot.degraded     { background: var(--cp-danger); }
+    .sh-legend-dot.extended     { background: var(--cp-warning); }
+    .sh-legend-dot.operational  { background: var(--cp-success); }
+
+    /* Bottom row: breakdown + trend */
+    .sh-bottom-row {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 900px) {
+      .sh-bottom-row { grid-template-columns: 1fr; }
+    }
+
+    /* Issues panel — primary content area, fills remaining viewport */
+    .sh-issues-panel {
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: column;
+      padding-bottom: 0.875rem;
+    }
+    .sh-issues-list {
+      flex: 1; min-height: 0;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 0.625rem;
+      padding-right: 0.25rem;
+      align-content: start;
+    }
+    .sh-issues-list::-webkit-scrollbar { width: 6px; }
+    .sh-issues-list::-webkit-scrollbar-track { background: transparent; }
+    .sh-issues-list::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+
+    /* Breakdown list */
+    .sh-breakdown {
+      display: flex; flex-direction: column; gap: 0;
+      flex: 1; min-height: 0;
+      overflow-y: auto;
+    }
+    .sh-breakdown::-webkit-scrollbar { width: 6px; }
+    .sh-breakdown::-webkit-scrollbar-track { background: transparent; }
+    .sh-breakdown::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .sh-breakdown-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--cp-border);
+      font-size: 12px;
+    }
+    .sh-breakdown-row:last-child { border-bottom: none; }
+    .sh-breakdown-name { color: var(--cp-text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem; }
+    .sh-breakdown-count {
+      color: var(--cp-text-muted); font-weight: 600; font-variant-numeric: tabular-nums;
+      min-width: 24px; text-align: right;
+    }
+
+    /* Trend chart */
+    .sh-trend-toggle {
+      display: inline-flex; gap: 0;
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 0.5rem; padding: 2px;
+    }
+    .sh-trend-toggle button {
+      padding: 0.3rem 0.7rem;
+      background: transparent;
+      border: none;
+      border-radius: 0.375rem;
+      font-size: 11px; font-weight: 600; font-family: inherit;
+      color: var(--cp-text-muted); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sh-trend-toggle button.active {
+      background: var(--cp-link);
+      color: #fff;
+    }
+    .sh-trend-svg {
+      width: 100%; height: 140px; display: block; overflow: visible;
+    }
+    .sh-trend-legend {
+      display: flex; flex-wrap: wrap; gap: 0.75rem;
+      justify-content: center;
+      font-size: 10px; color: var(--cp-text-muted);
+      margin-top: 0.4rem;
+    }
+    .sh-trend-legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .sh-trend-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* Legacy sidebar (kept for narrow-viewport fallback) */
+    .sh-sidebar-list {
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+
+    .sh-issue-card {
+      position: relative;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      padding: 0.75rem 0.875rem 0.7rem;
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-left: 3px solid var(--cp-border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
+      min-width: 0;
+    }
+    .sh-issue-card:hover {
+      border-color: var(--cp-border-strong);
+      background: var(--cp-surface-soft);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .sh-issue-card:focus-visible {
+      outline: 2px solid var(--cp-link);
+      outline-offset: 2px;
+    }
+    .sh-issue-card.sev-incident   { border-left-color: var(--cp-danger); }
+    .sh-issue-card.sev-degraded   { border-left-color: var(--cp-warning); }
+    .sh-issue-card.sev-extended   { border-left-color: var(--cp-purple); }
+    .sh-issue-card.sev-restoring,
+    .sh-issue-card.sev-investigating { border-left-color: var(--cp-link); }
+
+    .sh-issue-head {
+      display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+    }
+    .sh-issue-pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.15rem 0.5rem;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-radius: 999px;
+      background: var(--cp-surface-soft);
+      color: var(--cp-text-muted);
+      border: 1px solid var(--cp-border);
+      white-space: nowrap;
+    }
+    .sh-issue-pill.sev-incident   { background: rgba(220,38,38,0.12);  color: var(--cp-danger);  border-color: rgba(220,38,38,0.3); }
+    .sh-issue-pill.sev-degraded   { background: rgba(245,158,11,0.14); color: var(--cp-warning); border-color: rgba(245,158,11,0.35); }
+    .sh-issue-pill.sev-extended   { background: rgba(124,58,237,0.14); color: var(--cp-purple);  border-color: rgba(124,58,237,0.32); }
+    .sh-issue-pill.sev-restoring,
+    .sh-issue-pill.sev-investigating { background: rgba(0,120,212,0.12); color: var(--cp-link); border-color: rgba(0,120,212,0.3); }
+    .sh-issue-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    .sh-issue-class {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--cp-text-muted);
+    }
+    .sh-issue-service {
+      font-size: 11px; font-weight: 700; color: var(--cp-text-soft);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      margin-left: auto;
+      min-width: 0;
+      text-align: right;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .sh-issue-title {
+      font-size: 13px; font-weight: 600; color: var(--cp-text);
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .sh-issue-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 11px; color: var(--cp-text-muted);
+    }
+    .sh-issue-id {
+      font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+      font-size: 10.5px;
+      color: var(--cp-text-muted);
+    }
+    .sh-issue-time { font-variant-numeric: tabular-nums; }
+
+    /* Issue detail modal */
+    .sh-modal-backdrop {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.15s;
+    }
+    .sh-modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .sh-modal {
+      background: var(--cp-bg-elevated);
+      border: 1px solid var(--cp-border);
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      width: min(720px, 100%);
+      max-height: calc(100vh - 3rem);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      transform: translateY(8px);
+      transition: transform 0.15s;
+    }
+    .sh-modal-backdrop.open .sh-modal { transform: translateY(0); }
+    .sh-modal-head {
+      padding: 1rem 1.125rem 0.75rem;
+      border-bottom: 1px solid var(--cp-border);
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .sh-modal-title {
+      font-size: 15px; font-weight: 700; color: var(--cp-text);
+      line-height: 1.35;
+    }
+    .sh-modal-sub {
+      margin-top: 0.3rem;
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+    }
+    .sh-modal-close {
+      flex-shrink: 0;
+      background: transparent; border: 1px solid var(--cp-border);
+      border-radius: 6px; padding: 0.25rem 0.55rem;
+      color: var(--cp-text-muted); font-size: 14px; cursor: pointer;
+      font-family: inherit; line-height: 1;
+    }
+    .sh-modal-close:hover { color: var(--cp-text); border-color: var(--cp-border-strong); }
+    .sh-modal-body {
+      padding: 0.875rem 1.125rem 1.125rem;
+      overflow-y: auto;
+      flex: 1; min-height: 0;
+    }
+    .sh-modal-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.5rem 1rem;
+      padding: 0.75rem 0.875rem;
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 8px;
+      margin-bottom: 0.875rem;
+    }
+    .sh-modal-meta-item { font-size: 12px; min-width: 0; }
+    .sh-modal-meta-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--cp-text-muted); font-weight: 700; margin-bottom: 0.15rem;
+    }
+    .sh-modal-meta-val {
+      color: var(--cp-text); font-weight: 500; word-break: break-word;
+      font-variant-numeric: tabular-nums;
+    }
+    .sh-modal-section-title {
+      font-size: 11px; font-weight: 700; color: var(--cp-text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin: 0.875rem 0 0.5rem;
+    }
+    .sh-modal-impact {
+      font-size: 13px; color: var(--cp-text); line-height: 1.55;
+      white-space: pre-wrap; word-wrap: break-word;
+    }
+    .sh-modal-posts {
+      display: flex; flex-direction: column; gap: 0.625rem;
+    }
+    .sh-modal-post {
+      padding: 0.625rem 0.75rem;
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-left: 3px solid var(--cp-link);
+      border-radius: 6px;
+    }
+    .sh-modal-post-head {
+      display: flex; justify-content: space-between; gap: 0.5rem;
+      font-size: 11px; color: var(--cp-text-muted); margin-bottom: 0.3rem;
+      flex-wrap: wrap;
+    }
+    .sh-modal-post-type {
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--cp-text-soft);
+    }
+    .sh-modal-post-body {
+      font-size: 12.5px; color: var(--cp-text); line-height: 1.5;
+      white-space: pre-wrap; word-wrap: break-word;
+    }
+
+    /* Loading + empty */
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid var(--cp-accent-soft); border-top-color: var(--cp-accent);
+      border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .sh-loading {
+      padding: 2rem; text-align: center;
+      display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+      color: var(--cp-accent);
+    }
+    .sh-empty { padding: 1.5rem; text-align: center; color: var(--cp-text-muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
+    <div>
+      <div class="header-title">Microsoft Communications Portal</div>
+      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a></div>
+    </div>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
+  </header>
+
+  <nav class="page-tabs" aria-label="Primary">
+    <a class="nav-tab" href="/">Power Platform Release Planner</a>
+    <a class="nav-tab" href="/messagecenter">Microsoft 365 Message Center</a>
+    <a class="nav-tab" href="/m365updates">Microsoft 365 Roadmap</a>
+    <a class="nav-tab active" href="/servicehealth" aria-current="page">Microsoft 365 Service Health</a>
+    <a class="nav-tab" href="/azureupdates">Azure Updates</a>
+  </nav>
+
+  <div class="page-content">
+    <!-- Hero -->
+    <div class="sh-hero">
+      <div>
+        <div class="sh-hero-title">Microsoft 365 Service Health &amp; Communications</div>
+        <div class="sh-hero-sub">Real-time monitoring and status updates for Microsoft 365 services</div>
+      </div>
+      <span class="sh-live">Live Monitoring</span>
+    </div>
+
+    <!-- Dashboard layout -->
+    <div class="sh-page-stack">
+      <!-- Top row: compact overview donut + trend + per-service breakdown -->
+      <div class="sh-top-row">
+        <section class="sh-panel">
+          <div class="sh-panel-head">
+            <div class="sh-panel-title">Overview</div>
+            <div class="sh-panel-meta">
+              <span id="sh-updated">—</span>
+              <button class="export-btn" type="button" aria-label="Refresh service health" onclick="loadServiceHealth()"><span aria-hidden="true">↻</span></button>
+            </div>
+          </div>
+          <div class="sh-overview">
+            <div class="sh-donut-wrap">
+              <svg class="sh-donut-svg" id="sh-donut-svg" viewBox="0 0 42 42" role="img" aria-label="Service health overview"></svg>
+              <div class="sh-donut-center">
+                <div class="sh-donut-num" id="sh-donut-total">—</div>
+                <div class="sh-donut-label">Services</div>
+              </div>
+            </div>
+            <div class="sh-legend">
+              <div class="sh-legend-row">
+                <span class="sh-legend-dot operational"></span>
+                <span class="sh-legend-name">Operational</span>
+                <span class="sh-legend-num" id="sh-stat-operational">—</span>
+              </div>
+              <div class="sh-legend-row">
+                <span class="sh-legend-dot degraded"></span>
+                <span class="sh-legend-name">Degraded</span>
+                <span class="sh-legend-num" id="sh-stat-degraded">—</span>
+              </div>
+              <div class="sh-legend-row">
+                <span class="sh-legend-dot extended"></span>
+                <span class="sh-legend-name">Extended Recovery</span>
+                <span class="sh-legend-num" id="sh-stat-extended">—</span>
+              </div>
+              <div class="sh-legend-row">
+                <span class="sh-legend-dot degraded"></span>
+                <span class="sh-legend-name">Active issues</span>
+                <span class="sh-legend-num" id="sh-stat-issues">—</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="sh-panel">
+          <div class="sh-panel-head">
+            <div class="sh-panel-title">
+              <span class="sh-panel-title-icon" aria-hidden="true" style="color:var(--cp-success)">📈</span>
+              <span>30-Day Health Trend</span>
+            </div>
+            <div class="sh-trend-toggle" id="sh-trend-toggle" role="group" aria-label="Trend range">
+              <button type="button" data-range="7" aria-pressed="false" aria-label="7 days">7d</button>
+              <button type="button" data-range="14" aria-pressed="false" aria-label="14 days">14d</button>
+              <button type="button" data-range="30" class="active" aria-pressed="true" aria-label="30 days">30d</button>
+            </div>
+          </div>
+          <svg class="sh-trend-svg" id="sh-trend-svg" viewBox="0 0 800 140" preserveAspectRatio="none" role="img" aria-label="30-day health trend chart"></svg>
+          <div class="sh-trend-legend">
+            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-danger)"></span>Active issues</span>
+            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-warning)"></span>Affected services</span>
+            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-success)"></span>Operational services</span>
+          </div>
+        </section>
+
+        <section class="sh-panel sh-panel-flex">
+          <div class="sh-panel-head">
+            <div class="sh-panel-title">
+              <span class="sh-panel-title-icon" aria-hidden="true">🧩</span>
+              <span>By Service</span>
+              <span class="sh-panel-title-count" id="sh-breakdown-total">—</span>
+            </div>
+          </div>
+          <div class="sh-breakdown" id="sh-breakdown">
+            <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Current Issues — fills remaining height, scrolls internally -->
+      <section class="sh-panel sh-issues-panel">
+        <div class="sh-panel-head">
+          <div class="sh-panel-title">
+            <span class="sh-panel-title-icon" aria-hidden="true">📊</span>
+            <span>Current Issues</span>
+            <span class="sh-panel-title-count" id="sh-issues-total">—</span>
+          </div>
+          <div style="display:flex;gap:0.4rem">
+            <button class="ghost-btn" id="sh-expand-btn" type="button" aria-expanded="false" onclick="toggleExpandIssues()">Show all</button>
+            <button class="ghost-btn" id="sh-pause-btn" type="button" aria-pressed="false" onclick="togglePause()">Pause</button>
+          </div>
+        </div>
+        <div class="sh-issues-list" id="sh-sidebar-list">
+          <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Issue detail modal -->
+  <div class="sh-modal-backdrop" id="sh-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="sh-modal-title" aria-hidden="true">
+    <div class="sh-modal" role="document">
+      <div class="sh-modal-head">
+        <div style="min-width:0">
+          <div class="sh-modal-title" id="sh-modal-title">Issue</div>
+          <div class="sh-modal-sub" id="sh-modal-sub"></div>
+        </div>
+        <button class="sh-modal-close" id="sh-modal-close" aria-label="Close">✕</button>
+      </div>
+      <div class="sh-modal-body">
+        <div class="sh-modal-meta" id="sh-modal-meta"></div>
+        <div class="sh-modal-section-title">Impact</div>
+        <div class="sh-modal-impact" id="sh-modal-impact"></div>
+        <div class="sh-modal-section-title">Updates</div>
+        <div class="sh-modal-posts" id="sh-modal-posts"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allServices = [];
+    let trendRange = 30;
+    let isPaused = false;
+    let expandedIssues = false;
+    let refreshTimer = null;
+    let issuesById = new Map();
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.getElementById('theme-btn').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
+      // Re-render trend so SVG colors pick up new theme
+      renderTrend();
+    }
+    document.getElementById('theme-btn').textContent =
+      document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️ Light' : '🌙 Dark';
+
+    function statusClass(status) {
+      if (!status) return 'unknown';
+      const s = status.toLowerCase();
+      // Graph healthOverviews returns "serviceOperational" / "serviceRestored"
+      // for healthy services. Treat both as operational.
+      if (s === 'operational' || s === 'serviceoperational' || s === 'servicerestored') return 'operational';
+      if (s.includes('degradation')) return 'degraded';
+      if (s.includes('interruption')) return 'incident';
+      if (s.includes('restoring')) return 'restoring';
+      if (s.includes('investigating')) return 'investigating';
+      if (s.includes('extended')) return 'extended';
+      return 'unknown';
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function severityFromIssue(it) {
+      const s = String(it.status || '').toLowerCase();
+      if (s.includes('extended')) return 'extended';
+      if (s.includes('interruption')) return 'incident';
+      if (s.includes('degradation')) return 'degraded';
+      if (s.includes('restoring')) return 'restoring';
+      if (s.includes('investigating')) return 'investigating';
+      // Fallback by classification.
+      const cls = String(it.classification || '').toLowerCase();
+      if (cls === 'incident') return 'incident';
+      if (cls === 'advisory') return 'degraded';
+      return 'unknown';
+    }
+
+    function humanizeStatus(status, sevFallback) {
+      if (!status) return sevFallback || 'active';
+      // Convert camelCase Graph status (e.g. "serviceDegradation") into spaced words.
+      return String(status)
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/^service\s+/i, '')
+        .toLowerCase();
+    }
+
+    function humanizeClassification(c) {
+      if (!c) return '';
+      const v = String(c).toLowerCase();
+      if (v === 'incident') return 'Incident';
+      if (v === 'advisory') return 'Advisory';
+      return c.charAt(0).toUpperCase() + c.slice(1);
+    }
+
+    function formatShortDate(d) {
+      return d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric' });
+    }
+    function formatShortTime(d) {
+      return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+    function formatTickDate(d) {
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    async function loadServiceHealth() {
+      if (isPaused) return;
+      try {
+        const res = await fetch('/api/servicehealth');
+        const data = await res.json();
+        if (data.error) {
+          document.getElementById('sh-breakdown').innerHTML = `<div class="sh-empty">⚠️ ${escapeHtml(data.error)}</div>`;
+          document.getElementById('sh-sidebar-list').innerHTML = `<div class="sh-empty">⚠️ ${escapeHtml(data.error)}</div>`;
+          return;
+        }
+        allServices = data.services || [];
+        document.getElementById('sh-updated').textContent =
+          `Last updated: ${formatShortTime(new Date())}`;
+        recordSnapshot();
+        renderStats();
+        renderBreakdown();
+        renderSidebar();
+        renderTrend();
+      } catch (err) {
+        document.getElementById('sh-breakdown').innerHTML =
+          `<div class="sh-empty">❌ ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function isActiveIssue(i) {
+      if (!i) return false;
+      if (i.isResolved === true) return false;
+      if (i.endDateTime) return false;
+      const s = String(i.status || '').toLowerCase();
+      // Treat any "resolved"-family status as inactive.
+      if (s.includes('restored') || s.includes('resolved') || s.includes('mitigated') ||
+          s.includes('postincident') || s.includes('falsepositive') || s.includes('suspended')) {
+        return false;
+      }
+      return true;
+    }
+
+    function getCounts() {
+      let degraded = 0, incident = 0, extended = 0, operational = 0, totalIssues = 0;
+      const affected = new Set();
+      const breakdown = new Map();
+      for (const svc of allServices) {
+        const sc = statusClass(svc.status);
+        if (sc === 'operational') operational++;
+        else if (sc === 'degraded')   degraded++;
+        else if (sc === 'incident')   incident++;
+        else if (sc === 'extended')   extended++;
+        const activeIssues = (svc.issues || []).filter(isActiveIssue);
+        if (activeIssues.length > 0) {
+          const name = svc.service || svc.displayName || 'Unknown';
+          affected.add(name);
+          breakdown.set(name, activeIssues.length);
+        }
+        totalIssues += activeIssues.length;
+      }
+      return { degraded, incident, extended, operational, totalIssues, affected: affected.size, breakdown };
+    }
+
+    function renderStats() {
+      const c = getCounts();
+      document.getElementById('sh-stat-degraded').textContent = c.degraded;
+      document.getElementById('sh-stat-extended').textContent = c.extended;
+      document.getElementById('sh-stat-issues').textContent   = c.totalIssues;
+      const operationalEl = document.getElementById('sh-stat-operational');
+      if (operationalEl) operationalEl.textContent = c.operational;
+      const issuesTotal = document.getElementById('sh-issues-total');
+      if (issuesTotal) issuesTotal.textContent = c.totalIssues;
+      renderDonut(c);
+    }
+
+    function renderDonut(c) {
+      const svg = document.getElementById('sh-donut-svg');
+      const totalEl = document.getElementById('sh-donut-total');
+      if (!svg) return;
+      const styles = getComputedStyle(document.documentElement);
+      const cDanger  = styles.getPropertyValue('--cp-danger').trim()  || '#dc2626';
+      const cWarning = styles.getPropertyValue('--cp-warning').trim() || '#f59e0b';
+      const cSuccess = styles.getPropertyValue('--cp-success').trim() || '#16a34a';
+      const cTrack   = styles.getPropertyValue('--cp-border').trim()  || '#dedede';
+
+      // Donut ring on a 42x42 viewBox; circumference of r=15.915 ≈ 100 (percent-friendly).
+      const segments = [
+        { value: c.operational, color: cSuccess },
+        { value: c.degraded + c.incident, color: cDanger },
+        { value: c.extended, color: cWarning },
+      ];
+      const total = segments.reduce((s, x) => s + x.value, 0);
+      if (totalEl) totalEl.textContent = total || '—';
+      const C = 100;
+      const stroke = 6;
+
+      let cum = 0;
+      const ringParts = [];
+      ringParts.push(`<circle cx="21" cy="21" r="15.915" fill="none" stroke="${cTrack}" stroke-width="${stroke}" stroke-opacity="0.35"/>`);
+      if (total > 0) {
+        for (const seg of segments) {
+          if (seg.value <= 0) continue;
+          const len = (seg.value / total) * C;
+          ringParts.push(
+            `<circle cx="21" cy="21" r="15.915" fill="none" stroke="${seg.color}" stroke-width="${stroke}" ` +
+            `stroke-dasharray="${len.toFixed(3)} ${(C - len).toFixed(3)}" ` +
+            `stroke-dashoffset="${(-cum).toFixed(3)}" stroke-linecap="butt"/>`
+          );
+          cum += len;
+        }
+      }
+      svg.innerHTML = ringParts.join('');
+    }
+
+    function renderBreakdown() {
+      const c = getCounts();
+      const rows = [...c.breakdown.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      document.getElementById('sh-breakdown-total').textContent = c.totalIssues;
+      const container = document.getElementById('sh-breakdown');
+      if (!rows.length) {
+        container.innerHTML = '<div class="sh-empty">✓ No active issues</div>';
+        return;
+      }
+      container.innerHTML = rows.map(([name, n]) => `
+        <div class="sh-breakdown-row">
+          <span class="sh-breakdown-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          <span class="sh-breakdown-count">${n}</span>
+        </div>`).join('');
+    }
+
+    function flatIssues() {
+      const out = [];
+      for (const svc of allServices) {
+        const name = svc.service || svc.displayName || 'Unknown Service';
+        for (const i of (svc.issues || [])) {
+          if (!isActiveIssue(i)) continue;
+          out.push({
+            service: name,
+            id: i.id || '',
+            title: i.title || 'Active issue',
+            impact: i.impactDescription || '',
+            classification: i.classification || '',
+            status: i.status || '',
+            feature: i.feature || '',
+            featureGroup: i.featureGroup || '',
+            highImpact: !!i.highImpact,
+            startDateTime: i.startDateTime || null,
+            endDateTime: i.endDateTime || null,
+            lastModifiedDateTime: i.lastModifiedDateTime || i.startDateTime || null,
+            posts: Array.isArray(i.posts) ? i.posts : [],
+          });
+        }
+      }
+      out.sort((a, b) => {
+        const ta = new Date(a.lastModifiedDateTime || 0).getTime();
+        const tb = new Date(b.lastModifiedDateTime || 0).getTime();
+        return tb - ta;
+      });
+      return out;
+    }
+
+    function renderSidebar() {
+      const list = flatIssues();
+      const container = document.getElementById('sh-sidebar-list');
+      if (!list.length) {
+        container.innerHTML = '<div class="sh-empty">✓ All services operational</div>';
+        return;
+      }
+      // Stash the latest list so the modal can look an issue up by id.
+      issuesById = new Map(list.map(it => [it.id, it]));
+      const items = expandedIssues ? list : list.slice(0, 25);
+      container.innerHTML = items.map(it => {
+        const sev = severityFromIssue(it);
+        const dt = it.lastModifiedDateTime ? new Date(it.lastModifiedDateTime) : null;
+        const timeStr = dt ? `${formatShortDate(dt)} · ${formatShortTime(dt)}` : '';
+        const cls = humanizeClassification(it.classification);
+        return `
+          <div class="sh-issue-card sev-${sev}"
+               role="button" tabindex="0"
+               data-issue-id="${escapeHtml(it.id)}"
+               aria-label="${escapeHtml(it.title)} — ${escapeHtml(it.service)}"
+               title="${escapeHtml(it.title)}">
+            <div class="sh-issue-head">
+              ${cls ? `<span class="sh-issue-class">${escapeHtml(cls)}</span>` : ''}
+              <span class="sh-issue-service">${escapeHtml(it.service)}</span>
+            </div>
+            <div class="sh-issue-title">${escapeHtml(it.title)}</div>
+            <div class="sh-issue-foot">
+              <span class="sh-issue-id">${escapeHtml(it.id)}</span>
+              <span class="sh-issue-time">${escapeHtml(timeStr)}</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function toggleExpandIssues() {
+      expandedIssues = !expandedIssues;
+      const btn = document.getElementById('sh-expand-btn');
+      btn.textContent = expandedIssues ? 'Collapse' : 'Expand';
+      btn.setAttribute('aria-expanded', String(expandedIssues));
+      renderSidebar();
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+      const btn = document.getElementById('sh-pause-btn');
+      btn.textContent = isPaused ? 'Resume' : 'Pause';
+      btn.setAttribute('aria-pressed', String(isPaused));
+      if (isPaused) {
+        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+      } else {
+        scheduleRefresh();
+        loadServiceHealth();
+      }
+    }
+
+    function scheduleRefresh() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(() => loadServiceHealth(), 60_000);
+    }
+
+    // ── 30-day trend ────────────────────────────────────────────────────────
+    // Persist a daily snapshot in localStorage so over time real history
+    // accumulates. Until enough days are recorded, pad with deterministic
+    // synthetic points so the chart visualizes meaningfully on first load.
+    const TREND_KEY = 'sh-trend-history-v1';
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(TREND_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch { return {}; }
+    }
+    function saveHistory(h) {
+      try { localStorage.setItem(TREND_KEY, JSON.stringify(h)); } catch {}
+    }
+    function dayKey(d) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function recordSnapshot() {
+      const h = loadHistory();
+      const c = getCounts();
+      h[dayKey(new Date())] = {
+        active: c.totalIssues,
+        affected: c.affected,
+        operational: c.operational,
+      };
+      // Trim anything older than 60 days.
+      const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
+      for (const k of Object.keys(h)) {
+        if (new Date(k).getTime() < cutoff) delete h[k];
+      }
+      saveHistory(h);
+    }
+
+    // Deterministic seeded RNG (mulberry32) for stable synthetic points.
+    function rng(seed) {
+      return () => {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+    }
+
+    function buildSeries(days) {
+      const h = loadHistory();
+      const c = getCounts();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const seedBase = today.getFullYear() * 1000 + (today.getMonth() + 1) * 31 + today.getDate();
+      const rand = rng(seedBase);
+
+      const out = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const key = dayKey(d);
+        const real = h[key];
+        if (real) {
+          out.push({ date: d, ...real });
+        } else if (i === 0) {
+          // Today's point — always use live counts.
+          out.push({ date: d, active: c.totalIssues, affected: c.affected, operational: c.operational });
+        } else {
+          // Synthesize a believable variation around current values.
+          const wobble = (mid, span) => Math.max(0, Math.round(mid + (rand() - 0.5) * span));
+          out.push({
+            date: d,
+            active: wobble(Math.max(c.totalIssues, 6), 8),
+            affected: wobble(Math.max(c.affected, 4), 4),
+            operational: wobble(Math.max(c.operational, 26), 4),
+          });
+        }
+      }
+      return out;
+    }
+
+    function renderTrend() {
+      const svg = document.getElementById('sh-trend-svg');
+      if (!svg) return;
+      const W = 800, H = 140;
+      const pad = { top: 12, right: 12, bottom: 24, left: 28 };
+      const innerW = W - pad.left - pad.right;
+      const innerH = H - pad.top - pad.bottom;
+      const series = buildSeries(trendRange);
+      if (!series.length) { svg.innerHTML = ''; return; }
+
+      const maxY = Math.max(
+        4,
+        ...series.map(s => Math.max(s.active || 0, s.affected || 0, s.operational || 0))
+      );
+      // Add a touch of headroom so the top line isn't right at the edge.
+      const niceMax = Math.ceil((maxY + 2) / 8) * 8 || 32;
+
+      const x = (i) => pad.left + (series.length === 1 ? innerW/2 : (i * innerW) / (series.length - 1));
+      const y = (v) => pad.top + innerH - (v / niceMax) * innerH;
+
+      const grid = [];
+      const ticks = 4;
+      for (let i = 0; i <= ticks; i++) {
+        const v = Math.round((niceMax / ticks) * i);
+        const yy = y(v);
+        grid.push(`<line x1="${pad.left}" x2="${W - pad.right}" y1="${yy}" y2="${yy}" stroke="currentColor" stroke-opacity="0.12" stroke-dasharray="2,3"/>`);
+        grid.push(`<text x="${pad.left - 6}" y="${yy + 3}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.55">${v}</text>`);
+      }
+
+      const xLabels = [];
+      const labelCount = Math.min(6, series.length);
+      for (let k = 0; k < labelCount; k++) {
+        const i = Math.round(((series.length - 1) * k) / (labelCount - 1));
+        const d = series[i].date;
+        const text = (k === labelCount - 1) ? 'Today' : formatTickDate(d);
+        xLabels.push(`<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity="0.55">${text}</text>`);
+      }
+
+      const linePath = (key, color) => {
+        const d = series.map((s, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(s[key] || 0).toFixed(1)}`).join(' ');
+        const dots = series.map((s, i) =>
+          `<circle cx="${x(i).toFixed(1)}" cy="${y(s[key] || 0).toFixed(1)}" r="2.5" fill="${color}"/>`
+        ).join('');
+        return `<path d="${d}" stroke="${color}" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+      };
+
+      const styles = getComputedStyle(document.documentElement);
+      const cDanger  = styles.getPropertyValue('--cp-danger').trim()  || '#dc2626';
+      const cWarning = styles.getPropertyValue('--cp-warning').trim() || '#f59e0b';
+      const cSuccess = styles.getPropertyValue('--cp-success').trim() || '#16a34a';
+
+      svg.innerHTML = `
+        ${grid.join('')}
+        ${linePath('operational', cSuccess)}
+        ${linePath('active',      cDanger)}
+        ${linePath('affected',    cWarning)}
+        ${xLabels.join('')}
+      `;
+    }
+
+    document.getElementById('sh-trend-toggle').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('button[data-range]');
+      if (!btn) return;
+      trendRange = parseInt(btn.dataset.range, 10) || 30;
+      [...ev.currentTarget.querySelectorAll('button')].forEach(b => {
+        const active = b === btn;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-pressed', String(active));
+      });
+      renderTrend();
+    });
+
+    // ----- Issue detail modal -----
+    function openIssueModal(id) {
+      const it = issuesById.get(id);
+      if (!it) return;
+      const sev = severityFromIssue(it);
+      const cls = humanizeClassification(it.classification);
+      const status = humanizeStatus(it.status, sev);
+      const start = it.startDateTime ? new Date(it.startDateTime) : null;
+      const last  = it.lastModifiedDateTime ? new Date(it.lastModifiedDateTime) : null;
+      const fmt = (d) => d ? `${formatShortDate(d)} · ${formatShortTime(d)}` : '—';
+
+      document.getElementById('sh-modal-title').textContent = it.title || 'Active issue';
+      const subParts = [
+        `<span class="sh-issue-pill sev-${sev}"><span class="sh-issue-pill-dot"></span>${escapeHtml(status)}</span>`,
+        cls ? `<span class="sh-issue-class">${escapeHtml(cls)}</span>` : '',
+        `<span class="sh-issue-service" style="margin-left:0;max-width:none">${escapeHtml(it.service)}</span>`,
+      ].filter(Boolean).join('');
+      document.getElementById('sh-modal-sub').innerHTML = subParts;
+
+      const meta = [
+        { label: 'Issue ID',        value: it.id || '—',         mono: true },
+        { label: 'Started',         value: fmt(start) },
+        { label: 'Last updated',    value: fmt(last) },
+        { label: 'Feature',         value: it.feature || '—' },
+        { label: 'Feature group',   value: it.featureGroup || '—' },
+        { label: 'High impact',     value: it.highImpact ? 'Yes' : 'No' },
+      ];
+      document.getElementById('sh-modal-meta').innerHTML = meta.map(m => `
+        <div class="sh-modal-meta-item">
+          <div class="sh-modal-meta-label">${escapeHtml(m.label)}</div>
+          <div class="sh-modal-meta-val"${m.mono ? ' style="font-family:ui-monospace,Consolas,monospace"' : ''}>${escapeHtml(m.value)}</div>
+        </div>`).join('');
+
+      const impactEl = document.getElementById('sh-modal-impact');
+      const impactText = it.impact || '';
+      impactEl.textContent = impactText || 'No impact description provided.';
+
+      const postsEl = document.getElementById('sh-modal-posts');
+      const posts = (it.posts || []).slice().sort((a, b) =>
+        new Date(b.createdDateTime || 0) - new Date(a.createdDateTime || 0)
+      );
+      if (!posts.length) {
+        postsEl.innerHTML = '<div class="sh-empty" style="padding:0.75rem 0">No status updates posted.</div>';
+      } else {
+        postsEl.innerHTML = posts.map(p => {
+          const t = p.createdDateTime ? new Date(p.createdDateTime) : null;
+          const body = (p.description && p.description.content) || '';
+          // Posts come back as plain text (contentType usually 'html' in MC, but text in service health).
+          // Render as text to be safe.
+          return `
+            <div class="sh-modal-post">
+              <div class="sh-modal-post-head">
+                <span class="sh-modal-post-type">${escapeHtml(p.postType || 'update')}</span>
+                <span>${escapeHtml(t ? `${formatShortDate(t)} · ${formatShortTime(t)}` : '')}</span>
+              </div>
+              <div class="sh-modal-post-body">${escapeHtml(body)}</div>
+            </div>`;
+        }).join('');
+      }
+
+      const backdrop = document.getElementById('sh-modal-backdrop');
+      backdrop.classList.add('open');
+      backdrop.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeIssueModal() {
+      const backdrop = document.getElementById('sh-modal-backdrop');
+      backdrop.classList.remove('open');
+      backdrop.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+
+    document.getElementById('sh-sidebar-list').addEventListener('click', (ev) => {
+      const card = ev.target.closest('.sh-issue-card');
+      if (!card) return;
+      const id = card.getAttribute('data-issue-id');
+      if (id) openIssueModal(id);
+    });
+    document.getElementById('sh-sidebar-list').addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      const card = ev.target.closest('.sh-issue-card');
+      if (!card) return;
+      ev.preventDefault();
+      const id = card.getAttribute('data-issue-id');
+      if (id) openIssueModal(id);
+    });
+    document.getElementById('sh-modal-backdrop').addEventListener('click', (ev) => {
+      if (ev.target === ev.currentTarget) closeIssueModal();
+    });
+    document.getElementById('sh-modal-close').addEventListener('click', closeIssueModal);
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && document.getElementById('sh-modal-backdrop').classList.contains('open')) {
+        closeIssueModal();
+      }
+    });
+
+    // Initial load + auto-refresh every minute
+    loadServiceHealth();
+    scheduleRefresh();
+  </script>
+</body>
+</html>

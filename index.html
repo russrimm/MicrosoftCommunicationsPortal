@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5; --cp-border: #dedede; --cp-border-strong: #919191;
+      --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
+      --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
+      --cp-warning: #f59e0b; --cp-link: #0078d4;
+      --cp-highlight: rgba(177,31,75,0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e; --cp-border: #474747; --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede; --cp-text-muted: #919191; --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
+      --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
+      --cp-warning: #fbbf24; --cp-link: #4da6ff;
+      --cp-highlight: rgba(253,142,161,0.12);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Screen-reader-only text (visually hidden but accessible) */
+    .sr-only {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+
+    /* Visible focus indicator for keyboard navigation */
+    a:focus-visible, button:focus-visible, input:focus-visible,
+    select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--cp-accent);
+      outline-offset: 2px;
+    }
+
+    body {
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      background: var(--cp-bg);
+      color: var(--cp-text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--cp-surface);
+      border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem;
+      display: flex; align-items: center; gap: 0.875rem;
+      height: 56px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .header-logo {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-logo svg { display: block; width: 28px; height: 28px; }
+    .header-title { font-size: 15px; font-weight: 700; color: var(--cp-text); }
+    .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted, #605e5c); margin-top: 1px; }
+    .header-subtitle a { color: inherit; text-decoration: none; }
+    .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
+    .page-heading {
+      font-size: 22px; font-weight: 700;
+      color: var(--cp-text);
+      margin: 0 0 0.875rem;
+      padding: 0 0 0.625rem;
+      border-bottom: 1px solid var(--cp-border);
+      display: flex; align-items: center; gap: 0.625rem;
+      letter-spacing: -0.005em;
+      flex-shrink: 0;
+    }
+    .page-heading::before {
+      content: ""; display: inline-block;
+      width: 4px; height: 22px;
+      background: var(--cp-accent);
+      border-radius: 2px;
+    }
+    .page-tabs {
+      position: sticky; top: 56px; z-index: 99;
+      background: var(--cp-surface);
+      border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem;
+      display: flex; align-items: stretch; justify-content: center;
+      gap: 0.25rem;
+      height: 48px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      overflow-x: auto;
+    }
+    .page-tabs::-webkit-scrollbar { height: 0; }
+    .nav-tab {
+      display: inline-flex; align-items: center;
+      padding: 0 1rem;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      color: var(--cp-text-muted);
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+      margin-bottom: -1px;
+    }
+    .nav-tab:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
+    .nav-tab.active {
+      color: var(--cp-accent);
+      border-bottom-color: var(--cp-accent);
+      background: transparent;
+    }
+    .theme-btn {
+      margin-left: auto;
+      background: var(--cp-surface-soft);
+      border: 1px solid var(--cp-border);
+      border-radius: 0.625rem;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer; font-size: 12px;
+      color: var(--cp-text-muted); font-family: inherit;
+      transition: all 0.15s;
+    }
+    .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
+
+    /* ── Layout ── */
+    .app-layout { display: flex; height: calc(100vh - 104px); overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 272px; flex-shrink: 0;
+      background: var(--cp-bg-elevated);
+      border-right: 1px solid var(--cp-border);
+      overflow-y: auto;
+      padding: 0.875rem;
+    }
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+
+    .filter-sec { margin-bottom: 1rem; }
+    .filter-title {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--cp-text-muted);
+      margin-bottom: 0.4rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .filter-clear { background: none; border: none; cursor: pointer; color: var(--cp-accent); font-size: 10px; padding: 0; font-weight: 600; }
+    .filter-clear:hover { text-decoration: underline; }
+    .sep { height: 1px; background: var(--cp-border); margin: 0.625rem 0; }
+
+    .search-input {
+      width: 100%; padding: 0.45rem 0.7rem;
+      border: 1px solid var(--cp-border);
+      border-radius: 0.625rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 13px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--cp-accent); }
+    .search-input::placeholder { color: var(--cp-text-muted); }
+
+    .cb-list {
+      display: flex; flex-direction: column; gap: 0.3rem;
+      max-height: 180px; overflow-y: auto;
+    }
+    .cb-list::-webkit-scrollbar { width: 4px; }
+    .cb-list::-webkit-scrollbar-track { background: transparent; }
+    .cb-list::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .cb-item {
+      display: flex; align-items: center; gap: 0.4rem;
+      cursor: pointer; padding: 0.15rem 0;
+    }
+    .cb-item input[type="checkbox"] { accent-color: var(--cp-accent); width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
+    .cb-lbl { font-size: 12px; color: var(--cp-text); cursor: pointer; flex: 1; line-height: 1.3; }
+    .cb-count {
+      font-size: 10px; color: var(--cp-text-muted);
+      background: var(--cp-surface-soft);
+      border-radius: 999px; padding: 0 0.4rem;
+      flex-shrink: 0; min-width: 22px; text-align: center;
+    }
+    .cb-grp-hdr {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--cp-text-muted);
+      padding: 0.35rem 0 0.15rem 0;
+    }
+    .cb-grp-hdr:first-child { padding-top: 0; }
+
+    /* Toggle switch */
+    .toggle-row { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+    .toggle-input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-visual {
+      position: relative; width: 34px; height: 18px;
+      background: var(--cp-border);
+      border-radius: 9px; cursor: pointer;
+      flex-shrink: 0; transition: background 0.2s;
+    }
+    .toggle-visual::after {
+      content: ''; position: absolute;
+      width: 12px; height: 12px;
+      background: white; border-radius: 50%;
+      top: 3px; left: 3px;
+      transition: left 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .toggle-input:checked + .toggle-visual { background: var(--cp-accent); }
+    .toggle-input:checked + .toggle-visual::after { left: 19px; }
+
+    /* Clear all */
+    .clear-all-btn {
+      width: 100%; padding: 0.45rem;
+      background: var(--cp-accent-soft);
+      border: 1px solid var(--cp-accent);
+      border-radius: 0.625rem;
+      color: var(--cp-accent); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+      margin-bottom: 0.75rem;
+    }
+    .clear-all-btn:hover { background: var(--cp-accent); color: var(--cp-accent-fg); }
+
+    .custom-load-btn {
+      width: 100%; padding: 0.4rem;
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 0.625rem;
+      color: var(--cp-text-soft); font-size: 12px;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+      margin-top: 0.4rem;
+    }
+    .custom-load-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+
+    /* ── Main Content ── */
+    .content { flex: 1; overflow-y: auto; padding: 1.125rem; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-track { background: transparent; }
+    .content::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 0.875rem; gap: 1rem;
+    }
+    .feat-count { font-size: 13px; color: var(--cp-text-muted); }
+    .feat-count strong { color: var(--cp-text); font-weight: 600; }
+
+    /* Message Center */
+    .mc-container { display: none; }
+    .mc-container.active { display: flex; flex-direction: column; height: 100%; }
+    .mc-search-bar {
+      margin-bottom: 0.625rem;
+    }
+    .mc-search-input {
+      width: 100%; padding: 0.5rem 0.875rem;
+      border: 1px solid var(--cp-border);
+      border-radius: 0.625rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 13px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+      box-sizing: border-box;
+    }
+    .mc-search-input:focus { border-color: var(--cp-accent); }
+    .mc-search-input::placeholder { color: var(--cp-text-muted); }
+    .mc-filters {
+      display: flex; gap: 1rem; margin-bottom: 1rem;
+      flex-wrap: wrap; align-items: center;
+    }
+    .mc-filter-group {
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .mc-filter-label { font-size: 12px; color: var(--cp-text-muted); font-weight: 600; }
+    .mc-filter-input, .mc-filter-select {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--cp-border);
+      border-radius: 0.375rem;
+      background: var(--cp-surface);
+      color: var(--cp-text);
+      font-size: 12px; font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .mc-filter-input:focus, .mc-filter-select:focus { border-color: var(--cp-accent); }
+    .mc-messages {
+      flex: 1; overflow-y: auto;
+      display: grid; gap: 0.875rem;
+    }
+    .mc-messages::-webkit-scrollbar { width: 6px; }
+    .mc-messages::-webkit-scrollbar-track { background: transparent; }
+    .mc-messages::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .mc-message {
+      padding: 1rem;
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 0.625rem;
+      border-left: 4px solid var(--cp-accent);
+    }
+    .mc-message.critical { border-left-color: var(--cp-danger); }
+    .mc-message.high { border-left-color: var(--cp-warning); }
+    .mc-message.normal { border-left-color: var(--cp-success); }
+    .mc-message-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 1rem; margin-bottom: 0.5rem;
+    }
+    .mc-message-title { font-size: 14px; font-weight: 600; color: var(--cp-text); }
+    .mc-message-badge {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      padding: 0.2rem 0.5rem; border-radius: 0.25rem;
+      background: var(--cp-accent-soft); color: var(--cp-accent);
+    }
+    .mc-message.critical .mc-message-badge { background: rgba(220,38,38,0.15); color: var(--cp-danger); }
+    .mc-message.high .mc-message-badge { background: rgba(245,158,11,0.15); color: var(--cp-warning); }
+    .mc-message.normal .mc-message-badge { background: rgba(22,163,74,0.15); color: var(--cp-success); }
+    .mc-message-meta {
+      font-size: 11px; color: var(--cp-text-muted); margin-bottom: 0.5rem;
+    }
+    .mc-message-description { font-size: 13px; color: var(--cp-text-soft); line-height: 1.4; }
+    .mc-empty {
+      text-align: center; padding: 2rem; color: var(--cp-text-muted);
+    }
+    .mc-loading {
+      text-align: center; padding: 2rem;
+      display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+      color: var(--cp-accent);
+    }
+
+    /* ── Service Health ── */
+    .sh-container { display: none; flex-direction: column; height: 100%; }
+    .sh-container.active { display: flex; }
+    .sh-toolbar {
+      display: flex; align-items: center; gap: 1rem;
+      margin-bottom: 1rem; flex-wrap: wrap;
+    }
+    .sh-summary {
+      display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;
+      flex: 1;
+    }
+    .sh-summary-chip {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 12px; font-weight: 600;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--cp-border);
+    }
+    .sh-summary-chip.healthy { background: rgba(22,163,74,0.1); color: var(--cp-success); border-color: var(--cp-success); }
+    .sh-summary-chip.degraded { background: rgba(245,158,11,0.12); color: var(--cp-warning); border-color: var(--cp-warning); }
+    .sh-summary-chip.incident { background: rgba(220,38,38,0.1); color: var(--cp-danger); border-color: var(--cp-danger); }
+    #sh-content {
+      flex: 1; overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 0.875rem;
+      align-content: start;
+    }
+    #sh-content::-webkit-scrollbar { width: 6px; }
+    #sh-content::-webkit-scrollbar-track { background: transparent; }
+    #sh-content::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .sh-service-card {
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    .sh-service-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.875rem 1rem;
+      border-bottom: 1px solid var(--cp-border);
+    }
+    .sh-status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .sh-status-dot.operational { background: var(--cp-success); }
+    .sh-status-dot.degraded, .sh-status-dot.serviceDegradation { background: var(--cp-warning); }
+    .sh-status-dot.incident, .sh-status-dot.serviceInterruption { background: var(--cp-danger); }
+    .sh-status-dot.investigating, .sh-status-dot.restoringService { background: #a78bfa; }
+    .sh-status-dot.unknown { background: var(--cp-border); }
+    .sh-service-name { font-size: 13px; font-weight: 600; color: var(--cp-text); flex: 1; }
+    .sh-status-label {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 0.2rem 0.5rem; border-radius: 0.25rem;
+    }
+    .sh-status-label.operational { background: rgba(22,163,74,0.1); color: var(--cp-success); }
+    .sh-status-label.degraded, .sh-status-label.serviceDegradation { background: rgba(245,158,11,0.12); color: var(--cp-warning); }
+    .sh-status-label.incident, .sh-status-label.serviceInterruption { background: rgba(220,38,38,0.1); color: var(--cp-danger); }
+    .sh-status-label.investigating, .sh-status-label.restoringService { background: rgba(167,139,250,0.15); color: #7c3aed; }
+    .sh-status-label.unknown { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
+    .sh-issues {
+      padding: 0.625rem 1rem;
+    }
+    .sh-issue {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--cp-border);
+      font-size: 12px;
+    }
+    .sh-issue:last-child { border-bottom: none; }
+    .sh-issue-title { font-weight: 600; color: var(--cp-text); margin-bottom: 0.2rem; }
+    .sh-issue-meta { color: var(--cp-text-muted); font-size: 11px; }
+
+    /* Loading banner */
+    .loading-banner {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.625rem 0.875rem;
+      background: var(--cp-accent-soft);
+      border: 1px solid var(--cp-accent);
+      border-radius: 0.625rem;
+      margin-bottom: 0.875rem;
+      font-size: 13px; color: var(--cp-accent);
+    }
+    .loading-banner.hidden { display: none; }
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid var(--cp-accent-soft);
+      border-top-color: var(--cp-accent);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Product group */
+    .product-group { margin-bottom: 2.25rem; }
+    .product-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin-bottom: 1rem; cursor: pointer;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--cp-accent);
+      user-select: none;
+    }
+    .product-header:hover .product-name { color: var(--cp-accent); }
+    .product-name { font-size: 17px; font-weight: 700; color: var(--cp-text); transition: color 0.15s; }
+    .product-feat-count { margin-left: auto; font-size: 12px; color: var(--cp-text-muted); }
+    .product-chevron { font-size: 11px; color: var(--cp-text-muted); transition: transform 0.2s; }
+    .product-chevron.collapsed { transform: rotate(-90deg); }
+
+    .area-group { margin-bottom: 1.375rem; }
+    .area-header {
+      font-size: 12px; font-weight: 600;
+      color: var(--cp-text-soft);
+      margin-bottom: 0.625rem; padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--cp-border);
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .area-count { font-weight: 400; color: var(--cp-text-muted); font-size: 11px; }
+
+    /* Features grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 0.625rem;
+    }
+
+    /* Feature card */
+    .feature-card {
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 0 2px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.12);
+      transition: box-shadow 0.15s, border-color 0.15s;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .feature-card:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08);
+      border-color: var(--cp-border-strong);
+    }
+    .card-top { padding: 0.75rem 0.875rem; flex: 1 1 auto; }
+    .card-details { flex: 0 0 auto; }
+    .expand-btn { margin-top: auto; }
+    .card-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.4rem; }
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      font-size: 10.5px; font-weight: 600;
+      white-space: nowrap; line-height: 1.5;
+    }
+    .b-shipped  { background: rgba(22,163,74,0.1);   color: var(--cp-success); }
+    .b-planned  { background: rgba(245,158,11,0.12); color: var(--cp-warning); }
+    .b-na       { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
+    .b-ai       { background: var(--cp-highlight);   color: var(--cp-accent); }
+    .b-new      { background: rgba(0,120,212,0.08);  color: var(--cp-link); }
+    .b-enh      { background: var(--cp-surface-soft); color: var(--cp-text-soft); }
+    .b-wave     { background: var(--cp-surface-soft); color: var(--cp-text-soft); }
+    .b-product  { background: var(--cp-accent-soft);  color: var(--cp-accent); }
+    .b-area     { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
+
+    .card-name {
+      font-size: 13.5px; font-weight: 600;
+      color: var(--cp-text); line-height: 1.4;
+      margin-bottom: 0.4rem;
+    }
+    .card-meta {
+      display: flex; flex-wrap: wrap; gap: 0.5rem 0.875rem;
+      font-size: 11.5px; color: var(--cp-text-muted);
+    }
+    .meta-item { display: flex; align-items: baseline; gap: 0.2rem; }
+    .meta-lbl { font-weight: 600; }
+    .s-shipped { color: var(--cp-success); font-weight: 600; }
+    .s-planned { color: var(--cp-warning); font-weight: 600; }
+    .s-na      { color: var(--cp-text-muted); }
+
+    /* Expand button */
+    .expand-btn {
+      width: 100%;
+      display: flex; align-items: center; justify-content: center; gap: 0.25rem;
+      padding: 0.4rem 0.875rem;
+      background: var(--cp-surface-soft);
+      border: none; border-top: 1px solid var(--cp-border);
+      cursor: pointer; font-size: 11.5px; color: var(--cp-text-muted);
+      font-family: inherit; transition: all 0.15s;
+    }
+    .expand-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); }
+    .expand-chevron { font-size: 9px; transition: transform 0.2s; }
+    .expand-btn.open .expand-chevron { transform: rotate(180deg); }
+
+    /* Details pane */
+    .card-details {
+      padding: 0.875rem;
+      border-top: 1px solid var(--cp-border);
+      background: var(--cp-bg-elevated);
+      font-size: 13px; line-height: 1.65;
+      display: none;
+    }
+    .card-details.visible { display: block; }
+    .detail-sec { margin-bottom: 0.75rem; }
+    .detail-sec:last-child { margin-bottom: 0; }
+    .detail-title {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--cp-text-muted);
+      margin-bottom: 0.35rem;
+    }
+    .detail-body { color: var(--cp-text); }
+    .detail-body p  { margin-bottom: 0.4rem; }
+    .detail-body ul, .detail-body ol { padding-left: 1.2rem; margin-bottom: 0.4rem; }
+    .detail-body li { margin-bottom: 0.2rem; }
+    .detail-body h1,.detail-body h2,.detail-body h3,.detail-body h4 {
+      font-size: 12.5px; font-weight: 700; margin: 0.6rem 0 0.25rem;
+    }
+    .detail-body a { color: var(--cp-link); text-decoration: none; }
+    .detail-body a:hover { text-decoration: underline; }
+    .detail-body img { max-width: 100%; border-radius: 8px; margin: 0.4rem 0; }
+    .detail-body strong { font-weight: 600; }
+
+    .docs-link {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      color: var(--cp-link); font-size: 12px;
+      text-decoration: none;
+      padding: 0.3rem 0.6rem;
+      border: 1px solid currentColor;
+      border-radius: 0.4rem;
+      margin-top: 0.5rem; transition: all 0.15s;
+    }
+    .docs-link:hover { background: rgba(0,120,212,0.08); }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 4rem 2rem; color: var(--cp-text-muted);
+    }
+    .empty-icon { font-size: 2.75rem; margin-bottom: 0.875rem; opacity: 0.45; }
+    .empty-ttl  { font-size: 17px; font-weight: 600; color: var(--cp-text); margin-bottom: 0.4rem; }
+    .empty-sub  { font-size: 13px; }
+
+    /* Date range filter */
+    .date-range-row {
+      display: flex; gap: 0.4rem; align-items: center;
+      margin-bottom: 0.4rem;
+    }
+    .date-label { font-size: 11px; color: var(--cp-text-muted); min-width: 22px; }
+    .date-input {
+      flex: 1; padding: 0.35rem 0.5rem;
+      border: 1px solid var(--cp-border);
+      border-radius: 0.5rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 11.5px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .date-input:focus { border-color: var(--cp-accent); }
+    .date-presets {
+      display: flex; flex-wrap: wrap; gap: 0.3rem;
+      margin-bottom: 0.5rem;
+    }
+    .preset-btn {
+      padding: 0.2rem 0.55rem;
+      border: 1px solid var(--cp-border);
+      border-radius: 999px;
+      background: var(--cp-surface);
+      color: var(--cp-text-soft); font-size: 11px; cursor: pointer;
+      font-family: inherit; transition: all 0.15s; white-space: nowrap;
+    }
+    .preset-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); background: var(--cp-accent-soft); }
+    .preset-btn.active { border-color: var(--cp-accent); color: var(--cp-accent-fg); background: var(--cp-accent); }
+    .select-all-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--cp-accent); font-size: 10px; padding: 0; font-weight: 600;
+    }
+    .select-all-btn:hover { text-decoration: underline; }
+    .filter-title-actions { display: flex; gap: 0.4rem; }
+
+    /* Sort select */
+    .sort-select {
+      padding: 0.3rem 0.6rem;
+      border: 1px solid var(--cp-border);
+      border-radius: 0.5rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 12px; font-family: inherit; cursor: pointer; outline: none;
+    }
+    .sort-select:focus { border-color: var(--cp-accent); }
+    .export-btn {
+      padding: 0.3rem 0.75rem;
+      background: var(--cp-accent);
+      border: 1px solid var(--cp-accent);
+      border-radius: 0.5rem;
+      color: var(--cp-accent-fg); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .export-btn:hover { background: var(--cp-accent-hover); border-color: var(--cp-accent-hover); }
+    .export-btn:disabled { opacity: 0.5; cursor: default; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .app-layout { flex-direction: column; height: auto; overflow: visible; }
+      .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--cp-border); }
+      .content { overflow-y: visible; }
+      .features-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
+    <div>
+      <div class="header-title">Microsoft Communications Portal</div>
+      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a></div>
+    </div>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
+  </header>
+
+  <nav class="page-tabs" aria-label="Primary">
+    <a class="nav-tab active" href="/" aria-current="page">Power Platform Release Planner</a>
+    <a class="nav-tab" href="/messagecenter">Microsoft 365 Message Center</a>
+    <a class="nav-tab" href="/m365updates">Microsoft 365 Roadmap</a>
+    <a class="nav-tab" href="/servicehealth">Microsoft 365 Service Health</a>
+    <a class="nav-tab" href="/azureupdates">Azure Updates</a>
+  </nav>
+
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <button class="clear-all-btn" onclick="clearAll()">↺ Clear All Filters</button>
+
+      <div class="filter-sec">
+        <div class="filter-title">Search</div>
+        <label for="search-input" class="sr-only">Search features, products, areas</label>
+        <input type="text" class="search-input" id="search-input"
+               placeholder="Search features, products, areas…"
+               aria-label="Search features, products, areas"
+               oninput="handleSearch(this.value)">
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="filter-sec">
+        <div class="filter-title">Date Range (GA / Preview) <button class="filter-clear" onclick="clearDateRange()">Clear</button></div>
+        <div class="date-presets">
+          <button class="preset-btn" id="preset-30" onclick="applyPreset(30)">±30 days</button>
+          <button class="preset-btn" id="preset-90" onclick="applyPreset(90)">±90 days</button>
+          <button class="preset-btn" id="preset-wave" onclick="applyCurrentWave()">Current Wave</button>
+        </div>
+        <div class="date-range-row">
+          <label class="date-label" for="date-from">From</label>
+          <input type="date" class="date-input" id="date-from" title="Filter from date" onchange="handleDateChange()">
+        </div>
+        <div class="date-range-row">
+          <label class="date-label" for="date-to">To</label>
+          <input type="date" class="date-input" id="date-to" title="Filter to date" onchange="handleDateChange()">
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="filter-sec">
+        <div class="filter-title">Product <span class="filter-title-actions"><button class="select-all-btn" onclick="selectAllProducts()">All</button><button class="filter-clear" onclick="clearKey('products')">Clear</button></span></div>
+        <div class="cb-list" id="f-products"></div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="filter-sec">
+        <div class="filter-title">Product Area <button class="filter-clear" onclick="clearKey('areas')">Clear</button></div>
+        <div class="cb-list" id="f-areas"></div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="filter-sec">
+        <div class="filter-title">Release Wave (GA) <button class="filter-clear" onclick="clearKey('waves')">Clear</button></div>
+        <div class="cb-list" id="f-waves"></div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="filter-sec">
+        <div class="filter-title">GA Status <button class="filter-clear" onclick="clearKey('gaStatus')">Clear</button></div>
+        <div class="cb-list" id="f-ga-status"></div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="filter-sec">
+        <div class="filter-title">Feature Type <button class="filter-clear" onclick="clearKey('featureType')">Clear</button></div>
+        <div class="cb-list" id="f-type"></div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="filter-sec">
+        <div class="filter-title">Enabled For <button class="filter-clear" onclick="clearKey('enabledFor')">Clear</button></div>
+        <div class="cb-list" id="f-enabled"></div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="filter-sec">
+        <div class="filter-title">AI Features Only</div>
+        <label class="toggle-row">
+          <input type="checkbox" class="toggle-input" id="ai-toggle" onchange="handleAi(this.checked)">
+          <span class="toggle-visual"></span>
+          <span class="cb-lbl">AI Contribution features only</span>
+        </label>
+      </div>
+
+      <div class="sep" hidden></div>
+
+      <div class="filter-sec" hidden>
+        <div class="filter-title">Load Products <span class="filter-title-actions"><button class="select-all-btn" onclick="selectAllPickerProducts(true)">All</button><button class="filter-clear" onclick="selectAllPickerProducts(false)">None</button></span></div>
+        <div class="cb-list" id="product-picker" style="max-height:300px"></div>
+        <button class="custom-load-btn" onclick="loadSelectedProducts()" style="margin-top:0.5rem">Load Selected →</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="content">
+      <h1 class="page-heading">Power Platform Release Planner</h1>
+      <div class="toolbar">
+        <div class="feat-count" id="feat-count">Loading…</div>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <label for="sort-select" class="sr-only">Sort or group order</label>
+          <select class="sort-select" id="sort-select" onchange="renderFeatures()" aria-label="Sort or group order">
+            <option value="date">Sort by GA Date (newest first)</option>
+            <option value="product">Group by Product</option>
+            <option value="wave">Sort by Release Wave</option>
+            <option value="name">Sort by Feature Name</option>
+          </select>
+          <button class="export-btn" id="export-btn" onclick="exportToHtml()">⬇ Export HTML</button>
+        </div>
+      </div>
+
+      <div class="loading-banner" id="loading-banner" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span id="loading-text">Loading Power Platform release data…</span>
+      </div>
+
+      <div id="features-container"></div>
+    </main>
+  </div>
+
+  <script>
+    // ════════════════════════════════════════════════
+    // CONFIG
+    // ════════════════════════════════════════════════
+    // Filter category labels (keep this order — drives section order in UI)
+    const CATEGORY_ORDER = ['Power Platform', 'Dynamics 365', 'Role-based Copilots', 'Other'];
+
+    const PRODUCTS = [
+      // ── Power Platform ─────────────────────────────────────────
+      { id: 'e72f17ac-715d-e911-a968-000d3a4e32b5', name: 'Power Apps',                                       category: 'Power Platform' },
+      { id: 'e92f17ac-715d-e911-a968-000d3a4e32b5', name: 'Power Automate',                                   category: 'Power Platform' },
+      { id: '1019ec3d-1dc5-e911-a969-000d3a4f36ce', name: 'Microsoft Copilot Studio',                         category: 'Power Platform' },
+      { id: 'a0e02858-50a4-ea11-a812-000d3a8faea9', name: 'Microsoft Dataverse',                              category: 'Power Platform' },
+      { id: 'dbedfa94-1517-ea11-a811-000d3a8f010c', name: 'Power Platform governance and administration',     category: 'Power Platform' },
+      { id: 'f3f92645-5223-ea11-a810-000d3a8f0f1e', name: 'Power Platform pro development',                   category: 'Power Platform' },
+      { id: '1197f7de-0a44-ec11-8c62-00224829b77f', name: 'Power Pages',                                      category: 'Power Platform' },
+
+      // ── Dynamics 365 ───────────────────────────────────────────
+      { id: 'bb2f17ac-715d-e911-a968-000d3a4e32b5', name: 'Dynamics 365 Sales',                               category: 'Dynamics 365' },
+      { id: 'bf2f17ac-715d-e911-a968-000d3a4e32b5', name: 'Dynamics 365 Customer Service',                    category: 'Dynamics 365' },
+      { id: '656ef9c3-c601-ef11-a1fd-6045bdfe3ffa', name: 'Dynamics 365 Contact Center',                      category: 'Dynamics 365' },
+      { id: 'c12f17ac-715d-e911-a968-000d3a4e32b5', name: 'Dynamics 365 Field Service',                       category: 'Dynamics 365' },
+      { id: '50a470c0-d3b7-e911-a992-000d3a4f3343', name: 'Dynamics 365 Finance',                             category: 'Dynamics 365' },
+      { id: 'e1a941d5-d3b7-e911-a992-000d3a4f3343', name: 'Dynamics 365 Supply Chain Management',             category: 'Dynamics 365' },
+      { id: '1304b79a-d3b7-e911-a992-000d3a4f3343', name: 'Dynamics 365 Project Operations',                  category: 'Dynamics 365' },
+      { id: '92fdd980-d3b7-e911-a992-000d3a4f3343', name: 'Dynamics 365 Human Resources',                     category: 'Dynamics 365' },
+      { id: '03283a34-cab7-e911-a963-000d3a4f3883', name: 'Dynamics 365 Commerce',                            category: 'Dynamics 365' },
+      { id: 'c92f17ac-715d-e911-a968-000d3a4e32b5', name: 'Dynamics 365 Business Central',                    category: 'Dynamics 365' },
+      { id: '1480bbd4-7256-ee11-be6f-000d3a574715', name: 'Dynamics 365 Customer Insights - Data',            category: 'Dynamics 365' },
+      { id: '940fa520-7756-ee11-be6f-000d3a574715', name: 'Dynamics 365 Customer Insights - Journeys',        category: 'Dynamics 365' },
+      { id: 'e30c6971-52c8-e911-a968-000d3a4f3883', name: 'Finance and Operations cross-app capabilities',    category: 'Dynamics 365' },
+      { id: '3938c1dd-9c6d-f011-bec2-7c1e521724c0', name: 'Microsoft Sustainability Manager',                 category: 'Dynamics 365' },
+    ];
+    const KNOWN_IDS = PRODUCTS.map(p => p.id);
+
+    // Permanently excluded products (IDs and name patterns). These are skipped
+    // both during probe-discovery and when categorizing existing features.
+    const EXCLUDED_IDS = new Set([
+      'eb2f17ac-715d-e911-a968-000d3a4e32b5', // AI Builder
+    ]);
+    const EXCLUDED_NAME_RE = /^ai builder$/i;
+
+    function isExcludedFeature(f) {
+      return EXCLUDED_IDS.has(f.ProductId) || EXCLUDED_NAME_RE.test(f.Product || '');
+    }
+
+    // Lookup: product name → category. Built from PRODUCTS and refined from
+    // ProductHierarchyPath as features arrive (so probed/discovered products
+    // also slot into the right section).
+    const categoryByProductName = new Map(PRODUCTS.map(p => [p.name, p.category]));
+
+    function categoryFromHierarchy(path) {
+      if (!path) return 'Other';
+      const p = path.toLowerCase();
+      if (p.includes('dynamics 365'))      return 'Dynamics 365';
+      if (p.includes('power platform'))    return 'Power Platform';
+      if (p.includes('role-based copilot') || p.includes('role based copilot')) return 'Role-based Copilots';
+      return 'Other';
+    }
+
+    // Probe all 0xE0–0xFF variants (excluding known)
+    const PROBE_IDS = [];
+    for (let i = 0xe0; i <= 0xff; i++) {
+      const id = `${i.toString(16)}2f17ac-715d-e911-a968-000d3a4e32b5`;
+      if (!KNOWN_IDS.includes(id)) PROBE_IDS.push(id);
+    }
+
+    // Probe cache: discovery is expensive (~32 upstream calls that almost always
+    // return 0 results), so we only probe once per day and remember the outcome
+    // in localStorage. Cache shape: { ts: epoch_ms, products: [{id,name,category}] }
+    const PROBE_CACHE_KEY = 'releasePlanner.probeCache.v1';
+    const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+    function readProbeCache() {
+      try {
+        const raw = localStorage.getItem(PROBE_CACHE_KEY);
+        if (!raw) return null;
+        const obj = JSON.parse(raw);
+        if (!obj || typeof obj.ts !== 'number') return null;
+        if (Date.now() - obj.ts > PROBE_CACHE_TTL_MS) return null;
+        return obj;
+      } catch { return null; }
+    }
+
+    function writeProbeCache(products) {
+      try {
+        localStorage.setItem(PROBE_CACHE_KEY, JSON.stringify({ ts: Date.now(), products }));
+      } catch { /* quota or disabled — ignore */ }
+    }
+
+    // Apply cached discoveries to PRODUCTS before initial load so they're
+    // fetched alongside the known set instead of via a probe sweep.
+    function applyCachedProbeDiscoveries() {
+      const cache = readProbeCache();
+      if (!cache || !Array.isArray(cache.products)) return false;
+      for (const p of cache.products) {
+        if (!p || !p.id || !p.name) continue;
+        if (PRODUCTS.find(x => x.id === p.id)) continue;
+        if (EXCLUDED_IDS.has(p.id) || EXCLUDED_NAME_RE.test(p.name)) continue;
+        PRODUCTS.push({ id: p.id, name: p.name, category: p.category || 'Other' });
+        categoryByProductName.set(p.name, p.category || 'Other');
+        selectedProductIds.add(p.id);
+      }
+      return true;
+    }
+
+    // Use local proxy when served via server.js to bypass CORS restrictions.
+    // Direct browser calls to releaseplans.microsoft.com are blocked by CORS,
+    // so we only use the direct URL as a last-ditch fallback.
+    const IS_LOCAL_SERVER = window.location.protocol === 'http:' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const API = IS_LOCAL_SERVER
+      ? '/proxy?langCode=en-US&productId='
+      : 'https://releaseplans.microsoft.com/releaseplanner-json/?langCode=en-US&productId=';
+
+    // Track fetch outcomes for diagnostics
+    const fetchStats = { ok: 0, empty: 0, failed: 0, lastError: null };
+
+    // ════════════════════════════════════════════════
+    // STATE
+    // ════════════════════════════════════════════════
+    let allFeatures = [];
+    let featureStore = {}; // id → feature object for lazy detail render
+    const selectedProductIds = new Set(PRODUCTS.map(p => p.id)); // products selected in pick list
+
+    const filters = {
+      search: '',
+      products:    new Set(),
+      areas:       new Set(),
+      waves:       new Set(),
+      gaStatus:    new Set(),
+      featureType: new Set(),
+      enabledFor:  new Set(),
+      aiOnly: false,
+      dateFrom: null,
+      dateTo:   null,
+    };
+
+    // ════════════════════════════════════════════════
+    // API
+    // ════════════════════════════════════════════════
+    async function fetchProduct(id) {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 12000);
+        const res = await fetch(API + id, { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) {
+          fetchStats.failed++;
+          fetchStats.lastError = `HTTP ${res.status} for ${id}`;
+          console.warn('[ReleasePlanner] fetch failed', id, res.status);
+          return [];
+        }
+        const data = await res.json();
+        const results = Array.isArray(data.results) ? data.results : [];
+        if (results.length) fetchStats.ok++; else fetchStats.empty++;
+        return results;
+      } catch (err) {
+        fetchStats.failed++;
+        fetchStats.lastError = err && err.message ? err.message : String(err);
+        console.warn('[ReleasePlanner] fetch error', id, err);
+        return [];
+      }
+    }
+
+    function dedup(features) {
+      const seen = new Set();
+      return features.filter(f => {
+        const key = f.ReleasePlanID || f.SnapshotId || (f.FeatureName + '|' + f.ProductId);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    async function loadAll() {
+      const ids = [...selectedProductIds];
+      if (!ids.length) {
+        allFeatures = [];
+        refresh();
+        setLoading(false);
+        return;
+      }
+      fetchStats.ok = 0; fetchStats.empty = 0; fetchStats.failed = 0; fetchStats.lastError = null;
+      setLoading(true, `Loading ${ids.length} selected product${ids.length !== 1 ? 's' : ''}…`);
+      const known = await Promise.all(ids.map(fetchProduct));
+      allFeatures = dedup(known.flat().filter(f => f.FeatureName && !isExcludedFeature(f)));
+      refresh();
+
+      // If everything failed/empty, surface the most likely cause instead of
+      // continuing to probe (which will also fail).
+      if (!allFeatures.length) {
+        if (!IS_LOCAL_SERVER) {
+          setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3000');
+        } else if (fetchStats.failed > 0) {
+          setLoading(true, `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed (proxy reachable?). Last error: ${fetchStats.lastError || 'unknown'}`);
+        } else {
+          setLoading(true, '⚠️ Proxy returned empty results for every product. Check server.js console for errors.');
+        }
+        return;
+      }
+
+      // Skip probe sweep if we have a fresh cache from a previous run.
+      // Cached discoveries were already applied to PRODUCTS at init.
+      if (readProbeCache()) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true, `Discovering additional products (probing ${PROBE_IDS.length} candidate IDs)…`);
+      const probes = await Promise.all(PROBE_IDS.map(fetchProduct));
+      const probeFeats = probes.flat().filter(f => f.FeatureName && !isExcludedFeature(f));
+      const cachedProducts = [];
+      if (probeFeats.length > 0) {
+        // Add any newly discovered products to the picker (auto-selected)
+        const byProduct = {};
+        for (const f of probeFeats) {
+          if (!f.ProductId || !f.Product) continue;
+          if (KNOWN_IDS.includes(f.ProductId)) continue;
+          if (EXCLUDED_IDS.has(f.ProductId) || EXCLUDED_NAME_RE.test(f.Product)) continue;
+          byProduct[f.ProductId] = { name: f.Product, hierarchy: f.ProductHierarchyPath };
+        }
+        for (const [id, info] of Object.entries(byProduct)) {
+          const category = categoryFromHierarchy(info.hierarchy);
+          cachedProducts.push({ id, name: info.name, category });
+          if (!PRODUCTS.find(p => p.id === id)) {
+            PRODUCTS.push({ id, name: info.name, category });
+            categoryByProductName.set(info.name, category);
+            selectedProductIds.add(id);
+          }
+        }
+        const discovered = Object.values(byProduct).map(v => v.name);
+        allFeatures = dedup([...allFeatures, ...probeFeats]);
+        if (discovered.length) {
+          setLoading(true, `Found: ${discovered.join(', ')}. Updating…`);
+          await new Promise(r => setTimeout(r, 400));
+        }
+        buildProductPicker();
+        refresh();
+      }
+      // Always record that we probed, even when no new products turned up,
+      // so we don't hammer the upstream again for the next 24 hours.
+      writeProbeCache(cachedProducts);
+      setLoading(false);
+    }
+
+    // ════════════════════════════════════════════════
+    // FILTERING
+    // ════════════════════════════════════════════════
+    function getWave(f) { return f.GAReleaseWaveName || f.ReleaseWaveName || ''; }
+
+    function normalizeEnabledFor(s) {
+      if (!s) return 'Other';
+      if (/users.*automatically/i.test(s)) return 'Users, automatically';
+      if (/admin.*maker.*automatically/i.test(s)) return 'Admins/Makers, automatically';
+      if (/admin.*maker.*for.*users/i.test(s)) return 'Enabled by Admins/Makers for users';
+      return s.length > 50 ? s.slice(0, 50) + '…' : s;
+    }
+
+    function parseDateField(str) {
+      if (!str) return null;
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function matchesFilters(f) {
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const haystack = [f.FeatureName, f.Product, f.ProductArea, f.BusinessValue].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (filters.products.size    && !filters.products.has(f.Product)) return false;
+      if (filters.areas.size       && !filters.areas.has(f.ProductArea)) return false;
+      if (filters.waves.size       && !filters.waves.has(getWave(f))) return false;
+      if (filters.gaStatus.size    && !filters.gaStatus.has(f.GAStatus)) return false;
+      if (filters.featureType.size && !filters.featureType.has(f.FeatureType)) return false;
+      if (filters.enabledFor.size  && !filters.enabledFor.has(normalizeEnabledFor(f.EnabledFor))) return false;
+      if (filters.aiOnly && f.AiContribution !== 'true') return false;
+      if (filters.dateFrom || filters.dateTo) {
+        const d = parseDateField(f.GADate) || parseDateField(f.PublicPreviewDate) || parseDateField(f.EarlyAccessDate);
+        if (!d) return false;
+        if (filters.dateFrom && d < filters.dateFrom) return false;
+        if (filters.dateTo   && d > filters.dateTo)   return false;
+      }
+      return true;
+    }
+
+    function getFiltered() { return allFeatures.filter(matchesFilters); }
+
+    // ════════════════════════════════════════════════
+    // FILTER PANEL
+    // ════════════════════════════════════════════════
+    function buildFilterPanel() {
+      const filtered = getFiltered();
+
+      buildProductFilterGroup(allFeatures, filtered);
+      const areaBase = filters.products.size ? allFeatures.filter(f => filters.products.has(f.Product)) : allFeatures;
+      buildGroup('f-areas',     'areas',       areaBase,    f => f.ProductArea,                filtered);
+      buildGroup('f-waves',     'waves',       allFeatures, f => getWave(f),                   filtered, sortWaves);
+      buildGroup('f-ga-status', 'gaStatus',    allFeatures, f => f.GAStatus,                   filtered, sortStatus);
+      buildGroup('f-type',      'featureType', allFeatures, f => f.FeatureType,                filtered);
+      buildGroup('f-enabled',   'enabledFor',  allFeatures, f => normalizeEnabledFor(f.EnabledFor), filtered);
+    }
+
+    // Returns the category for a product NAME, falling back to ProductHierarchyPath
+    // captured from the latest feature record.
+    function categoryForProductName(name, hierarchy) {
+      if (categoryByProductName.has(name)) return categoryByProductName.get(name);
+      const cat = categoryFromHierarchy(hierarchy);
+      categoryByProductName.set(name, cat);
+      return cat;
+    }
+
+    // Specialized renderer for the Product filter — groups checkboxes under
+    // category headers (Power Platform, Dynamics 365, …) so users can scan by
+    // product family.
+    function buildProductFilterGroup(source, filtered) {
+      const el = document.getElementById('f-products');
+      if (!el) return;
+
+      const allCounts = {}, filtCounts = {}, hierByName = {};
+      for (const f of source) {
+        const v = f.Product;
+        if (!v) continue;
+        allCounts[v] = (allCounts[v] || 0) + 1;
+        if (!hierByName[v] && f.ProductHierarchyPath) hierByName[v] = f.ProductHierarchyPath;
+      }
+      for (const f of filtered) {
+        const v = f.Product;
+        if (v) filtCounts[v] = (filtCounts[v] || 0) + 1;
+      }
+
+      const names = Object.keys(allCounts).filter(v => v && v.trim());
+      const groups = {};
+      for (const n of names) {
+        const cat = categoryForProductName(n, hierByName[n]);
+        (groups[cat] = groups[cat] || []).push(n);
+      }
+      const cats = [
+        ...CATEGORY_ORDER.filter(c => groups[c]),
+        ...Object.keys(groups).filter(c => !CATEGORY_ORDER.includes(c)).sort(),
+      ];
+
+      el.innerHTML = cats.map(cat => {
+        const items = groups[cat].sort().map(v => `
+          <label class="cb-item">
+            <input type="checkbox" value="${xa(v)}"
+                   ${filters.products.has(v) ? 'checked' : ''}
+                   onchange="toggle('products','${xa(v)}',this.checked)">
+            <span class="cb-lbl">${xh(v)}</span>
+            <span class="cb-count">${filtCounts[v] || 0}</span>
+          </label>
+        `).join('');
+        return `<div class="cb-grp-hdr">${xh(cat)}</div>${items}`;
+      }).join('');
+    }
+
+    function buildGroup(elId, key, source, getter, filtered, sortFn) {
+      const el = document.getElementById(elId);
+
+      const allCounts = {}, filtCounts = {};
+      for (const f of source) {
+        const v = getter(f);
+        if (v) allCounts[v] = (allCounts[v] || 0) + 1;
+      }
+      for (const f of filtered) {
+        const v = getter(f);
+        if (v) filtCounts[v] = (filtCounts[v] || 0) + 1;
+      }
+
+      let vals = Object.keys(allCounts).filter(v => v && v.trim());
+      vals = sortFn ? sortFn(vals) : vals.sort();
+
+      el.innerHTML = vals.map(v => `
+        <label class="cb-item">
+          <input type="checkbox" value="${xa(v)}"
+                 ${filters[key].has(v) ? 'checked' : ''}
+                 onchange="toggle('${key}','${xa(v)}',this.checked)">
+          <span class="cb-lbl">${xh(v)}</span>
+          <span class="cb-count">${filtCounts[v] || 0}</span>
+        </label>
+      `).join('');
+    }
+
+    function sortWaves(waves) {
+      return waves.sort((a, b) => {
+        if (!a) return 1; if (!b) return -1;
+        const ma = a.match(/(\d{4}) release wave (\d)/i) || [];
+        const mb = b.match(/(\d{4}) release wave (\d)/i) || [];
+        const [, ya=0, wa=0] = ma; const [, yb=0, wb=0] = mb;
+        if (ya !== yb) return Number(yb) - Number(ya);
+        return Number(wb) - Number(wa);
+      });
+    }
+
+    function sortStatus(statuses) {
+      const order = ['Shipped', 'Planned', 'N/A'];
+      return statuses.sort((a, b) => {
+        const ia = order.indexOf(a); const ib = order.indexOf(b);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      });
+    }
+
+    // ════════════════════════════════════════════════
+    // FILTER HANDLERS
+    // ════════════════════════════════════════════════
+    function toggle(key, value, checked) {
+      if (checked) filters[key].add(value); else filters[key].delete(value);
+      buildFilterPanel(); renderFeatures();
+    }
+    // Debounce search input — avoid full filter+render per keystroke.
+    let __searchTimer = null;
+    function handleSearch(val) {
+      filters.search = val;
+      clearTimeout(__searchTimer);
+      __searchTimer = setTimeout(() => { buildFilterPanel(); renderFeatures(); }, 150);
+    }
+    function handleAi(checked) { filters.aiOnly = checked; buildFilterPanel(); renderFeatures(); }
+    function clearKey(key) { filters[key].clear(); buildFilterPanel(); renderFeatures(); }
+    function fmtDate(d) {
+      return d.toISOString().slice(0, 10);
+    }
+
+    function applyPreset(days) {
+      const now = new Date();
+      const from = new Date(now); from.setDate(from.getDate() - days);
+      const to   = new Date(now); to.setDate(to.getDate() + days);
+      filters.dateFrom = from; filters.dateTo = to;
+      document.getElementById('date-from').value = fmtDate(from);
+      document.getElementById('date-to').value   = fmtDate(to);
+      updatePresetButtons(days);
+      buildFilterPanel(); renderFeatures();
+    }
+
+    function applyCurrentWave() {
+      const today = new Date();
+      const waves = [...new Set(allFeatures.map(f => getWave(f)).filter(Boolean))];
+      let bestWave = null, bestScore = -1;
+      for (const w of waves) {
+        const m = w.match(/(\d{4}) release wave (\d)/i);
+        if (!m) continue;
+        const [, yr, wn] = m;
+        const wStart = new Date(+yr, +wn === 1 ? 0 : 6, 1);
+        const wEnd   = new Date(+yr, +wn === 1 ? 5 : 11, 31, 23, 59, 59);
+        if (today >= wStart && today <= wEnd) { bestWave = w; break; }
+        if (wEnd <= today) {
+          const score = +yr * 10 + +wn;
+          if (score > bestScore) { bestScore = score; bestWave = w; }
+        }
+      }
+      if (!bestWave && waves.length) bestWave = sortWaves([...waves])[0];
+      if (!bestWave) return;
+      const m = bestWave.match(/(\d{4}) release wave (\d)/i);
+      if (!m) return;
+      const [, yr, wn] = m;
+      const wStart = new Date(+yr, +wn === 1 ? 0 : 6, 1);
+      const wEnd   = new Date(+yr, +wn === 1 ? 5 : 11, 31, 23, 59, 59);
+      filters.dateFrom = wStart; filters.dateTo = wEnd;
+      document.getElementById('date-from').value = fmtDate(wStart);
+      document.getElementById('date-to').value   = fmtDate(wEnd);
+      updatePresetButtons('wave');
+      buildFilterPanel(); renderFeatures();
+    }
+
+    function handleDateChange() {
+      const fv = document.getElementById('date-from').value;
+      const tv = document.getElementById('date-to').value;
+      filters.dateFrom = fv ? new Date(fv + 'T00:00:00') : null;
+      filters.dateTo   = tv ? new Date(tv + 'T23:59:59') : null;
+      updatePresetButtons(null);
+      buildFilterPanel(); renderFeatures();
+    }
+
+    function clearDateRange() {
+      filters.dateFrom = null; filters.dateTo = null;
+      document.getElementById('date-from').value = '';
+      document.getElementById('date-to').value   = '';
+      updatePresetButtons(null);
+      buildFilterPanel(); renderFeatures();
+    }
+
+    function updatePresetButtons(active) {
+      document.getElementById('preset-30').classList.toggle('active', active === 30);
+      document.getElementById('preset-90').classList.toggle('active', active === 90);
+      document.getElementById('preset-wave').classList.toggle('active', active === 'wave');
+    }
+
+    function selectAllProducts() {
+      const products = [...new Set(allFeatures.map(f => f.Product).filter(Boolean))];
+      products.forEach(p => filters.products.add(p));
+      buildFilterPanel(); renderFeatures();
+    }
+
+    function clearAll() {
+      Object.keys(filters).forEach(k => {
+        if (filters[k] instanceof Set) filters[k].clear(); else filters[k] = false;
+      });
+      filters.search = ''; filters.dateFrom = null; filters.dateTo = null;
+      document.getElementById('search-input').value = '';
+      document.getElementById('ai-toggle').checked = false;
+      document.getElementById('date-from').value = '';
+      document.getElementById('date-to').value   = '';
+      updatePresetButtons(null);
+      buildFilterPanel(); renderFeatures();
+    }
+
+    // ════════════════════════════════════════════════
+    // RENDERING
+    // ════════════════════════════════════════════════
+    function refresh() {
+      buildFilterPanel();
+      renderFeatures();
+    }
+
+    function renderFeatures() {
+      featureStore = {};
+      const filtered = getFiltered();
+      const sort = document.getElementById('sort-select').value;
+      const container = document.getElementById('features-container');
+
+      document.getElementById('feat-count').innerHTML =
+        `Showing <strong>${filtered.length}</strong> of <strong>${allFeatures.length}</strong> features`;
+
+      if (!filtered.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <div class="empty-ttl">No features match your filters</div>
+            <div class="empty-sub">Try adjusting or clearing your filters</div>
+          </div>`;
+        return;
+      }
+
+      let html = '';
+
+      // Show/hide the "Expand all" checkbox based on whether we're grouping
+      const expandLabel = document.getElementById('expand-all-label');
+      if (expandLabel) expandLabel.style.display = (sort === 'product') ? 'inline-flex' : 'none';
+
+      if (sort === 'product') {
+        // Group by Product → Area
+        const expandAll = !!(document.getElementById('expand-all') && document.getElementById('expand-all').checked);
+        const byProduct = {};
+        for (const f of filtered) {
+          const p = f.Product || 'Unknown'; const a = f.ProductArea || 'General';
+          if (!byProduct[p]) byProduct[p] = {};
+          if (!byProduct[p][a]) byProduct[p][a] = [];
+          byProduct[p][a].push(f);
+        }
+        html = Object.entries(byProduct).sort(([a],[b]) => a.localeCompare(b))
+          .map(([prod, areas]) => renderProductGroup(prod, areas, expandAll)).join('');
+      } else {
+        let sorted = [...filtered];
+        if (sort === 'name') {
+          sorted.sort((a,b) => (a.FeatureName||'').localeCompare(b.FeatureName||''));
+        } else if (sort === 'wave') {
+          sorted.sort((a,b) => {
+            const wa = sortableWave(getWave(a)), wb = sortableWave(getWave(b));
+            return wb - wa;
+          });
+        } else if (sort === 'date') {
+          sorted.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
+        }
+        html = `
+          <div class="features-grid">
+            ${sorted.map(f => renderCard(f)).join('')}
+          </div>`;
+      }
+
+      container.innerHTML = html;
+
+      // Attach expand handlers
+      container.querySelectorAll('.expand-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const card = btn.closest('.feature-card');
+          const details = card.querySelector('.card-details');
+          const fid = card.dataset.fid;
+          if (!details.dataset.rendered && fid && featureStore[fid]) {
+            details.innerHTML = buildDetails(featureStore[fid]);
+            details.dataset.rendered = '1';
+          }
+          const open = details.classList.toggle('visible');
+          btn.classList.toggle('open', open);
+          btn.setAttribute('aria-expanded', String(open));
+          btn.querySelector('.expand-lbl').textContent = open ? 'Show less' : 'Show more';
+        });
+      });
+
+      // Attach product collapse handlers
+      container.querySelectorAll('.product-header').forEach(h => {
+        const toggle = () => {
+          const body = h.closest('.product-group').querySelector('.product-body');
+          const chev = h.querySelector('.product-chevron');
+          const col = body.style.display === 'none';
+          body.style.display = col ? '' : 'none';
+          chev.classList.toggle('collapsed', !col);
+          h.setAttribute('aria-expanded', String(col));
+          syncExpandAllCheckbox();
+        };
+        h.addEventListener('click', toggle);
+        h.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            toggle();
+          }
+        });
+      });
+
+      syncExpandAllCheckbox();
+    }
+
+    function renderProductGroup(product, areas, expanded) {
+      const total = Object.values(areas).reduce((s, a) => s + a.length, 0);
+      const areasHtml = Object.entries(areas).sort(([a],[b]) => a.localeCompare(b))
+        .map(([area, feats]) => {
+          const sortedFeats = [...feats].sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
+          return `
+          <div class="area-group">
+            <div class="area-header">${xh(area)} <span class="area-count">(${feats.length})</span></div>
+            <div class="features-grid">${sortedFeats.map(f => renderCard(f)).join('')}</div>
+          </div>
+        `;
+        }).join('');
+      const bodyStyle = expanded ? '' : ' style="display:none"';
+      const chevClass = expanded ? 'product-chevron' : 'product-chevron collapsed';
+      const ariaExp = expanded ? 'true' : 'false';
+      return `
+        <div class="product-group">
+          <div class="product-header" role="button" tabindex="0" aria-expanded="${ariaExp}" aria-label="Toggle ${xa(product)} group">
+            <span class="product-name">${xh(product)}</span>
+            <span class="product-feat-count">${total} feature${total !== 1 ? 's' : ''}</span>
+            <span class="${chevClass}" aria-hidden="true">▼</span>
+          </div>
+          <div class="product-body"${bodyStyle}>${areasHtml}</div>
+        </div>`;
+    }
+
+    function toggleExpandAll() {
+      const cb = document.getElementById('expand-all');
+      if (!cb) return;
+      const expand = !!cb.checked;
+      document.querySelectorAll('#features-container .product-group').forEach(g => {
+        const body = g.querySelector('.product-body');
+        const chev = g.querySelector('.product-chevron');
+        const header = g.querySelector('.product-header');
+        if (body) body.style.display = expand ? '' : 'none';
+        if (chev) chev.classList.toggle('collapsed', !expand);
+        if (header) header.setAttribute('aria-expanded', String(expand));
+      });
+    }
+
+    function syncExpandAllCheckbox() {
+      const cb = document.getElementById('expand-all');
+      if (!cb) return;
+      const groups = document.querySelectorAll('#features-container .product-group');
+      if (!groups.length) { cb.checked = false; cb.indeterminate = false; return; }
+      let expanded = 0;
+      groups.forEach(g => {
+        const body = g.querySelector('.product-body');
+        if (body && body.style.display !== 'none') expanded++;
+      });
+      cb.checked = expanded === groups.length;
+      cb.indeterminate = expanded > 0 && expanded < groups.length;
+    }
+
+    function renderCard(f) {
+      const fid = 'f' + Math.random().toString(36).slice(2, 10);
+      featureStore[fid] = f;
+
+      const wave = getWave(f);
+      const waveBadge = wave ? `<span class="badge b-wave">${xh(wave)}</span>` : '';
+      const typeBadge = f.FeatureType === 'New Feature'
+        ? `<span class="badge b-new">New</span>`
+        : f.FeatureType ? `<span class="badge b-enh">Enhancement</span>` : '';
+      const productBadge = f.Product
+        ? `<span class="badge b-product" title="${xh(f.Product)}">${xh(f.Product)}</span>`
+        : '';
+      const areaBadge = f.ProductArea
+        ? `<span class="badge b-area" title="${xh(f.ProductArea)}">${xh(f.ProductArea)}</span>`
+        : '';
+
+      const meta = [];
+      const gaDisp = displayDate(f.GADateValue, f.GADate);
+      const ppDisp = displayDate(f.PPDateValue, f.PublicPreviewDate);
+      if (gaDisp) meta.push(`<span class="meta-item"><span class="meta-lbl">GA:</span> ${xh(gaDisp)} <span class="${sc(f.GAStatus)}">(${xh(f.GAStatus||'')})</span></span>`);
+      if (ppDisp) meta.push(`<span class="meta-item"><span class="meta-lbl">PP:</span> ${xh(ppDisp)} <span class="${sc(f.PPStatus)}">(${xh(f.PPStatus||'')})</span></span>`);
+      if (f.EnabledFor)       meta.push(`<span class="meta-item">${xh(normalizeEnabledFor(f.EnabledFor))}</span>`);
+
+      const hasDetails = f.BusinessValue || f.FeatureDetails;
+
+      return `
+        <div class="feature-card" data-fid="${fid}">
+          <div class="card-top">
+            <div class="card-badges">${productBadge}${areaBadge}${typeBadge}${waveBadge}</div>
+            <div class="card-name">${xh(f.FeatureName || 'Unnamed Feature')}</div>
+            ${meta.length ? `<div class="card-meta">${meta.join('')}</div>` : ''}
+          </div>
+          ${hasDetails ? `
+            <button class="expand-btn" type="button" aria-expanded="false" aria-controls="details-${fid}">
+              <span class="expand-lbl">Show more</span>
+              <span class="expand-chevron" aria-hidden="true">▼</span>
+            </button>
+            <div class="card-details" id="details-${fid}"></div>
+          ` : ''}
+        </div>`;
+    }
+
+    function buildDetails(f) {
+      const bv = f.BusinessValue ? sanitize(f.BusinessValue) : '';
+      const fd = f.FeatureDetails ? sanitize(f.FeatureDetails) : '';
+      const docs = f.DocsUrl
+        ? `<a href="${xa(f.DocsUrl)}" target="_blank" rel="noopener" class="docs-link">📄 Documentation</a>`
+        : '';
+      const blog = f.BlogURL
+        ? `<a href="${xa(f.BlogURL)}" target="_blank" rel="noopener" class="docs-link" style="margin-left:0.4rem">📝 Blog Post</a>`
+        : '';
+      return `
+        ${bv ? `<div class="detail-sec"><div class="detail-title">Business Value</div><div class="detail-body">${bv}</div></div>` : ''}
+        ${fd ? `<div class="detail-sec"><div class="detail-title">Feature Details</div><div class="detail-body">${fd}</div></div>` : ''}
+        ${(docs || blog) ? `<div>${docs}${blog}</div>` : ''}
+      `;
+    }
+
+    // ════════════════════════════════════════════════
+    // UTILITIES
+    // ════════════════════════════════════════════════
+    function sc(status) {
+      return status === 'Shipped' ? 's-shipped' : status === 'Planned' ? 's-planned' : 's-na';
+    }
+
+    // Prefer the API's pre-formatted display value (e.g. "May 2026" for month-only,
+    // "Apr 2, 2026" for full dates). Treat "-" and empty strings as "no value".
+    function displayDate(friendly, raw) {
+      const f = (friendly || '').trim();
+      if (f && f !== '-') return f;
+      const r = (raw || '').trim();
+      if (!r || r === '-') return '';
+      return r;
+    }
+
+    function sortableWave(wave) {
+      if (!wave) return 0;
+      const m = wave.match(/(\d{4}) release wave (\d)/i);
+      return m ? parseInt(m[1]) * 10 + parseInt(m[2]) : 0;
+    }
+
+    function sortableDate(date) {
+      if (!date) return 0;
+      try { return new Date(date).getTime() || 0; } catch { return 0; }
+    }
+
+    function setLoading(active, text) {
+      const el = document.getElementById('loading-banner');
+      if (active) {
+        el.classList.remove('hidden');
+        document.getElementById('loading-text').textContent = text || 'Loading…';
+      } else {
+        el.classList.add('hidden');
+      }
+    }
+
+    function toggleTheme() {
+      const cur  = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      document.getElementById('theme-btn').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
+    }
+
+    // ════════════════════════════════════════════════
+    // PRODUCT PICKER
+    // ════════════════════════════════════════════════
+    function buildProductPicker() {
+      const el = document.getElementById('product-picker');
+      if (!el) return;
+      // Group by category, then sort each group by name.
+      const groups = {};
+      for (const p of PRODUCTS) {
+        const cat = p.category || 'Other';
+        (groups[cat] = groups[cat] || []).push(p);
+      }
+      const cats = [
+        ...CATEGORY_ORDER.filter(c => groups[c]),
+        ...Object.keys(groups).filter(c => !CATEGORY_ORDER.includes(c)).sort(),
+      ];
+      el.innerHTML = cats.map(cat => {
+        const items = groups[cat].sort((a, b) => a.name.localeCompare(b.name)).map(p => `
+          <label class="cb-item">
+            <input type="checkbox" value="${xa(p.id)}"
+                   ${selectedProductIds.has(p.id) ? 'checked' : ''}
+                   onchange="togglePickerProduct('${xa(p.id)}',this.checked)">
+            <span class="cb-lbl">${xh(p.name)}</span>
+          </label>
+        `).join('');
+        return `<div class="cb-grp-hdr">${xh(cat)}</div>${items}`;
+      }).join('');
+    }
+
+    function togglePickerProduct(id, checked) {
+      if (checked) selectedProductIds.add(id); else selectedProductIds.delete(id);
+    }
+
+    function selectAllPickerProducts(select) {
+      if (select) PRODUCTS.forEach(p => selectedProductIds.add(p.id));
+      else selectedProductIds.clear();
+      buildProductPicker();
+    }
+
+    async function loadSelectedProducts() {
+      const ids = [...selectedProductIds];
+      if (!ids.length) {
+        allFeatures = [];
+        refresh();
+        return;
+      }
+      fetchStats.ok = 0; fetchStats.empty = 0; fetchStats.failed = 0; fetchStats.lastError = null;
+      setLoading(true, `Loading ${ids.length} selected product${ids.length !== 1 ? 's' : ''}…`);
+      const results = await Promise.all(ids.map(fetchProduct));
+      allFeatures = dedup(results.flat().filter(f => f.FeatureName && !isExcludedFeature(f)));
+      refresh();
+      if (!allFeatures.length) {
+        if (!IS_LOCAL_SERVER) {
+          setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3000');
+        } else if (fetchStats.failed > 0) {
+          setLoading(true, `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed. Last error: ${fetchStats.lastError || 'unknown'}`);
+        } else {
+          setLoading(true, '⚠️ Proxy returned empty results. Check server.js console.');
+        }
+      } else {
+        setLoading(false);
+      }
+    }
+
+    // Sanitize HTML from API (make links open in new tab, pass through safe tags)
+    function sanitize(html) {
+      if (!html) return '';
+      // Add target=_blank to all links
+      return html.replace(/<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/gi, (m, q, url) => {
+        // Fix malformed releaseplans URLs (URL-encoded quotes)
+        const cleanUrl = url.replace(/^https:\/\/releaseplans\.microsoft\.com\/%22/, 'https://');
+        return `<a target="_blank" rel="noopener" href="${xa(cleanUrl)}"`;
+      });
+    }
+
+    function xh(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function xa(s) {
+      return String(s || '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // ════════════════════════════════════════════════
+    // EXPORT
+    // ════════════════════════════════════════════════
+    function exportToHtml() {
+      const filtered = getFiltered();
+      if (!filtered.length) { alert('No features to export with current filters.'); return; }
+
+      const btn = document.getElementById('export-btn');
+      btn.disabled = true; btn.textContent = '…Exporting';
+
+      const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const stripHtml = s => String(s || '').replace(/<[^>]+>/g,' ').replace(/\s{2,}/g,' ').trim();
+
+      // Sort same as current view for consistent output
+      const sort = document.getElementById('sort-select').value;
+      let rows = [...filtered];
+      if (sort === 'name')  rows.sort((a,b) => (a.FeatureName||'').localeCompare(b.FeatureName||''));
+      else if (sort === 'wave') rows.sort((a,b) => sortableWave(getWave(b)) - sortableWave(getWave(a)));
+      else if (sort === 'date') rows.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
+      else rows.sort((a,b) => (a.Product||'').localeCompare(b.Product||'') || (a.ProductArea||'').localeCompare(b.ProductArea||''));
+
+      // Deduplicate export rows by feature name + product (safety net)
+      const exportSeen = new Set();
+      rows = rows.filter(f => {
+        const k = f.ReleasePlanID || f.SnapshotId || (f.FeatureName + '|' + f.ProductId);
+        if (exportSeen.has(k)) return false;
+        exportSeen.add(k); return true;
+      });
+
+      const tableRows = rows.map(f => {
+        const gaDate = displayDate(f.GADateValue, f.GADate)            || '—';
+        const ppDate = displayDate(f.PPDateValue, f.PublicPreviewDate) || '—';
+        const docs   = f.DocsUrl ? `<a href="${esc(sanitize(f.DocsUrl))}">${esc(sanitize(f.DocsUrl))}</a>` : '—';
+        return `    <tr>
+      <td>${esc(f.Product)}</td>
+      <td>${esc(f.ProductArea)}</td>
+      <td>${esc(f.FeatureName)}</td>
+      <td>${esc(f.FeatureType)}</td>
+      <td>${esc(getWave(f))}</td>
+      <td>${esc(ppDate)}</td>
+      <td>${esc(gaDate)}</td>
+      <td>${esc(f.GAStatus)}</td>
+      <td>${esc(stripHtml(f.BusinessValue))}</td>
+      <td>${docs}</td>
+    </tr>`;
+      }).join('\n');
+
+      const now = new Date().toLocaleString();
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Power Platform Release Plan Export — ${esc(now)}</title>
+  <style>
+    body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; margin: 24px; background: #ffffff; color: #111827; }
+    h2 { font-size: 16px; margin-bottom: 4px; color: #111827; }
+    p  { font-size: 12px; color: #6b7280; margin: 0 0 8px; }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+      font-size: 13px;
+      margin: 16px 0;
+      border: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      border-radius: 6px;
+      overflow: hidden;
+      background-color: #ffffff;
+      color: #111827;
+    }
+    thead { background-color: #1f2937; color: #ffffff; }
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #374151;
+    }
+    tbody tr { transition: background-color 0.2s; background-color: #ffffff; }
+    tbody tr:nth-child(even) { background-color: #f9fafb; }
+    tbody tr:hover { background-color: #e5e7eb; }
+    tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: middle;
+      color: #111827;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    a { color: #0078d4; }
+  </style>
+</head>
+<body>
+  <h2>Power Platform Release Plan</h2>
+  <p>Exported ${esc(now)} &bull; ${rows.length} feature${rows.length !== 1 ? 's' : ''}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Product Area</th>
+        <th>Feature Name</th>
+        <th>Feature Type</th>
+        <th>Release Wave</th>
+        <th>Public Preview</th>
+        <th>GA Date</th>
+        <th>GA Status</th>
+        <th>Business Value</th>
+        <th>Docs</th>
+      </tr>
+    </thead>
+    <tbody>
+${tableRows}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `release-plan-export-${new Date().toISOString().slice(0,10)}.html`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+      btn.disabled = false; btn.textContent = '⬇ Export HTML';
+    }
+
+    // ════════════════════════════════════════════════
+    // INIT
+    // ════════════════════════════════════════════════
+    const curTheme = document.documentElement.getAttribute('data-theme');
+    document.getElementById('theme-btn').textContent = curTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+
+    applyCachedProbeDiscoveries();
+    buildProductPicker();
+    loadAll();
+  </script>
+</body>
+</html>

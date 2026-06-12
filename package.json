@@ -1,0 +1,12 @@
+{
+  "name": "release-planner",
+  "version": "1.0.0",
+  "description": "Microsoft Communications Portal with Microsoft 365 Message Center",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  }
+}

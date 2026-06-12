@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azure Updates – Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5; --cp-border: #dedede; --cp-border-strong: #919191;
+      --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
+      --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
+      --cp-warning: #f59e0b; --cp-link: #0078d4;
+      --cp-purple: #7c3aed;
+      --cp-highlight: rgba(177,31,75,0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e; --cp-border: #474747; --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede; --cp-text-muted: #919191; --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
+      --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
+      --cp-warning: #fbbf24; --cp-link: #4da6ff;
+      --cp-purple: #c4b5fd;
+      --cp-highlight: rgba(253,142,161,0.12);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Screen-reader-only text (visually hidden but accessible) */
+    .sr-only {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+
+    /* Visible focus indicator for keyboard navigation */
+    a:focus-visible, button:focus-visible, input:focus-visible,
+    select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--cp-accent);
+      outline-offset: 2px;
+    }
+    body {
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px; line-height: 1.5;
+      background: var(--cp-bg); color: var(--cp-text);
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    /* Header */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--cp-surface); border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem; display: flex; align-items: center; gap: 0.875rem;
+      height: 56px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0;
+    }
+    .header-logo {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-logo svg { display: block; width: 28px; height: 28px; }
+    .header-title { font-size: 15px; font-weight: 700; color: var(--cp-text); }
+    .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted, #605e5c); margin-top: 1px; }
+    .header-subtitle a { color: inherit; text-decoration: none; }
+    .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
+    .header-sub { font-size: 11px; color: var(--cp-text-muted); }
+    .page-heading {
+      font-size: 22px; font-weight: 700;
+      color: var(--cp-text);
+      margin: 0 0 0.875rem;
+      padding: 0 0 0.625rem;
+      border-bottom: 1px solid var(--cp-border);
+      display: flex; align-items: center; gap: 0.625rem;
+      letter-spacing: -0.005em;
+      flex-shrink: 0;
+    }
+    .page-heading::before {
+      content: ""; display: inline-block;
+      width: 4px; height: 22px;
+      background: var(--cp-accent);
+      border-radius: 2px;
+    }
+    .page-tabs {
+      position: sticky; top: 56px; z-index: 99;
+      background: var(--cp-surface);
+      border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem;
+      display: flex; align-items: stretch; justify-content: center;
+      gap: 0.25rem;
+      height: 48px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      overflow-x: auto;
+    }
+    .page-tabs::-webkit-scrollbar { height: 0; }
+    .nav-tab {
+      display: inline-flex; align-items: center;
+      padding: 0 1rem;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      color: var(--cp-text-muted);
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+      margin-bottom: -1px;
+    }
+    .nav-tab:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
+    .nav-tab.active {
+      color: var(--cp-accent);
+      border-bottom-color: var(--cp-accent);
+      background: transparent;
+    }
+    .theme-btn {
+      margin-left: auto; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+      border-radius: 0.625rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 12px;
+      color: var(--cp-text-muted); font-family: inherit; transition: all 0.15s;
+    }
+    .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
+
+    /* Layout */
+    .page-content {
+      flex: 1; display: flex; flex-direction: column;
+      padding: 1.125rem; overflow: hidden;
+      height: calc(100vh - 104px);
+    }
+
+    /* Search + filters */
+    .au-search-bar { margin-bottom: 0.625rem; }
+    .au-search-input {
+      width: 100%; padding: 0.5rem 0.875rem;
+      border: 1px solid var(--cp-border); border-radius: 0.625rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 13px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .au-search-input:focus { border-color: var(--cp-accent); }
+    .au-search-input::placeholder { color: var(--cp-text-muted); }
+    .au-filters {
+      display: flex; gap: 1rem; margin-bottom: 1rem;
+      flex-wrap: wrap; align-items: center;
+    }
+    .au-filter-group { display: flex; align-items: center; gap: 0.5rem; }
+    .au-filter-label { font-size: 12px; color: var(--cp-text-muted); font-weight: 600; }
+    .au-filter-select {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--cp-border); border-radius: 0.375rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 12px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .au-filter-select:focus { border-color: var(--cp-accent); }
+
+    /* Multi-select */
+    .au-multi { position: relative; min-width: 180px; }
+    .au-multi-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--cp-border); border-radius: 0.375rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 12px; font-family: inherit; cursor: pointer;
+      width: 100%; text-align: left;
+    }
+    .au-multi-toggle:hover { border-color: var(--cp-border-strong); }
+    .au-multi.open .au-multi-toggle { border-color: var(--cp-accent); }
+    .au-multi-toggle .au-multi-caret { font-size: 9px; color: var(--cp-text-muted); }
+    .au-multi-panel {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      max-height: 320px; overflow-y: auto;
+      background: var(--cp-surface); border: 1px solid var(--cp-border);
+      border-radius: 0.375rem; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      z-index: 50; padding: 0.25rem;
+    }
+    .au-multi.open .au-multi-panel { display: block; }
+    .au-multi-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.5rem; border-radius: 0.25rem;
+      font-size: 12px; color: var(--cp-text); cursor: pointer; user-select: none;
+    }
+    .au-multi-option:hover { background: var(--cp-surface-soft); }
+    .au-multi-option input { margin: 0; cursor: pointer; }
+    .au-multi-actions {
+      display: flex; gap: 0.4rem; padding: 0.25rem 0.5rem 0.5rem;
+      border-bottom: 1px solid var(--cp-border); margin-bottom: 0.25rem;
+    }
+    .au-multi-actions button {
+      flex: 1; font-size: 11px; font-family: inherit;
+      padding: 0.3rem 0.4rem; border-radius: 0.25rem;
+      border: 1px solid var(--cp-border); background: var(--cp-surface);
+      color: var(--cp-text-soft); cursor: pointer;
+    }
+    .au-multi-actions button:hover { background: var(--cp-surface-soft); color: var(--cp-text); }
+
+    /* Card grid */
+    .au-cards {
+      flex: 1; overflow-y: auto; align-content: start;
+      display: grid; gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+    .au-cards.is-grouped { grid-template-columns: 1fr; gap: 0.5rem; }
+    .au-cards::-webkit-scrollbar { width: 6px; }
+    .au-cards::-webkit-scrollbar-track { background: transparent; }
+    .au-cards::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+
+    .au-card {
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 0.625rem;
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .au-card:hover { border-color: var(--cp-accent); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+    .au-card-body {
+      padding: 0.75rem 0.875rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      flex: 1;
+    }
+    .au-card-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .au-card-id {
+      font-size: 12px; font-weight: 600; color: var(--cp-link);
+      font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+      letter-spacing: 0.01em; flex-shrink: 0;
+    }
+    .au-status-pill {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      padding: 0.15rem 0.5rem; border-radius: 999px;
+      letter-spacing: 0.04em; flex-shrink: 0; white-space: nowrap;
+      border: 1px solid;
+    }
+    .au-status-pill.development { background: rgba(0,120,212,0.12); color: var(--cp-link); border-color: rgba(0,120,212,0.3); }
+    .au-status-pill.preview     { background: rgba(124,58,237,0.12); color: var(--cp-purple); border-color: rgba(124,58,237,0.3); }
+    .au-status-pill.rolling     { background: rgba(245,158,11,0.12); color: var(--cp-warning); border-color: rgba(245,158,11,0.3); }
+    .au-status-pill.launched    { background: rgba(22,163,74,0.12); color: var(--cp-success); border-color: rgba(22,163,74,0.3); }
+    .au-status-pill.retirement  { background: rgba(220,38,38,0.12); color: var(--cp-danger); border-color: rgba(220,38,38,0.3); }
+    .au-status-pill.cancelled   { background: var(--cp-surface-soft); color: var(--cp-text-muted); border-color: var(--cp-border); }
+    .au-status-pill.unknown     { background: var(--cp-surface-soft); color: var(--cp-text-muted); border-color: var(--cp-border); }
+
+    .au-card-product {
+      display: flex; align-items: center; gap: 0.35rem;
+      font-size: 12px; color: var(--cp-text-soft);
+      min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .au-card-product-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--cp-accent); flex-shrink: 0;
+    }
+    .au-card-title {
+      font-size: 13px; font-weight: 600; color: var(--cp-text);
+      line-height: 1.4;
+    }
+    .au-card-title:hover { color: var(--cp-accent); }
+    .au-card-snippet {
+      font-size: 12px; color: var(--cp-text-muted);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .au-card-meta {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
+      font-size: 11px; color: var(--cp-text-muted);
+      margin-top: auto;
+    }
+    .au-tag-pill {
+      font-size: 10px; font-weight: 600;
+      padding: 0.1rem 0.5rem; border-radius: 999px;
+      border: 1px solid var(--cp-border);
+      background: var(--cp-surface-soft);
+      color: var(--cp-text-soft);
+      white-space: nowrap;
+    }
+    .au-tag-pill.release { color: var(--cp-link); border-color: rgba(0,120,212,0.4); background: rgba(0,120,212,0.08); }
+
+    /* Group view */
+    .au-product-group { display: flex; flex-direction: column; gap: 0.5rem; }
+    .au-product-group + .au-product-group { margin-top: 0.75rem; }
+    .au-product-header {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 0.5rem; margin: 0;
+      font-size: 12px; font-weight: 700; color: var(--cp-text);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--cp-border);
+      position: sticky; top: 0;
+      background: var(--cp-bg);
+      z-index: 1;
+      cursor: pointer;
+      user-select: none;
+    }
+    .au-product-header:hover { color: var(--cp-accent); }
+    .au-product-header:focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 2px; }
+    .au-product-chevron {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px;
+      transition: transform 0.15s ease;
+      color: var(--cp-text-muted);
+      flex-shrink: 0;
+    }
+    .au-product-group.is-collapsed .au-product-chevron { transform: rotate(-90deg); }
+    .au-product-group.is-collapsed .au-product-cards { display: none; }
+    .au-product-cards {
+      display: grid; gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+    .au-product-count {
+      font-size: 11px; font-weight: 500; color: var(--cp-text-muted);
+      text-transform: none; letter-spacing: 0;
+    }
+
+    .au-empty { text-align: center; padding: 2rem; color: var(--cp-text-muted); grid-column: 1 / -1; }
+    .au-loading {
+      text-align: center; padding: 2rem; grid-column: 1 / -1;
+      display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+      color: var(--cp-accent);
+    }
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid var(--cp-accent-soft); border-top-color: var(--cp-accent);
+      border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .export-btn {
+      padding: 0.3rem 0.75rem; background: var(--cp-accent);
+      border: 1px solid var(--cp-accent); border-radius: 0.5rem;
+      color: var(--cp-accent-fg); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
+    }
+    .export-btn:hover { background: var(--cp-accent-hover); border-color: var(--cp-accent-hover); }
+
+    /* Modal */
+    .au-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: none; align-items: center; justify-content: center;
+      z-index: 200; padding: 1.5rem;
+    }
+    .au-modal-overlay.open { display: flex; }
+    .au-modal {
+      background: var(--cp-surface); border: 1px solid var(--cp-border);
+      border-radius: 0.75rem; max-width: 900px; width: 100%;
+      max-height: 90vh; display: flex; flex-direction: column;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    }
+    .au-modal-header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--cp-border);
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 1rem; flex-shrink: 0;
+    }
+    .au-modal-title { font-size: 16px; font-weight: 600; color: var(--cp-text); line-height: 1.4; }
+    .au-modal-meta { font-size: 12px; color: var(--cp-text-muted); margin-top: 0.25rem; }
+    .au-modal-close {
+      background: transparent; border: none; cursor: pointer;
+      font-size: 22px; line-height: 1; color: var(--cp-text-muted);
+      padding: 0 0.25rem; flex-shrink: 0;
+    }
+    .au-modal-close:hover { color: var(--cp-text); }
+    .au-modal-body {
+      padding: 1rem 1.25rem; overflow-y: auto; flex: 1;
+      font-size: 13px; line-height: 1.55; color: var(--cp-text);
+    }
+    .au-modal-body::-webkit-scrollbar { width: 6px; }
+    .au-modal-body::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .au-modal-section { margin-bottom: 1.25rem; }
+    .au-modal-section:last-child { margin-bottom: 0; }
+    .au-modal-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--cp-text-muted);
+      margin-bottom: 0.5rem;
+    }
+    .au-modal-body p { margin: 0 0 0.75rem; }
+    .au-modal-body p:last-child { margin-bottom: 0; }
+    .au-modal-body a { color: var(--cp-link); text-decoration: none; }
+    .au-modal-body a:hover { text-decoration: underline; }
+    .au-modal-body ul, .au-modal-body ol { margin: 0 0 0.75rem 1.25rem; }
+    .au-detail-list { display: grid; grid-template-columns: 160px 1fr; gap: 0.4rem 1rem; font-size: 12.5px; }
+    .au-detail-list dt { font-weight: 600; color: var(--cp-text-muted); }
+    .au-detail-list dd { color: var(--cp-text); margin: 0; word-break: break-word; }
+    .au-tag-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
+    <div>
+      <div class="header-title">Microsoft Communications Portal</div>
+      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a></div>
+    </div>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
+  </header>
+
+  <nav class="page-tabs" aria-label="Primary">
+    <a class="nav-tab" href="/">Power Platform Release Planner</a>
+    <a class="nav-tab" href="/messagecenter">Microsoft 365 Message Center</a>
+    <a class="nav-tab" href="/m365updates">Microsoft 365 Roadmap</a>
+    <a class="nav-tab" href="/servicehealth">Microsoft 365 Service Health</a>
+    <a class="nav-tab active" href="/azureupdates" aria-current="page">Azure Updates</a>
+  </nav>
+
+  <div class="page-content">
+    <h1 class="page-heading">Azure Updates</h1>
+    <div class="au-search-bar">
+      <label for="au-search" class="sr-only">Search updates by title or description</label>
+      <input type="text" class="au-search-input" id="au-search"
+             placeholder="Search updates by title or description…"
+             aria-label="Search updates by title or description" oninput="debouncedSearch()">
+    </div>
+    <div class="au-filters">
+      <div class="au-filter-group">
+        <label class="au-filter-label" id="au-status-filter-label">Status:</label>
+        <div class="au-multi" id="au-status-multi">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-status-filter-label au-status-label" onclick="toggleMenu('au-status-multi', event)">
+            <span id="au-status-label">All Statuses</span>
+            <span class="au-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="au-multi-panel" id="au-status-panel" onclick="event.stopPropagation()">
+            <div class="au-multi-actions">
+              <button type="button" onclick="setAllOptions('status', true)">Select all</button>
+              <button type="button" onclick="setAllOptions('status', false)">Clear</button>
+            </div>
+            <div id="au-status-options"></div>
+          </div>
+        </div>
+      </div>
+      <div class="au-filter-group">
+        <label class="au-filter-label" id="au-product-filter-label">Product:</label>
+        <div class="au-multi" id="au-product-multi">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-product-filter-label au-product-label" onclick="toggleMenu('au-product-multi', event)">
+            <span id="au-product-label">All Products</span>
+            <span class="au-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="au-multi-panel" id="au-product-panel" onclick="event.stopPropagation()">
+            <div class="au-multi-actions">
+              <button type="button" onclick="setAllOptions('product', true)">Select all</button>
+              <button type="button" onclick="setAllOptions('product', false)">Clear</button>
+            </div>
+            <div id="au-product-options"></div>
+          </div>
+        </div>
+      </div>
+      <div class="au-filter-group">
+        <label class="au-filter-label" for="au-sort">Sort:</label>
+        <select class="au-filter-select" id="au-sort" onchange="filterUpdates()">
+          <option value="date-desc">Newest First</option>
+          <option value="date-asc">Oldest First</option>
+          <option value="product">Group by Product</option>
+        </select>
+        <label class="au-filter-label" for="au-expand-all" id="au-expand-all-label" style="display:none;align-items:center;gap:0.4rem;cursor:pointer">
+          <input type="checkbox" id="au-expand-all" onchange="toggleExpandAll()">
+          Expand all
+        </label>
+      </div>
+      <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
+        <span id="au-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
+        <button class="export-btn" onclick="loadAzureUpdates()">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="au-cards" id="au-cards-container">
+      <div class="au-loading" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span>Loading Azure Updates…</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="au-modal-overlay" id="au-modal" onclick="handleModalBackdrop(event)">
+    <div class="au-modal" role="dialog" aria-modal="true" aria-labelledby="au-modal-title">
+      <div class="au-modal-header">
+        <div>
+          <div class="au-modal-title" id="au-modal-title"></div>
+          <div class="au-modal-meta" id="au-modal-meta"></div>
+        </div>
+        <button class="au-modal-close" onclick="closeUpdate()" aria-label="Close">×</button>
+      </div>
+      <div class="au-modal-body" id="au-modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    let allUpdates = [];
+    const statusFilter  = new Set();
+    const productFilter = new Set();
+
+    // Azure RSS uses these category values for status / type signalling.
+    // Anything else (Compute, Storage, Databases, Networking, AI + machine learning, …)
+    // is treated as a product/area bucket.
+    const STATUS_KEYWORDS = ['In development', 'In preview', 'Launched', 'Retirements'];
+    const RELEASE_KEYWORDS = ['Generally Available', 'Public Preview', 'Private Preview', 'Preview'];
+    // Generic noise categories from Azure RSS that aren't useful as products.
+    const IGNORED_PRODUCT_CATEGORIES = new Set(['Features', 'Feature', 'Services', 'Service']);
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.getElementById('theme-btn').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
+    }
+    const curTheme = document.documentElement.getAttribute('data-theme');
+    document.getElementById('theme-btn').textContent = curTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function classifyCategories(cats) {
+      const c = Array.isArray(cats) ? cats : [];
+      const out = { status: '', release: [], product: [] };
+      for (const raw of c) {
+        const cat = (raw || '').trim();
+        if (!cat) continue;
+        if (!out.status && STATUS_KEYWORDS.includes(cat)) { out.status = cat; continue; }
+        if (RELEASE_KEYWORDS.includes(cat)) { out.release.push(cat); continue; }
+        if (IGNORED_PRODUCT_CATEGORIES.has(cat)) continue;
+        out.product.push(cat);
+      }
+      return out;
+    }
+
+    function statusClass(status) {
+      const s = (status || '').toLowerCase();
+      if (s.includes('development')) return 'development';
+      if (s.includes('preview'))     return 'preview';
+      if (s.includes('rolling'))     return 'rolling';
+      if (s.includes('launched'))    return 'launched';
+      if (s.includes('retire'))      return 'retirement';
+      if (s.includes('cancel'))      return 'cancelled';
+      return 'unknown';
+    }
+
+    function stripHtml(html) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html || '';
+      return (tmp.textContent || tmp.innerText || '').trim();
+    }
+
+    function safeUrl(value) {
+      if (!value) return '#';
+      const trimmed = String(value).trim();
+      if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+        if (!/^(https?|mailto|tel):/i.test(trimmed)) return '#';
+      }
+      return trimmed;
+    }
+
+    function descriptionHtml(html) {
+      // The RSS description is HTML; sanitize via DOMParser instead of brittle regex.
+      if (!html) return '';
+      const doc = new DOMParser().parseFromString(String(html), 'text/html');
+      doc.querySelectorAll('script, style, iframe, object, embed, form, base, meta, link, svg').forEach(n => n.remove());
+      doc.querySelectorAll('*').forEach(el => {
+        for (const attr of [...el.attributes]) {
+          const name = attr.name.toLowerCase();
+          const value = attr.value || '';
+          if (/^on/i.test(name) || name === 'formaction' || name === 'srcdoc') {
+            el.removeAttribute(attr.name);
+            continue;
+          }
+          if ((name === 'href' || name === 'src' || name === 'xlink:href') &&
+              /^\s*(javascript|data|vbscript|file):/i.test(value)) {
+            el.removeAttribute(attr.name);
+          }
+        }
+        if (el.tagName === 'A') {
+          el.setAttribute('target', '_blank');
+          el.setAttribute('rel', 'noopener noreferrer');
+        }
+      });
+      return doc.body.innerHTML;
+    }
+
+    function formatDate(s) {
+      if (!s) return '';
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return s;
+      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    async function loadAzureUpdates() {
+      const container = document.getElementById('au-cards-container');
+      container.innerHTML = '<div class="au-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading Azure Updates…</span></div>';
+      try {
+        const res = await fetch('/api/azureupdates');
+        const data = await res.json();
+        if (data.error && (!data.items || !data.items.length)) {
+          container.innerHTML = `<div class="au-empty">⚠️ ${escapeHtml(data.error)}</div>`;
+          return;
+        }
+        allUpdates = (data.items || []).map(item => {
+          const buckets = classifyCategories(item.categories);
+          return { ...item, buckets };
+        });
+        rebuildFilters();
+        filterUpdates();
+      } catch (err) {
+        container.innerHTML = `<div class="au-empty">❌ Failed to load: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function rebuildFilters() {
+      const statuses = new Set();
+      const products = new Set();
+      allUpdates.forEach(u => {
+        if (u.buckets.status) statuses.add(u.buckets.status);
+        u.buckets.product.forEach(p => products.add(p));
+      });
+
+      // Preserve existing selections; only add new options.
+      const sortedStatuses = STATUS_KEYWORDS.filter(s => statuses.has(s))
+        .concat([...statuses].filter(s => !STATUS_KEYWORDS.includes(s)).sort());
+      const sortedProducts = [...products].sort((a, b) => a.localeCompare(b));
+
+      renderMultiOptions('au-status-options', sortedStatuses, statusFilter, 'status');
+      renderMultiOptions('au-product-options', sortedProducts, productFilter, 'product');
+      updateMultiLabel('status', sortedStatuses, 'Statuses');
+      updateMultiLabel('product', sortedProducts, 'Products');
+    }
+
+    function renderMultiOptions(containerId, values, selectedSet, kind) {
+      const c = document.getElementById(containerId);
+      c.innerHTML = values.map(v => `
+        <label class="au-multi-option">
+          <input type="checkbox" data-kind="${kind}" data-value="${escapeHtml(v)}"
+                 ${selectedSet.has(v) ? 'checked' : ''}
+                 onchange="onMultiChange(event)">
+          <span>${escapeHtml(v)}</span>
+        </label>`).join('');
+    }
+
+    function onMultiChange(ev) {
+      const kind = ev.target.dataset.kind;
+      const value = ev.target.dataset.value;
+      const set = kind === 'status' ? statusFilter : productFilter;
+      if (ev.target.checked) set.add(value); else set.delete(value);
+      const allKnown = kind === 'status'
+        ? Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value)
+        : Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value);
+      updateMultiLabel(kind, allKnown, kind === 'status' ? 'Statuses' : 'Products');
+      filterUpdates();
+    }
+
+    function setAllOptions(kind, checked) {
+      const set = kind === 'status' ? statusFilter : productFilter;
+      const inputs = kind === 'status'
+        ? document.querySelectorAll('#au-status-options input')
+        : document.querySelectorAll('#au-product-options input');
+      inputs.forEach(i => {
+        i.checked = checked;
+        if (checked) set.add(i.dataset.value); else set.delete(i.dataset.value);
+      });
+      const allKnown = Array.from(inputs).map(i => i.dataset.value);
+      updateMultiLabel(kind, allKnown, kind === 'status' ? 'Statuses' : 'Products');
+      filterUpdates();
+    }
+
+    function updateMultiLabel(kind, allValues, plural) {
+      const labelEl = document.getElementById(`au-${kind}-label`);
+      const set = kind === 'status' ? statusFilter : productFilter;
+      const total = allValues.length;
+      const sel = [...set].filter(v => allValues.includes(v));
+      if (sel.length === 0 || sel.length === total) labelEl.textContent = `All ${plural}`;
+      else if (sel.length === 1) labelEl.textContent = sel[0];
+      else labelEl.textContent = `${sel.length} ${plural}`;
+    }
+
+    function toggleMenu(id, ev) {
+      ev.stopPropagation();
+      document.querySelectorAll('.au-multi.open').forEach(el => {
+        if (el.id !== id) {
+          el.classList.remove('open');
+          const t = el.querySelector('.au-multi-toggle');
+          if (t) t.setAttribute('aria-expanded', 'false');
+        }
+      });
+      const wrap = document.getElementById(id);
+      const isOpen = wrap.classList.toggle('open');
+      const toggle = wrap.querySelector('.au-multi-toggle');
+      if (toggle) toggle.setAttribute('aria-expanded', String(isOpen));
+    }
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.au-multi.open').forEach(el => {
+        el.classList.remove('open');
+        const t = el.querySelector('.au-multi-toggle');
+        if (t) t.setAttribute('aria-expanded', 'false');
+      });
+    });
+
+    let __searchTimer = null;
+    function debouncedSearch() {
+      clearTimeout(__searchTimer);
+      __searchTimer = setTimeout(filterUpdates, 150);
+    }
+
+    function filterUpdates() {
+      const q = (document.getElementById('au-search').value || '').toLowerCase().trim();
+      const sort = document.getElementById('au-sort').value;
+
+      const allKnownStatuses = Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value);
+      const allKnownProducts = Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value);
+      const statusActive  = statusFilter.size > 0 && statusFilter.size < allKnownStatuses.length;
+      const productActive = productFilter.size > 0 && productFilter.size < allKnownProducts.length;
+
+      let filtered = allUpdates.filter(u => {
+        if (statusActive && !statusFilter.has(u.buckets.status)) return false;
+        if (productActive && !u.buckets.product.some(p => productFilter.has(p))) return false;
+        if (q) {
+          const hay = (u.title + ' ' + stripHtml(u.description)).toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        const da = new Date(a.pubDate).getTime() || 0;
+        const db = new Date(b.pubDate).getTime() || 0;
+        return sort === 'date-asc' ? da - db : db - da;
+      });
+
+      document.getElementById('au-result-count').textContent =
+        `${filtered.length} of ${allUpdates.length}`;
+
+      const groupByProduct = sort === 'product';
+      document.getElementById('au-expand-all-label').style.display = groupByProduct ? 'flex' : 'none';
+
+      if (groupByProduct) renderGrouped(filtered);
+      else renderFlat(filtered);
+    }
+
+    function renderFlat(items) {
+      const grid = document.getElementById('au-cards-container');
+      grid.classList.remove('is-grouped');
+      if (!items.length) { grid.innerHTML = '<div class="au-empty">No updates match the filter.</div>'; return; }
+      grid.innerHTML = items.map(cardHtml).join('');
+    }
+
+    function renderGrouped(items) {
+      const grid = document.getElementById('au-cards-container');
+      grid.classList.add('is-grouped');
+      if (!items.length) { grid.innerHTML = '<div class="au-empty">No updates match the filter.</div>'; return; }
+
+      const expandAll = !!document.getElementById('au-expand-all').checked;
+      const groups = new Map();
+      items.forEach(u => {
+        const key = (u.buckets.product[0] || 'Other').trim();
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(u);
+      });
+      const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+      const chevron = '<svg class="au-product-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      grid.innerHTML = sortedKeys.map(key => {
+        const list = groups.get(key);
+        const collapsedClass = expandAll ? '' : ' is-collapsed';
+        return `
+          <div class="au-product-group${collapsedClass}">
+            <div class="au-product-header" role="button" tabindex="0" aria-expanded="${expandAll ? 'true' : 'false'}" onclick="toggleProductGroup(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleProductGroup(this);}">
+              ${chevron}
+              <span>${escapeHtml(key)}</span>
+              <span class="au-product-count">${list.length} update${list.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="au-product-cards">
+              ${list.map(cardHtml).join('')}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function toggleProductGroup(header) {
+      const group = header.closest('.au-product-group');
+      if (!group) return;
+      const collapsed = group.classList.toggle('is-collapsed');
+      header.setAttribute('aria-expanded', String(!collapsed));
+      syncExpandAllCheckbox();
+    }
+
+    function toggleExpandAll() {
+      const expand = !!document.getElementById('au-expand-all').checked;
+      document.querySelectorAll('.au-product-group').forEach(g => {
+        g.classList.toggle('is-collapsed', !expand);
+        const h = g.querySelector('.au-product-header');
+        if (h) h.setAttribute('aria-expanded', String(expand));
+      });
+    }
+
+    function syncExpandAllCheckbox() {
+      const cb = document.getElementById('au-expand-all');
+      const groups = document.querySelectorAll('.au-product-group');
+      if (!groups.length) { cb.checked = false; cb.indeterminate = false; return; }
+      let expanded = 0;
+      groups.forEach(g => { if (!g.classList.contains('is-collapsed')) expanded++; });
+      cb.checked = expanded === groups.length;
+      cb.indeterminate = expanded > 0 && expanded < groups.length;
+    }
+
+    function cardHtml(u) {
+      const sc = statusClass(u.buckets.status);
+      const product = u.buckets.product[0] || '';
+      const release = u.buckets.release[0] || '';
+      const date = formatDate(u.pubDate);
+      const snippet = stripHtml(u.description).slice(0, 220);
+      return `
+        <div class="au-card" onclick="openUpdate('${escapeHtml(u.id)}')">
+          <div class="au-card-body">
+            <div class="au-card-top">
+              <span class="au-card-id">#${escapeHtml(u.id || '')}</span>
+              <span class="au-status-pill ${sc}">${escapeHtml(u.buckets.status || 'Unknown')}</span>
+            </div>
+            ${product ? `
+              <div class="au-card-product">
+                <span class="au-card-product-dot"></span>
+                <span>${escapeHtml(product)}</span>
+              </div>` : ''}
+            <div class="au-card-title">${escapeHtml(u.title || 'Untitled update')}</div>
+            ${snippet ? `<div class="au-card-snippet">${escapeHtml(snippet)}</div>` : ''}
+            <div class="au-card-meta">
+              ${release ? `<span class="au-tag-pill release">${escapeHtml(release)}</span>` : ''}
+              ${date ? `<span>${escapeHtml(date)}</span>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function openUpdate(id) {
+      const u = allUpdates.find(x => String(x.id) === String(id));
+      if (!u) return;
+      document.getElementById('au-modal-title').textContent = u.title || 'Update';
+      const metaParts = [];
+      if (u.buckets.status) metaParts.push(u.buckets.status);
+      if (u.pubDate) metaParts.push(`Published ${formatDate(u.pubDate)}`);
+      if (u.id) metaParts.push(`ID ${u.id}`);
+      document.getElementById('au-modal-meta').textContent = metaParts.join(' · ');
+
+      const body = document.getElementById('au-modal-body');
+      const tagSection = (label, list) => list && list.length
+        ? `
+          <div class="au-modal-section">
+            <div class="au-modal-section-title">${label}</div>
+            <div class="au-tag-list">${list.map(v => `<span class="au-tag-pill">${escapeHtml(v)}</span>`).join('')}</div>
+          </div>` : '';
+
+      body.innerHTML = `
+        <div class="au-modal-section">
+          <div class="au-modal-section-title">Description</div>
+          <div>${descriptionHtml(u.description)}</div>
+        </div>
+        ${tagSection('Products / area', u.buckets.product)}
+        ${tagSection('Release type', u.buckets.release)}
+        ${u.link ? `
+          <div class="au-modal-section">
+            <div class="au-modal-section-title">Reference</div>
+            <p><a href="${escapeHtml(safeUrl(u.link))}" target="_blank" rel="noopener noreferrer">View on Azure updates →</a></p>
+          </div>` : ''}
+      `;
+      document.getElementById('au-modal').classList.add('open');
+    }
+
+    function closeUpdate() {
+      document.getElementById('au-modal').classList.remove('open');
+    }
+    function handleModalBackdrop(ev) {
+      if (ev.target.id === 'au-modal') closeUpdate();
+    }
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') closeUpdate();
+    });
+
+    loadAzureUpdates();
+  </script>
+</body>
+</html>
