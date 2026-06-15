@@ -1,10 +1,11 @@
 {
-  "name": "release-planner",
-  "version": "1.0.0",
-  "description": "Microsoft Communications Portal with Microsoft 365 Message Center",
+  "name": "microsoft-communications-portal",
+  "version": "1.1.0",
+  "description": "Single pane of glass for Microsoft updates (Power Platform, M365, Azure, Message Center, Service Health) with AI-powered impact summarization",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
     "dotenv": "^16.3.1"

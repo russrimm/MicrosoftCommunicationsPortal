@@ -1,5 +1,5 @@
 // Local dev server — serves index.html and proxies the release plans API to bypass CORS
-// Usage: node server.js   (then open http://localhost:3000)
+// Usage: node server.js   (then open http://localhost:3010)
 
 const http  = require('http');
 const https = require('https');
@@ -9,7 +9,7 @@ const zlib  = require('zlib');
 const crypto = require('crypto');
 require('dotenv').config();
 
-const PORT     = 3000;
+const PORT     = Number(process.env.PORT) || 3010;
 const API_HOST = 'releaseplans.microsoft.com';
 // The /en-US/ locale-prefixed path now 301-redirects to the locale-less path;
 // locale is supplied via the langCode query parameter instead.
@@ -150,6 +150,174 @@ const M365_UPDATES_PATH = '/releasecommunications/api/v2/m365/rss';
 // Azure Updates RSS feed
 const AZURE_UPDATES_HOST = 'www.microsoft.com';
 const AZURE_UPDATES_PATH = '/releasecommunications/api/v2/azure/rss';
+
+// ── AI provider configuration (auto-detect) ─────────────────────────────────
+// Supports any OpenAI-compatible chat-completions endpoint. Detected in order:
+// Azure OpenAI → OpenAI → GitHub Models. First one fully configured wins.
+function detectAiProvider() {
+  if (process.env.AZURE_OPENAI_ENDPOINT && process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_DEPLOYMENT) {
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT.replace(/\/+$/, '');
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+    const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21';
+    const u = new URL(endpoint);
+    return {
+      name: 'azure-openai',
+      model: deployment,
+      hostname: u.hostname,
+      path: `${u.pathname.replace(/\/+$/, '')}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`,
+      headers: { 'api-key': process.env.AZURE_OPENAI_API_KEY },
+    };
+  }
+  if (process.env.OPENAI_API_KEY) {
+    const base = (process.env.OPENAI_BASE_URL || 'https://api.openai.com').replace(/\/+$/, '');
+    const u = new URL(base);
+    return {
+      name: 'openai',
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      hostname: u.hostname,
+      path: `${u.pathname.replace(/\/+$/, '')}/v1/chat/completions`,
+      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+    };
+  }
+  if (process.env.GITHUB_TOKEN) {
+    return {
+      name: 'github-models',
+      model: process.env.GITHUB_MODEL || 'openai/gpt-4o-mini',
+      hostname: 'models.github.ai',
+      path: '/inference/chat/completions',
+      headers: { 'Authorization': `Bearer ${process.env.GITHUB_TOKEN}` },
+    };
+  }
+  return null;
+}
+const AI_PROVIDER = detectAiProvider();
+
+// Call the configured LLM with an OpenAI-compatible chat-completions payload.
+// opts: { system, user, json (bool), maxTokens, temperature }
+function callLlm(opts, done) {
+  if (!AI_PROVIDER) {
+    return done(new Error('No AI provider configured. Set AZURE_OPENAI_*, OPENAI_API_KEY, or GITHUB_TOKEN in .env.'));
+  }
+  const body = {
+    model: AI_PROVIDER.model,
+    messages: [
+      { role: 'system', content: opts.system || 'You are a helpful assistant.' },
+      { role: 'user', content: opts.user || '' },
+    ],
+    temperature: typeof opts.temperature === 'number' ? opts.temperature : 0.2,
+    max_tokens: opts.maxTokens || 800,
+  };
+  if (opts.json) body.response_format = { type: 'json_object' };
+  const payload = Buffer.from(JSON.stringify(body), 'utf8');
+  const reqOpts = {
+    hostname: AI_PROVIDER.hostname,
+    path: AI_PROVIDER.path,
+    method: 'POST',
+    agent: keepAliveAgent,
+    headers: Object.assign({
+      'Content-Type': 'application/json',
+      'Content-Length': payload.length,
+      'Accept': 'application/json',
+    }, AI_PROVIDER.headers),
+  };
+  const req = https.request(reqOpts, (res) => {
+    let raw = '';
+    res.setEncoding('utf8');
+    res.on('data', (c) => { raw += c; });
+    res.on('end', () => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return done(new Error(`LLM HTTP ${res.statusCode}: ${raw.slice(0, 300)}`));
+      }
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch (e) { return done(new Error(`LLM response not JSON: ${e.message}`)); }
+      const content = parsed && parsed.choices && parsed.choices[0]
+        && parsed.choices[0].message && parsed.choices[0].message.content;
+      if (!content) return done(new Error('LLM response missing content'));
+      if (opts.json) {
+        try { return done(null, JSON.parse(content)); }
+        catch (e) { return done(new Error(`LLM JSON parse failed: ${e.message}`)); }
+      }
+      done(null, content);
+    });
+  });
+  req.on('error', done);
+  req.setTimeout(opts.timeoutMs || 30000, () => req.destroy(new Error('LLM request timeout')));
+  req.write(payload);
+  req.end();
+}
+
+// Read a JSON request body (cap at 1MB) and parse it.
+function readJsonBody(req, done) {
+  let received = 0;
+  const chunks = [];
+  const MAX = 1024 * 1024;
+  req.on('data', (chunk) => {
+    received += chunk.length;
+    if (received > MAX) {
+      req.destroy();
+      return done(new Error('Request body too large'));
+    }
+    chunks.push(chunk);
+  });
+  req.on('end', () => {
+    if (!chunks.length) return done(null, {});
+    try { done(null, JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+    catch (e) { done(new Error(`Invalid JSON body: ${e.message}`)); }
+  });
+  req.on('error', done);
+}
+
+// Strip HTML to plain text for AI input (keeps token usage down).
+function stripHtmlServer(html) {
+  if (!html) return '';
+  return String(html)
+    .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Normalize a feed item from any source into a compact shape for the LLM.
+function normalizeForAi(item, source) {
+  const title = item.title || item.subject || item.service || '';
+  const descRaw = item.description || (item.body && item.body.content) || item.impactDescription || '';
+  const desc = stripHtmlServer(descRaw).slice(0, 1200);
+  const id = item.id || item.guid || item.link || title;
+  return {
+    id: String(id),
+    source,
+    title: String(title).slice(0, 300),
+    description: desc,
+    link: item.link || item.webUrl || '',
+    categories: Array.isArray(item.categories) ? item.categories.slice(0, 8) : [],
+    publishedAt: item.pubDate || item.lastModifiedDateTime || item.startDateTime || '',
+  };
+}
+
+// Hash a JSON-serializable input deterministically for cache keys.
+function aiCacheKey(prefix, payload) {
+  const h = crypto.createHash('sha1').update(JSON.stringify(payload)).digest('hex').slice(0, 24);
+  return `${prefix}:${AI_PROVIDER ? AI_PROVIDER.name + ':' + AI_PROVIDER.model : 'none'}:${h}`;
+}
+
+const SYSTEM_SUMMARIZE =
+  'You analyze Microsoft cloud product change announcements (Azure, M365, Power Platform, Message Center, Service Health). ' +
+  'For each item, produce: (1) a 1-2 sentence plain-language summary aimed at IT admins, (2) an impact rating of high/medium/low, ' +
+  '(3) a one-line impactReason, (4) audience tags (e.g. "End users", "IT admins", "Developers", "Security"), ' +
+  '(5) actionRequired (true if admins must take action before a deadline, else false). ' +
+  'Be precise. No marketing language. If the description is empty, say so honestly. ' +
+  'Return STRICT JSON: {"summaries":[{"id":"...","summary":"...","impact":"high|medium|low","impactReason":"...","audience":["..."],"actionRequired":true|false}]}';
+
+const SYSTEM_DIGEST =
+  'You triage a batch of Microsoft cloud announcements and pick the most impactful for IT admins. ' +
+  'Consider: breaking changes, retirements/deprecations, security/compliance, GA launches, required admin action, ' +
+  'and broad audience reach. Ignore minor cosmetic tweaks. ' +
+  'Return STRICT JSON: {"headline":"one sentence overall theme","topItems":[{"id":"...","title":"...","summary":"...","impact":"high|medium|low","impactReason":"...","actionRequired":true|false}],"themes":["short theme 1","short theme 2"]}';
 
 // Microsoft 365 Message Center configuration
 const M365_CLIENT_ID     = process.env.M365_CLIENT_ID;
@@ -312,32 +480,7 @@ function fetchServiceHealth(token, done) {
 }
 
 // (legacy kept for shape compatibility)
-function _fetchMessageCenterMessages_shape(token, done) {
-  const options = {
-    hostname: 'graph.microsoft.com',
-    path: '/v1.0/admin/serviceAnnouncements/messages',
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json',
-    },
-  };
-
-  const req = https.request(options, (res) => {
-    let body = '';
-    res.on('data', chunk => { body += chunk; });
-    res.on('end', () => {
-      try {
-        done(null, { status: res.statusCode, body: JSON.parse(body) });
-      } catch (e) {
-        done(new Error(`Parse error: ${e.message}`));
-      }
-    });
-  });
-
-  req.on('error', done);
-  req.end();
-}
+function _fetchMessageCenterMessages_shape() { /* removed: superseded by graphGetAllPages */ }
 
 // Generic HTTPS GET that follows redirects. Used for the Azure Updates RSS feed.
 function httpsGetFollow(hostname, pathname, redirectsLeft, done) {
@@ -494,8 +637,192 @@ function requestReleasePlans(pathname, redirectsLeft, done) {
   req.end();
 }
 
+// ── Empty-product cache ─────────────────────────────────────────────────────
+// The Power Platform Release Planner picker fans out one /proxy call per
+// product. Many product IDs consistently return 0 results — they're valid
+// products with no published release plan. Remembering them avoids the
+// pointless upstream round-trip and the log spam.
+const EMPTY_PRODUCTS_FILE = path.join(__dirname, 'empty-products.json');
+const EMPTY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // re-check at most weekly
+const emptyProducts = new Map(); // productId -> { ts: number, hits: number }
+let emptyProductsWriteTimer = null;
+
+function loadEmptyProducts() {
+  try {
+    const raw = fs.readFileSync(EMPTY_PRODUCTS_FILE, 'utf8');
+    const obj = JSON.parse(raw);
+    const now = Date.now();
+    for (const [id, entry] of Object.entries(obj || {})) {
+      if (entry && typeof entry.ts === 'number' && now - entry.ts < EMPTY_TTL_MS) {
+        emptyProducts.set(id, { ts: entry.ts, hits: entry.hits || 1 });
+      }
+    }
+    if (emptyProducts.size) {
+      console.log(`[proxy] loaded ${emptyProducts.size} known-empty product IDs (auto-skip enabled)`);
+    }
+  } catch (_e) { /* file missing or unreadable; start empty */ }
+}
+
+function saveEmptyProductsDebounced() {
+  if (emptyProductsWriteTimer) return;
+  emptyProductsWriteTimer = setTimeout(() => {
+    emptyProductsWriteTimer = null;
+    const obj = {};
+    for (const [id, entry] of emptyProducts) obj[id] = entry;
+    fs.writeFile(EMPTY_PRODUCTS_FILE, JSON.stringify(obj, null, 2), (err) => {
+      if (err) console.error('[proxy] failed to persist empty-products cache:', err.message);
+    });
+  }, 1000);
+}
+
+function isKnownEmpty(productId) {
+  const e = emptyProducts.get(productId);
+  if (!e) return false;
+  if (Date.now() - e.ts > EMPTY_TTL_MS) { emptyProducts.delete(productId); return false; }
+  return true;
+}
+
+function recordEmpty(productId) {
+  if (!productId) return;
+  const prev = emptyProducts.get(productId);
+  emptyProducts.set(productId, { ts: Date.now(), hits: (prev ? prev.hits : 0) + 1 });
+  saveEmptyProductsDebounced();
+}
+
+function clearEmpty(productId) {
+  if (emptyProducts.delete(productId)) saveEmptyProductsDebounced();
+}
+
+loadEmptyProducts();
+
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
+
+  // ── AI status endpoint (UI uses this to show/hide AI features) ───────────
+  if (parsed.pathname === '/api/ai-status') {
+    sendJson(req, res, 200, {
+      enabled: !!AI_PROVIDER,
+      provider: AI_PROVIDER ? AI_PROVIDER.name : null,
+      model: AI_PROVIDER ? AI_PROVIDER.model : null,
+    }, { 'Cache-Control': 'max-age=30' });
+    return;
+  }
+
+  // ── AI: summarize a batch of feed items ──────────────────────────────────
+  // POST /api/summarize  body: { items: [{id,title,description,link,source,...}, ...] }
+  // Returns: { summaries: [{id,summary,impact,impactReason,audience,actionRequired}] }
+  if (parsed.pathname === '/api/summarize' && req.method === 'POST') {
+    readJsonBody(req, (err, body) => {
+      if (err) return sendJson(req, res, 400, { error: err.message });
+      const source = String(body.source || 'unknown').slice(0, 32);
+      const itemsIn = Array.isArray(body.items) ? body.items.slice(0, 20) : [];
+      if (!itemsIn.length) return sendJson(req, res, 400, { error: 'items[] required (max 20)' });
+      if (!AI_PROVIDER) {
+        return sendJson(req, res, 503, { error: 'AI provider not configured. See .env.example.' });
+      }
+      const compact = itemsIn.map((it) => normalizeForAi(it, source));
+      const key = aiCacheKey('summarize', compact);
+      cachedFetch(key, 10 * 60_000, (cb) => {
+        const userMsg = 'Summarize each of these announcements. Preserve the "id" field exactly.\n\n' +
+          JSON.stringify({ items: compact });
+        callLlm({ system: SYSTEM_SUMMARIZE, user: userMsg, json: true, maxTokens: 1800 }, (e, data) => {
+          if (e) return cb(e);
+          // Normalize: ensure every requested id has a summary entry.
+          const byId = new Map((data && Array.isArray(data.summaries) ? data.summaries : [])
+            .map(s => [String(s.id), s]));
+          const summaries = compact.map(c => byId.get(c.id) || {
+            id: c.id, summary: '(no summary returned)', impact: 'low', impactReason: '', audience: [], actionRequired: false,
+          });
+          cb(null, { summaries });
+        });
+      }, (e2, result) => {
+        if (e2) {
+          console.error('[summarize] error:', e2.message);
+          return sendJson(req, res, 502, { error: e2.message, summaries: [] });
+        }
+        sendJson(req, res, 200, result, { 'Cache-Control': 'max-age=300' });
+      });
+    });
+    return;
+  }
+
+  // ── AI: cross-feed impact digest (Top N most impactful from a source) ────
+  // GET /api/impact-digest?source=azure|m365|messagecenter|servicehealth&limit=5&windowDays=14
+  if (parsed.pathname === '/api/impact-digest') {
+    if (!AI_PROVIDER) {
+      return sendJson(req, res, 503, { error: 'AI provider not configured. See .env.example.' });
+    }
+    const source = (parsed.searchParams.get('source') || '').toLowerCase();
+    const limit = Math.max(1, Math.min(10, parseInt(parsed.searchParams.get('limit') || '5', 10)));
+    const windowDays = Math.max(1, Math.min(90, parseInt(parsed.searchParams.get('windowDays') || '14', 10)));
+    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+
+    const finish = (items) => {
+      if (!items.length) {
+        return sendJson(req, res, 200, { source, headline: 'No items in window.', topItems: [], themes: [] });
+      }
+      // Filter to recent items, then cap input to keep tokens bounded.
+      const recent = items.filter((it) => {
+        const ts = it.pubDate || it.lastModifiedDateTime || it.startDateTime || '';
+        if (!ts) return true;
+        const t = new Date(ts).getTime();
+        return isNaN(t) ? true : t >= cutoff;
+      });
+      const candidates = (recent.length ? recent : items).slice(0, 40)
+        .map((it) => normalizeForAi(it, source));
+      const key = aiCacheKey('digest', { source, limit, windowDays, candidates });
+      cachedFetch(key, 15 * 60_000, (cb) => {
+        const userMsg = `Pick the top ${limit} most impactful items for IT admins from the last ${windowDays} days. ` +
+          'Preserve each "id" exactly.\n\n' + JSON.stringify({ items: candidates });
+        callLlm({ system: SYSTEM_DIGEST, user: userMsg, json: true, maxTokens: 1500 }, cb);
+      }, (e, data) => {
+        if (e) {
+          console.error('[digest] error:', e.message);
+          return sendJson(req, res, 502, { error: e.message, topItems: [] });
+        }
+        const top = (data && Array.isArray(data.topItems) ? data.topItems : []).slice(0, limit);
+        sendJson(req, res, 200, {
+          source,
+          headline: (data && data.headline) || '',
+          themes: (data && Array.isArray(data.themes)) ? data.themes.slice(0, 6) : [],
+          topItems: top,
+          windowDays,
+          generatedAt: new Date().toISOString(),
+        }, { 'Cache-Control': 'max-age=600' });
+      });
+    };
+
+    // Resolve items based on source.
+    if (source === 'azure') {
+      fetchAzureUpdates((e, r) => finish(e ? [] : (r.items || [])));
+    } else if (source === 'm365') {
+      fetchM365Updates((e, r) => finish(e ? [] : (r.items || [])));
+    } else if (source === 'messagecenter') {
+      getM365AccessToken((e, token) => {
+        if (e) return sendJson(req, res, 502, { error: e.message, topItems: [] });
+        fetchMessageCenterMessages(token, (e2, r) => finish(e2 ? [] : ((r && r.body && r.body.value) || [])));
+      });
+    } else if (source === 'servicehealth') {
+      getM365AccessToken((e, token) => {
+        if (e) return sendJson(req, res, 502, { error: e.message, topItems: [] });
+        fetchServiceHealth(token, (e2, r) => {
+          if (e2) return finish([]);
+          // Service health: flatten issues out of healthOverviews so the AI sees individual events.
+          const services = (r && r.body && r.body.value) || [];
+          const issues = [];
+          for (const s of services) {
+            for (const iss of (s.issues || [])) {
+              issues.push(Object.assign({ service: s.service }, iss));
+            }
+          }
+          finish(issues);
+        });
+      });
+    } else {
+      sendJson(req, res, 400, { error: 'source must be one of: azure, m365, messagecenter, servicehealth' });
+    }
+    return;
+  }
 
   // ── Message Center API endpoint ──────────────────────────────────────────
   if (parsed.pathname === '/api/messagecenter' || parsed.pathname === '/api/servicemessages' || parsed.pathname === '/servicemessages') {
@@ -611,6 +938,20 @@ const server = http.createServer((req, res) => {
   if (parsed.pathname === '/proxy') {
     const productId = parsed.searchParams.get('productId') || '';
     const langCode  = parsed.searchParams.get('langCode')  || 'en-US';
+    const force     = parsed.searchParams.get('refresh') === '1';
+
+    // Short-circuit IDs that recently returned 0 results — skip the upstream call entirely.
+    if (productId && !force && isKnownEmpty(productId)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'max-age=300',
+        'X-Empty-Cache': 'hit',
+      });
+      res.end(JSON.stringify({ results: [], cached: 'empty' }));
+      return;
+    }
+
     const proxyPath = `${API_PATH}?langCode=${encodeURIComponent(langCode)}&productId=${encodeURIComponent(productId)}`;
     requestReleasePlans(proxyPath, MAX_REDIRECTS, (err, upstream) => {
       if (err) {
@@ -622,11 +963,22 @@ const server = http.createServer((req, res) => {
 
       const { status, body } = upstream;
         // Upstream sometimes returns HTML (login redirect, error page) instead of JSON.
-        // Normalize to JSON so the client always gets `{results: [...]}`.
+        // Other product IDs return malformed JSON containing Liquid templating errors —
+        // e.g. literal "Liquid error: ..." text inside what should be arrays. We still
+        // want to treat those as "no release plan published" rather than fail.
         let parsed = null;
         try { parsed = JSON.parse(body); } catch { /* not JSON */ }
+        // Recover the "empty results" case from malformed bodies: if strict parse
+        // failed but the body unambiguously contains `"results": []`, treat as empty.
+        const looksLikeEmpty = !parsed && /["']results["']\s*:\s*\[\s*\]/.test(body);
         const count = parsed && Array.isArray(parsed.results) ? parsed.results.length : 0;
-      console.log(`[proxy] ${status} ${productId} \u2192 ${count} results (${body.length} bytes)`);
+        const isEmpty = (parsed && count === 0) || looksLikeEmpty;
+      console.log(`[proxy] ${status} ${productId} \u2192 ${count} results (${body.length} bytes)${looksLikeEmpty ? ' [recovered-empty]' : ''}`);
+        // Update empty-product cache based on this response.
+        if (productId) {
+          if (isEmpty) recordEmpty(productId);
+          else if (parsed && count > 0) clearEmpty(productId);
+        }
         if (parsed) {
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
@@ -634,6 +986,15 @@ const server = http.createServer((req, res) => {
             'Cache-Control': 'max-age=300',
           });
           res.end(body);
+        } else if (looksLikeEmpty) {
+          // Malformed upstream but clearly empty — return clean JSON.
+          res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'max-age=300',
+            'X-Empty-Cache': 'recovered',
+          });
+          res.end(JSON.stringify({ results: [], recovered: true }));
         } else {
           // Upstream returned non-JSON; pass through a structured error
           res.writeHead(200, {
@@ -647,6 +1008,29 @@ const server = http.createServer((req, res) => {
           }));
         }
     });
+    return;
+  }
+
+  // ── Empty-products admin endpoint (inspect / clear) ──────────────────────
+  // GET    /api/empty-products             → list current entries
+  // DELETE /api/empty-products             → clear entire cache
+  // DELETE /api/empty-products?id=<guid>   → clear a single ID
+  if (parsed.pathname === '/api/empty-products') {
+    if (req.method === 'DELETE') {
+      const id = parsed.searchParams.get('id');
+      if (id) { clearEmpty(id); sendJson(req, res, 200, { ok: true, cleared: 1, id }); }
+      else {
+        const n = emptyProducts.size;
+        emptyProducts.clear();
+        saveEmptyProductsDebounced();
+        sendJson(req, res, 200, { ok: true, cleared: n });
+      }
+      return;
+    }
+    const entries = [];
+    for (const [id, entry] of emptyProducts) entries.push({ id, ts: entry.ts, hits: entry.hits });
+    entries.sort((a, b) => b.ts - a.ts);
+    sendJson(req, res, 200, { count: entries.length, ttlDays: EMPTY_TTL_MS / 86400000, entries });
     return;
   }
 
@@ -675,10 +1059,52 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Static assets (JS/CSS) under /static/ ────────────────────────────────
+  if (parsed.pathname.startsWith('/static/')) {
+    // Reject path traversal and disallowed characters.
+    const rel = parsed.pathname.slice('/static/'.length);
+    if (!rel || rel.includes('..') || rel.includes('\\') || !/^[\w./-]+$/.test(rel)) {
+      res.writeHead(400); res.end('Bad path'); return;
+    }
+    const filePath = path.join(__dirname, 'static', rel);
+    const root = path.join(__dirname, 'static') + path.sep;
+    if (!filePath.startsWith(root)) { res.writeHead(400); res.end('Bad path'); return; }
+    fs.readFile(filePath, (err, buf) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      const ext = path.extname(filePath).toLowerCase();
+      const types = { '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+                      '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8' };
+      const etag = '"' + crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16) + '"';
+      if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag }); res.end(); return; }
+      const headers = {
+        'Content-Type': types[ext] || 'application/octet-stream',
+        'Cache-Control': 'no-cache',
+        'ETag': etag,
+        'X-Content-Type-Options': 'nosniff',
+        'Vary': 'Accept-Encoding',
+      };
+      const accept = (req.headers['accept-encoding'] || '').toLowerCase();
+      if (accept.includes('gzip') && buf.length > 1024) {
+        const gz = zlib.gzipSync(buf);
+        headers['Content-Encoding'] = 'gzip';
+        headers['Content-Length'] = gz.length;
+        res.writeHead(200, headers); res.end(gz); return;
+      }
+      headers['Content-Length'] = buf.length;
+      res.writeHead(200, headers); res.end(buf);
+    });
+    return;
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n  Microsoft Communications Portal`);
-  console.log(`  → http://localhost:${PORT}\n`);
+  console.log(`  → http://localhost:${PORT}`);
+  if (AI_PROVIDER) {
+    console.log(`  → AI: ${AI_PROVIDER.name} (${AI_PROVIDER.model})\n`);
+  } else {
+    console.log(`  → AI: disabled (set AZURE_OPENAI_*, OPENAI_API_KEY, or GITHUB_TOKEN in .env to enable)\n`);
+  }
 });

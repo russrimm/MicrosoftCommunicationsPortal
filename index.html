@@ -653,7 +653,7 @@
     <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
     <div>
       <div class="header-title">Microsoft Communications Portal</div>
-      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a></div>
+      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
     </div>
     <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
   </header>
@@ -1608,7 +1608,7 @@
       refresh();
       if (!allFeatures.length) {
         if (!IS_LOCAL_SERVER) {
-          setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3000');
+          setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3010');
         } else if (fetchStats.failed > 0) {
           setLoading(true, `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed. Last error: ${fetchStats.lastError || 'unknown'}`);
         } else {

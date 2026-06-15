@@ -552,7 +552,7 @@
     <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
     <div>
       <div class="header-title">Microsoft Communications Portal</div>
-      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a></div>
+      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
     </div>
     <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
   </header>
@@ -662,7 +662,8 @@
             <span>Current Issues</span>
             <span class="sh-panel-title-count" id="sh-issues-total">—</span>
           </div>
-          <div style="display:flex;gap:0.4rem">
+          <div style="display:flex;gap:0.4rem;align-items:center">
+            <button class="export-btn" id="sh-export-btn" type="button" onclick="exportServiceHealthToHtml()">⬇ Export HTML</button>
             <button class="ghost-btn" id="sh-expand-btn" type="button" aria-expanded="false" onclick="toggleExpandIssues()">Show all</button>
             <button class="ghost-btn" id="sh-pause-btn" type="button" aria-pressed="false" onclick="togglePause()">Pause</button>
           </div>
@@ -1204,6 +1205,23 @@
       backdrop.classList.add('open');
       backdrop.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
+      if (window.CportalAi && window.CportalAi.isEnabled()) {
+        // Service health issues lack a description field — synthesize one for the AI from impact + latest post.
+        const latestPost = (it.posts || []).slice().sort((a, b) =>
+          new Date(b.createdDateTime || 0) - new Date(a.createdDateTime || 0))[0];
+        const aiItem = {
+          id: it.id,
+          title: it.title,
+          description: [it.impact, latestPost && latestPost.description && latestPost.description.content]
+            .filter(Boolean).join('\n\n'),
+          link: '',
+          pubDate: it.lastModifiedDateTime || it.startDateTime,
+          categories: [it.classification, it.service, it.feature].filter(Boolean),
+        };
+        window.CportalAi.attachToModal(
+          document.querySelector('#sh-modal-backdrop .sh-modal-body'),
+          'servicehealth', aiItem);
+      }
     }
 
     function closeIssueModal() {
@@ -1240,6 +1258,155 @@
     // Initial load + auto-refresh every minute
     loadServiceHealth();
     scheduleRefresh();
+
+    // ════════════════════════════════════════════════
+    // EXPORT
+    // ════════════════════════════════════════════════
+    function exportServiceHealthToHtml() {
+      const issues = (typeof flatIssues === 'function' ? flatIssues() : []);
+      const counts = (typeof getCounts === 'function' ? getCounts() : null);
+
+      const btn = document.getElementById('sh-export-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '…Exporting'; }
+
+      const esc = s => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+      const fmtDt = v => {
+        if (!v) return '—';
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? String(v) : d.toLocaleString();
+      };
+
+      const issueRows = issues.map(it => {
+        const sev    = severityFromIssue(it);
+        const cls    = humanizeClassification(it.classification);
+        const status = humanizeStatus(it.status, sev);
+        const lastPostText = (Array.isArray(it.posts) && it.posts.length)
+          ? (() => {
+              const last = [...it.posts].sort((a, b) =>
+                new Date(b.createdDateTime || 0) - new Date(a.createdDateTime || 0))[0];
+              const txt = last && last.description && typeof last.description.content === 'string'
+                ? last.description.content : '';
+              return txt.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            })()
+          : '';
+        return `    <tr>
+      <td>${esc(it.id || '')}</td>
+      <td>${esc(it.service || '')}</td>
+      <td>${esc(it.title || '')}</td>
+      <td>${esc(cls)}</td>
+      <td>${esc(status)}</td>
+      <td>${esc(it.feature || '')}</td>
+      <td>${esc(it.featureGroup || '')}</td>
+      <td>${it.highImpact ? 'Yes' : 'No'}</td>
+      <td>${esc(fmtDt(it.startDateTime))}</td>
+      <td>${esc(fmtDt(it.lastModifiedDateTime))}</td>
+      <td>${esc(String(it.impact || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())}</td>
+      <td>${esc(lastPostText)}</td>
+    </tr>`;
+      }).join('\n');
+
+      const summary = counts
+        ? `Operational ${counts.operational} · Degraded ${counts.degraded} · Extended Recovery ${counts.extended} · Active issues ${counts.totalIssues} · Affected services ${counts.affected}`
+        : `${issues.length} active issue${issues.length !== 1 ? 's' : ''}`;
+
+      const now = new Date().toLocaleString();
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microsoft 365 Service Health Export — ${esc(now)}</title>
+  <style>
+    body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; margin: 24px; background: #ffffff; color: #111827; }
+    h2 { font-size: 16px; margin-bottom: 4px; color: #111827; }
+    p  { font-size: 12px; color: #6b7280; margin: 0 0 8px; }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+      font-size: 13px;
+      margin: 16px 0;
+      border: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      border-radius: 6px;
+      overflow: hidden;
+      background-color: #ffffff;
+      color: #111827;
+    }
+    thead { background-color: #1f2937; color: #ffffff; }
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #374151;
+    }
+    tbody tr { transition: background-color 0.2s; background-color: #ffffff; }
+    tbody tr:nth-child(even) { background-color: #f9fafb; }
+    tbody tr:hover { background-color: #e5e7eb; }
+    tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: middle;
+      color: #111827;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    a { color: #0078d4; }
+    .empty { font-style: italic; color: #6b7280; padding: 16px 0; }
+  </style>
+</head>
+<body>
+  <h2>Microsoft 365 Service Health</h2>
+  <p>Exported ${esc(now)} &bull; ${esc(summary)}</p>
+  ${issues.length ? `<table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Service</th>
+        <th>Title</th>
+        <th>Classification</th>
+        <th>Status</th>
+        <th>Feature</th>
+        <th>Feature Group</th>
+        <th>High Impact</th>
+        <th>Started</th>
+        <th>Last Updated</th>
+        <th>Impact</th>
+        <th>Latest Update</th>
+      </tr>
+    </thead>
+    <tbody>
+${issueRows}
+    </tbody>
+  </table>` : '<p class="empty">✓ No active issues at the time of export.</p>'}
+</body>
+</html>`;
+
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `servicehealth-export-${new Date().toISOString().slice(0,10)}.html`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export HTML'; }
+    }
+
+    // ── AI insights ──────────────────────────────────────────────────────────
+    if (window.CportalAi) {
+      window.CportalAi.init({
+        source: 'servicehealth',
+        panelMountSelector: '.sh-page-stack',
+        onTopItemClick: (id) => { if (typeof openIssueModal === 'function') openIssueModal(id); },
+      });
+    }
   </script>
+  <script src="/static/ai-insights.js" defer></script>
 </body>
 </html>

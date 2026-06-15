@@ -19,3 +19,6 @@ Thumbs.db
 dist/
 build/
 *.log
+
+# Runtime caches
+empty-products.json

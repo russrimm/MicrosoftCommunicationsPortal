@@ -407,7 +407,7 @@
     <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
     <div>
       <div class="header-title">Microsoft Communications Portal</div>
-      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a></div>
+      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
     </div>
     <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
   </header>
@@ -472,6 +472,7 @@
       </div>
       <div class="mc-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="mc-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
+        <button class="export-btn" id="mc-export-btn" type="button" onclick="exportMessagesToHtml()">⬇ Export HTML</button>
         <button class="export-btn" onclick="loadMessageCenter()">↻ Refresh</button>
       </div>
     </div>
@@ -857,6 +858,9 @@
 
       document.getElementById('mc-modal-body').innerHTML = sections.join('') || '<div class="mc-empty">No additional details.</div>';
       document.getElementById('mc-modal').classList.add('open');
+      if (window.CportalAi && window.CportalAi.isEnabled()) {
+        window.CportalAi.attachToModal(document.getElementById('mc-modal-body'), 'messagecenter', msg);
+      }
     }
 
     function closeMessage() {
@@ -909,8 +913,148 @@
       return doc.body.innerHTML;
     }
 
+    // ════════════════════════════════════════════════
+    // EXPORT
+    // ════════════════════════════════════════════════
+    function exportMessagesToHtml() {
+      const rows = currentFiltered || [];
+      if (!rows.length) { alert('No messages to export with current filters.'); return; }
+
+      const btn = document.getElementById('mc-export-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '…Exporting'; }
+
+      const esc = s => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+      const fmtDate = v => {
+        if (!v) return '—';
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? String(v) : d.toLocaleString();
+      };
+
+      const tableRows = rows.map(msg => {
+        const tags = (msg.tags || []).map(t => String(t).toLowerCase());
+        const isUpdated = tags.some(t => t.includes('updated'));
+        const isMajor = !!msg.isMajorChange || tags.some(t => t.includes('major'));
+        const status = isUpdated ? 'Updated' : 'New';
+        const services = (msg.services || []).map(getServiceName).filter(Boolean).join(', ') || 'General';
+        const severity = (msg.severity || 'normal');
+        const summary = String(getMessageDescription(msg) || '')
+          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        return `    <tr>
+      <td>${esc(msg.id || '')}</td>
+      <td>${esc(services)}</td>
+      <td>${esc(msg.title || '')}</td>
+      <td>${esc(msg.category || '')}</td>
+      <td>${esc(severity)}</td>
+      <td>${esc(status)}${isMajor ? ' <strong>(Major)</strong>' : ''}</td>
+      <td>${esc(fmtDate(msg.startDateTime))}</td>
+      <td>${esc(fmtDate(msg.lastModifiedDateTime))}</td>
+      <td>${esc(fmtDate(msg.actionRequiredByDateTime))}</td>
+      <td>${esc(summary)}</td>
+    </tr>`;
+      }).join('\n');
+
+      const now = new Date().toLocaleString();
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microsoft 365 Message Center Export — ${esc(now)}</title>
+  <style>
+    body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; margin: 24px; background: #ffffff; color: #111827; }
+    h2 { font-size: 16px; margin-bottom: 4px; color: #111827; }
+    p  { font-size: 12px; color: #6b7280; margin: 0 0 8px; }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+      font-size: 13px;
+      margin: 16px 0;
+      border: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      border-radius: 6px;
+      overflow: hidden;
+      background-color: #ffffff;
+      color: #111827;
+    }
+    thead { background-color: #1f2937; color: #ffffff; }
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #374151;
+    }
+    tbody tr { transition: background-color 0.2s; background-color: #ffffff; }
+    tbody tr:nth-child(even) { background-color: #f9fafb; }
+    tbody tr:hover { background-color: #e5e7eb; }
+    tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: middle;
+      color: #111827;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    a { color: #0078d4; }
+  </style>
+</head>
+<body>
+  <h2>Microsoft 365 Message Center</h2>
+  <p>Exported ${esc(now)} &bull; ${rows.length} message${rows.length !== 1 ? 's' : ''}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Product / Service</th>
+        <th>Title</th>
+        <th>Category</th>
+        <th>Severity</th>
+        <th>Status</th>
+        <th>Published</th>
+        <th>Last Modified</th>
+        <th>Action Required By</th>
+        <th>Summary</th>
+      </tr>
+    </thead>
+    <tbody>
+${tableRows}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `messagecenter-export-${new Date().toISOString().slice(0,10)}.html`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export HTML'; }
+    }
+
     // Load immediately on page open
     loadMessageCenter();
+
+    // ── AI insights ──────────────────────────────────────────────────────
+    if (window.CportalAi) {
+      window.CportalAi.init({
+        source: 'messagecenter',
+        panelMountSelector: '#mc-messages-container',
+        onTopItemClick: (id) => {
+          // Message Center uses array index, not id — find the matching message.
+          const idx = allMessages.findIndex(m => String(m.id) === String(id));
+          if (idx >= 0 && typeof openMessage === 'function') openMessage(idx);
+        },
+      });
+    }
   </script>
+  <script src="/static/ai-insights.js" defer></script>
 </body>
 </html>

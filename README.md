@@ -35,7 +35,7 @@ The site root (`/`) redirects to `/powerplatform`.
 
 Each page is shown in light and dark mode below. Regenerate with
 `node scripts/capture-screenshots.js` (Playwright) while the server is running
-on `http://localhost:3000`.
+on `http://localhost:3010`.
 
 ### Power Platform Release Planner
 
@@ -145,7 +145,7 @@ on `http://localhost:3000`.
    ```
 
 4. **Open in browser:**
-   http://localhost:3000
+   http://localhost:3010
 
 ## Features
 
@@ -155,9 +155,44 @@ on `http://localhost:3000`.
 - **Message Center** — tenant-specific Microsoft 365 Message Center announcements,
   filterable by severity and date
 - **Service Health** — current service incidents and advisories for your tenant
+- **✨ AI Insights** *(optional)* — per-feed "Top 5 most impactful changes this week"
+  digest plus a per-item "Summarize with AI" button on every announcement. Picks out
+  breaking changes, retirements, GA launches, security/compliance changes, and items
+  requiring admin action. See [AI summarization](#ai-summarization-optional) below.
 - **Auto-refresh** — Graph-backed pages refresh on an interval
 - **Dark mode** — toggle between light and dark themes
 - **Export** — printable export view for the Power Platform release plan
+
+## AI summarization (optional)
+
+The portal can call an LLM to surface what actually matters in the firehose of
+Microsoft updates. When enabled, every feed page shows:
+
+- A **Top 5 most impactful changes** digest at the top of the page (covers the
+  last 14 days, refreshed on demand), with one-line themes and an overall headline.
+- A **✨ Summarize with AI** button inside each announcement's detail modal —
+  produces a plain-language summary, an impact rating (high/medium/low), the
+  intended audience (IT admins, end users, developers, security), and a flag
+  if admin action is required before a deadline.
+
+The server speaks the OpenAI-compatible chat-completions protocol, so any of
+these providers work out of the box — set **one** of the blocks in `.env` and
+restart. The server auto-detects which provider to use (priority: Azure OpenAI →
+OpenAI → GitHub Models).
+
+| Provider | Env vars | When to use |
+|---|---|---|
+| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, *(optional)* `AZURE_OPENAI_API_VERSION` | Recommended for Microsoft customers — data stays in your Azure tenant. |
+| **OpenAI** | `OPENAI_API_KEY`, *(optional)* `OPENAI_MODEL`, `OPENAI_BASE_URL` | Quickest setup if you already have an OpenAI key. |
+| **GitHub Models** | `GITHUB_TOKEN`, *(optional)* `GITHUB_MODEL` | Free tier — great for trying it out. Uses `https://models.github.ai`. |
+
+Recommended model: `gpt-4o-mini` (or your deployment name) — fast, cheap, and
+plenty capable for this kind of triage. Responses are cached in memory:
+summaries for 10 minutes, digests for 15 minutes, so repeat views don't burn tokens.
+
+When no AI provider is configured the portal still works fine — the AI panel
+shows a short note pointing back at `.env.example` and the per-item Summarize
+button is hidden.
 
 ## API Endpoints
 
@@ -170,8 +205,12 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /api/azureupdates` | Azure Updates RSS, parsed to JSON | None |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` |
 | `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` |
+| `GET /api/ai-status` | Reports whether AI is configured and which provider is active | None |
+| `POST /api/summarize` | Body `{source, items[]}` → per-item AI summaries | AI provider |
+| `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
+AI provider responses are cached in-memory (summarize: 10 min, digest: 15 min, hashed by input).
 
 ## Project structure
 
@@ -181,9 +220,10 @@ m365updates.html                 M365 Roadmap UI
 azureupdates.html                Azure Updates UI
 messagecenter.html               M365 Message Center UI
 servicehealth.html               M365 Service Health UI
-server.js                        Node HTTP server, static file host, and API proxy
+server.js                        Node HTTP server, static file host, API proxy, AI endpoints
+static/ai-insights.js            Shared client-side AI helper (digest panel + per-item summarize)
 package.json                     Dependencies (dotenv only)
-.env.example                     Template for Entra ID app credentials
+.env.example                     Template for Entra ID credentials and optional AI provider
 scripts/capture-screenshots.js   Playwright script that regenerates the README screenshot gallery
 screenshots/                     Light + dark mode PNGs rendered into the README above
 ```
