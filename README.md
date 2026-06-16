@@ -35,7 +35,10 @@ The site root (`/`) redirects to `/powerplatform`.
 
 Each page is shown in light and dark mode below. Regenerate with
 `node scripts/capture-screenshots.js` (Playwright) while the server is running
-on `http://localhost:3010`.
+on `http://localhost:3010`. The script visits each route with both theme query
+strings, waits for any visible "Loading…" banner to clear (up to 45 s, since
+the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
+1440×900 × 2 DPR PNGs to `screenshots/`.
 
 ### Power Platform Release Planner
 
@@ -149,19 +152,51 @@ on `http://localhost:3010`.
 
 ## Features
 
-- **Power Platform Release Planner** — browse release features by product, wave, and date
-- **Microsoft 365 Roadmap** — current and upcoming M365 features from the official RSS feed
-- **Azure Updates** — Azure product announcements from the official RSS feed
+### Content sources
+- **Power Platform Release Planner** — browse release features by product, wave, and date.
+- **Microsoft 365 Roadmap** — current and upcoming M365 features from the official RSS feed.
+- **Azure Updates** — Azure product announcements from the official RSS feed.
 - **Message Center** — tenant-specific Microsoft 365 Message Center announcements,
-  filterable by severity and date
-- **Service Health** — current service incidents and advisories for your tenant
-- **✨ AI Insights** *(optional)* — per-feed "Top 5 most impactful changes this week"
-  digest plus a per-item "Summarize with AI" button on every announcement. Picks out
-  breaking changes, retirements, GA launches, security/compliance changes, and items
-  requiring admin action. See [AI summarization](#ai-summarization-optional) below.
-- **Auto-refresh** — Graph-backed pages refresh on an interval
-- **Dark mode** — toggle between light and dark themes
-- **Export** — printable export view for the Power Platform release plan
+  filterable by severity and date.
+- **Service Health** — current service incidents and advisories for your tenant.
+
+### Across every page
+- **Product / service logos on every card** — each card's product badge auto-resolves
+  to a Microsoft product icon from `/public/*.svg` using a curated alias map plus
+  token-based fuzzy matching (Jaccard + coverage). Covers Power Platform, Dynamics 365,
+  the full M365/Viva/Copilot family, security and identity (Defender, Entra, Purview,
+  Intune), Office apps, and 30+ Azure services. Falls back silently when no icon
+  matches, so unknown products never show a broken image. Implementation:
+  [`static/product-icons.js`](static/product-icons.js).
+- **⬇ Export** — one-click export of the currently filtered view to a self-contained
+  `.html` file you can paste straight into a new Outlook email. The exporter (see
+  [`static/outlook-export.js`](static/outlook-export.js)) commits to a single
+  high-contrast light palette and puts inline `style="…"` plus a redundant
+  legacy `bgcolor="…"` attribute on every cell so the table renders correctly
+  even after Outlook's compose surface strips `<style>` blocks, CSS variables,
+  and `@media` rules. Outlook's built-in dark-mode rendering handles the dark
+  conversion automatically.
+- **🛠 Generate Full Export** — opens a modal that lets you build a focused export by date range
+  (the right date axis for the page — GA Date, Published, Started, etc.) plus a
+  checklist of products / services with select-all, clear, and search. A live counter
+  shows how many items match before you generate. Items that don't carry a product /
+  service field appear under an `(Unclassified)` bucket (pinned to the bottom of the
+  list) so they can still be included or excluded explicitly. The output is the same
+  Outlook-friendly HTML produced by the regular export.
+- **Dark mode** — toggle between light and dark themes from the header, or pass
+  `?clawpilotTheme=light` / `?clawpilotTheme=dark` on the URL. Theme is applied
+  before first paint to avoid flash.
+- **Auto-refresh** — Graph-backed pages (Message Center, Service Health) refresh
+  on an interval; non-Graph pages refresh on demand.
+
+### ✨ AI Insights *(optional)*
+- A per-feed **"Top 5 most impactful changes this week"** digest at the top of the page,
+  covering the last 14 days and refreshed on demand.
+- A **Summarize with AI** button inside every announcement's detail modal — produces a
+  plain-language summary, impact rating (high / medium / low), audience (IT admins,
+  end users, developers, security), and an admin-action flag with deadline.
+- Highlights breaking changes, retirements, GA launches, security/compliance changes,
+  and items requiring admin action. See [AI summarization](#ai-summarization-optional) below.
 
 ## AI summarization (optional)
 
@@ -200,7 +235,7 @@ The Node server exposes the following local endpoints (all return JSON):
 
 | Endpoint | Description | Auth |
 |---|---|---|
-| `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects) | None |
+| `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None |
 | `GET /api/m365updates` | Microsoft 365 Roadmap RSS, parsed to JSON | None |
 | `GET /api/azureupdates` | Azure Updates RSS, parsed to JSON | None |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` |
@@ -208,9 +243,16 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /api/ai-status` | Reports whether AI is configured and which provider is active | None |
 | `POST /api/summarize` | Body `{source, items[]}` → per-item AI summaries | AI provider |
 | `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider |
+| `GET /api/empty-products` | List product IDs cached as known-empty by the `/proxy` route | None |
+| `DELETE /api/empty-products` | Clear the entire known-empty cache (use `?id=<guid>` to clear one) | None |
+| `GET /static/<file>` | Shared client JS (`product-icons.js`, `outlook-export.js`, `ai-insights.js`) and other static assets | None |
+| `GET /public/<file>` | Microsoft product / service SVG icons used by the card logos | None |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
 AI provider responses are cached in-memory (summarize: 10 min, digest: 15 min, hashed by input).
+The known-empty product cache is persisted to [`empty-products.json`](empty-products.json) so
+restarts don't lose the auto-skip list.
+Static `/public/` icons are sent with a 24-hour `Cache-Control` and an ETag, and gzipped when >1 KB.
 
 ## Project structure
 
@@ -221,7 +263,12 @@ azureupdates.html                Azure Updates UI
 messagecenter.html               M365 Message Center UI
 servicehealth.html               M365 Service Health UI
 server.js                        Node HTTP server, static file host, API proxy, AI endpoints
-static/ai-insights.js            Shared client-side AI helper (digest panel + per-item summarize)
+static/
+  ai-insights.js                 Shared client-side AI helper (digest panel + per-item summarize)
+  product-icons.js               Shared client-side product-icon resolver (alias map + fuzzy matcher)
+  outlook-export.js              Shared client-side Outlook-friendly HTML exporter (inline styles + bgcolor)
+public/                          Microsoft product / service SVG icons served at /public/<file>.svg
+empty-products.json              Persisted cache of known-empty Release Planner product IDs (auto-skip list)
 package.json                     Dependencies (dotenv only)
 .env.example                     Template for Entra ID credentials and optional AI provider
 scripts/capture-screenshots.js   Playwright script that regenerates the README screenshot gallery

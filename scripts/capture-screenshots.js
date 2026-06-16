@@ -34,12 +34,27 @@ const THEMES = ['light', 'dark'];
       const target = `${BASE}${url}${sep}clawpilotTheme=${theme}`;
       process.stdout.write(`Capturing ${target} -> ${file} ... `);
       try {
-        await page.goto(target, { waitUntil: 'networkidle', timeout: 30000 });
+        await page.goto(target, { waitUntil: 'networkidle', timeout: 60000 });
       } catch (e) {
-        await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2500);
+        await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 60000 });
       }
-      await page.waitForTimeout(2500);
+      // Wait for any visible "Loading…" banner / spinner to clear. The Power
+      // Platform page in particular fans out ~20 upstream calls and may take
+      // 30–45s to settle on a cold cache.
+      try {
+        await page.waitForFunction(() => {
+          const txt = (document.body && document.body.innerText) || '';
+          if (/Loading\u2026?\s*selected products/i.test(txt)) return false;
+          if (/^\s*Loading[\u2026.\s]*$/m.test(txt)) return false;
+          // Any visible element with "loading" in its class or id
+          const stillLoading = Array.from(document.querySelectorAll('[class*="loading" i],[id*="loading" i]'))
+            .some(el => el.offsetParent !== null && getComputedStyle(el).display !== 'none');
+          return !stillLoading;
+        }, { timeout: 45000 });
+      } catch {
+        process.stdout.write('(loading banner still visible after 45s) ');
+      }
+      await page.waitForTimeout(1500);
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
         path: path.join(OUT, file),

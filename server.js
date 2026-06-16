@@ -1096,6 +1096,45 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Static assets under /public/ (product/service icons, etc.) ───────────
+  if (parsed.pathname.startsWith('/public/')) {
+    let rel;
+    try { rel = decodeURIComponent(parsed.pathname.slice('/public/'.length)); }
+    catch { res.writeHead(400); res.end('Bad path'); return; }
+    if (!rel || rel.includes('..') || rel.includes('\\') || !/^[\w .+()-]+\.(svg|png|jpe?g|gif|webp|ico)$/i.test(rel)) {
+      res.writeHead(400); res.end('Bad path'); return;
+    }
+    const filePath = path.join(__dirname, 'public', rel);
+    const root = path.join(__dirname, 'public') + path.sep;
+    if (!filePath.startsWith(root)) { res.writeHead(400); res.end('Bad path'); return; }
+    fs.readFile(filePath, (err, buf) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      const ext = path.extname(filePath).toLowerCase();
+      const types = { '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
+                      '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
+                      '.ico': 'image/x-icon' };
+      const etag = '"' + crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16) + '"';
+      if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag }); res.end(); return; }
+      const headers = {
+        'Content-Type': types[ext] || 'application/octet-stream',
+        'Cache-Control': 'public, max-age=86400',
+        'ETag': etag,
+        'X-Content-Type-Options': 'nosniff',
+        'Vary': 'Accept-Encoding',
+      };
+      const accept = (req.headers['accept-encoding'] || '').toLowerCase();
+      if (ext === '.svg' && accept.includes('gzip') && buf.length > 1024) {
+        const gz = zlib.gzipSync(buf);
+        headers['Content-Encoding'] = 'gzip';
+        headers['Content-Length'] = gz.length;
+        res.writeHead(200, headers); res.end(gz); return;
+      }
+      headers['Content-Length'] = buf.length;
+      res.writeHead(200, headers); res.end(buf);
+    });
+    return;
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 

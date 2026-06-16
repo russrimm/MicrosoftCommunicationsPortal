@@ -487,6 +487,12 @@
     .card-details { flex: 0 0 auto; }
     .expand-btn { margin-top: auto; }
     .card-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.4rem; }
+    .b-product .product-icon {
+      width: 14px; height: 14px;
+      object-fit: contain;
+      margin-right: 0.25rem;
+      flex-shrink: 0;
+    }
     .badge {
       display: inline-flex; align-items: center;
       padding: 0.1rem 0.45rem;
@@ -645,6 +651,58 @@
       .content { overflow-y: visible; }
       .features-grid { grid-template-columns: 1fr; }
     }
+
+    /* ── Generate Export modal ── */
+    .gen-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .gen-modal[hidden] { display: none; }
+    .gen-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
+    .gen-modal-dialog {
+      position: relative; background: var(--cp-surface); color: var(--cp-text);
+      border: 1px solid var(--cp-border); border-radius: 8px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+      width: min(560px, 100%); max-height: 86vh; display: flex; flex-direction: column;
+    }
+    .gen-modal-header, .gen-modal-footer { display: flex; align-items: center; padding: 12px 16px; gap: 10px; }
+    .gen-modal-header { border-bottom: 1px solid var(--cp-border); }
+    .gen-modal-footer { border-top: 1px solid var(--cp-border); justify-content: flex-end; }
+    .gen-modal-title { margin: 0; font-size: 15px; font-weight: 600; flex: 1; color: var(--cp-text); }
+    .gen-modal-close { background: transparent; border: none; font-size: 22px; cursor: pointer; color: var(--cp-text-muted); line-height: 1; padding: 2px 8px; border-radius: 4px; font-family: inherit; }
+    .gen-modal-close:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
+    .gen-modal-body { padding: 14px 16px; overflow: auto; }
+    .gen-field { margin-bottom: 14px; }
+    .gen-field-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; color: var(--cp-text-muted); }
+    .gen-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .gen-range input[type="date"] {
+      padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 4px;
+      background: var(--cp-surface); color: var(--cp-text); font: inherit;
+    }
+    .gen-hint { font-size: 11px; color: var(--cp-text-muted); margin: 6px 0 0; }
+    .gen-product-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+    .gen-product-controls input[type="search"] {
+      flex: 1 1 160px; padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 4px;
+      background: var(--cp-surface); color: var(--cp-text); font: inherit;
+    }
+    .gen-product-list {
+      max-height: 220px; overflow-y: auto;
+      border: 1px solid var(--cp-border); border-radius: 4px;
+      padding: 6px 10px; background: var(--cp-surface);
+    }
+    .gen-product-list label { display: block; padding: 4px 0; font-size: 13px; cursor: pointer; color: var(--cp-text); }
+    .gen-product-list label input { margin-right: 8px; }
+    .gen-product-list .gen-empty { color: var(--cp-text-muted); font-size: 12px; padding: 8px 0; }
+    .gen-quick {
+      padding: 5px 10px; font-size: 12px; font-family: inherit;
+      border: 1px solid var(--cp-border); background: var(--cp-surface);
+      color: var(--cp-text); border-radius: 4px; cursor: pointer;
+    }
+    .gen-quick:hover { background: var(--cp-surface-soft); }
+    .gen-count { flex: 1; font-size: 12px; color: var(--cp-text-muted); }
+    .gen-cancel-btn {
+      padding: 0.3rem 0.75rem; background: transparent; color: var(--cp-text);
+      border: 1px solid var(--cp-border); border-radius: 0.5rem;
+      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
+    }
+    .gen-cancel-btn:hover { background: var(--cp-surface-soft); }
   </style>
 </head>
 <body>
@@ -774,7 +832,8 @@
             <option value="wave">Sort by Release Wave</option>
             <option value="name">Sort by Feature Name</option>
           </select>
-          <button class="export-btn" id="export-btn" onclick="exportToHtml()">⬇ Export HTML</button>
+          <button class="export-btn" type="button" onclick="openExportModal()">🛠 Generate Full Export</button>
+          <button class="export-btn" id="export-btn" onclick="exportToHtml()">⬇ Export</button>
         </div>
       </div>
 
@@ -1462,7 +1521,7 @@
         ? `<span class="badge b-new">New</span>`
         : f.FeatureType ? `<span class="badge b-enh">Enhancement</span>` : '';
       const productBadge = f.Product
-        ? `<span class="badge b-product" title="${xh(f.Product)}">${xh(f.Product)}</span>`
+        ? `<span class="badge b-product" title="${xh(f.Product)}">${window.ProductIcons ? window.ProductIcons.productIconImg(f.Product) : ''}${xh(f.Product)}</span>`
         : '';
       const areaBadge = f.ProductArea
         ? `<span class="badge b-area" title="${xh(f.ProductArea)}">${xh(f.ProductArea)}</span>`
@@ -1638,16 +1697,119 @@
     }
 
     // ════════════════════════════════════════════════
+    // GENERATE EXPORT MODAL
+    // ════════════════════════════════════════════════
+    const EXPORT_MODAL_CONFIG = {
+      getAllRows:  () => allFeatures || [],
+      getProducts: (f) => [f && f.Product].filter(Boolean),
+      getDate:     (f) => {
+        if (f && typeof f.GADateValue === 'number') return f.GADateValue;
+        if (f && typeof f.PPDateValue === 'number') return f.PPDateValue;
+        const d = Date.parse((f && (f.GADate || f.PublicPreviewDate)) || '');
+        return isNaN(d) ? null : d;
+      },
+      runExport:   (rows) => exportToHtml(rows),
+    };
+    const EXPORT_UNCLASSIFIED = '(Unclassified)';
+    function getExportProducts(row) {
+      const arr = (EXPORT_MODAL_CONFIG.getProducts(row) || []).map(p => String(p || '').trim()).filter(Boolean);
+      return arr.length ? arr : [EXPORT_UNCLASSIFIED];
+    }
+    function openExportModal() {
+      const rows = EXPORT_MODAL_CONFIG.getAllRows() || [];
+      if (!rows.length) { alert('Data is still loading. Please try again in a moment.'); return; }
+      const set = new Set();
+      let hasUnclassified = false;
+      rows.forEach(r => {
+        const ps = getExportProducts(r);
+        ps.forEach(p => set.add(p));
+        if (ps.length === 1 && ps[0] === EXPORT_UNCLASSIFIED) hasUnclassified = true;
+      });
+      // Sort with (Unclassified) pinned to the bottom
+      const products = Array.from(set).sort((a, b) => {
+        if (a === EXPORT_UNCLASSIFIED) return 1;
+        if (b === EXPORT_UNCLASSIFIED) return -1;
+        return a.localeCompare(b);
+      });
+      const list = document.getElementById('gen-product-list');
+      if (!products.length) {
+        list.innerHTML = '<div class="gen-empty">No products found.</div>';
+      } else {
+        list.innerHTML = products.map(p => {
+          const safe = p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+          return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}" checked onchange="updateExportCount()"> ${safe}</label>`;
+        }).join('');
+      }
+      document.getElementById('gen-from-date').value = '';
+      document.getElementById('gen-to-date').value = '';
+      document.getElementById('gen-product-search').value = '';
+      filterExportProductSearch();
+      updateExportCount();
+      document.getElementById('gen-modal').hidden = false;
+    }
+    function closeExportModal() { const el = document.getElementById('gen-modal'); if (el) el.hidden = true; }
+    function selectAllExportProducts(state) {
+      document.querySelectorAll('#gen-product-list input[type="checkbox"]').forEach(cb => {
+        const label = cb.closest('label');
+        if (!label || label.style.display !== 'none') cb.checked = state;
+      });
+      updateExportCount();
+    }
+    function clearExportDates() {
+      document.getElementById('gen-from-date').value = '';
+      document.getElementById('gen-to-date').value = '';
+      updateExportCount();
+    }
+    function filterExportProductSearch() {
+      const q = (document.getElementById('gen-product-search').value || '').toLowerCase().trim();
+      document.querySelectorAll('#gen-product-list label').forEach(l => {
+        l.style.display = (!q || (l.dataset.product || '').includes(q)) ? '' : 'none';
+      });
+    }
+    function getSelectedExportProducts() {
+      return new Set(Array.from(document.querySelectorAll('#gen-product-list input[type="checkbox"]:checked')).map(cb => cb.value));
+    }
+    function computeExportRows() {
+      const fromVal = document.getElementById('gen-from-date').value;
+      const toVal   = document.getElementById('gen-to-date').value;
+      const from = fromVal ? new Date(fromVal).getTime() : -Infinity;
+      const to   = toVal ? (new Date(toVal).getTime() + 86399999) : Infinity;
+      const datesActive = !!(fromVal || toVal);
+      const selected = getSelectedExportProducts();
+      const all = EXPORT_MODAL_CONFIG.getAllRows() || [];
+      return all.filter(row => {
+        const ts = EXPORT_MODAL_CONFIG.getDate(row);
+        if (datesActive) {
+          if (ts == null) return false;
+          if (ts < from || ts > to) return false;
+        }
+        const prods = getExportProducts(row);
+        return prods.some(p => selected.has(p));
+      });
+    }
+    function updateExportCount() {
+      const n = computeExportRows().length;
+      const el = document.getElementById('gen-count');
+      if (el) el.textContent = `${n} item${n === 1 ? '' : 's'} match`;
+    }
+    function submitExportModal() {
+      const rows = computeExportRows();
+      if (!rows.length) { alert('No items match the selected filters.'); return; }
+      closeExportModal();
+      EXPORT_MODAL_CONFIG.runExport(rows);
+    }
+
+    // ════════════════════════════════════════════════
     // EXPORT
     // ════════════════════════════════════════════════
-    function exportToHtml() {
-      const filtered = getFiltered();
+    function exportToHtml(customRows) {
+      const filtered = (customRows && customRows.length) ? customRows : getFiltered();
       if (!filtered.length) { alert('No features to export with current filters.'); return; }
+      if (!window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
 
       const btn = document.getElementById('export-btn');
       btn.disabled = true; btn.textContent = '…Exporting';
 
-      const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       const stripHtml = s => String(s || '').replace(/<[^>]+>/g,' ').replace(/\s{2,}/g,' ').trim();
 
       // Sort same as current view for consistent output
@@ -1669,102 +1831,35 @@
       const tableRows = rows.map(f => {
         const gaDate = displayDate(f.GADateValue, f.GADate)            || '—';
         const ppDate = displayDate(f.PPDateValue, f.PublicPreviewDate) || '—';
-        const docs   = f.DocsUrl ? `<a href="${esc(sanitize(f.DocsUrl))}">${esc(sanitize(f.DocsUrl))}</a>` : '—';
-        return `    <tr>
-      <td>${esc(f.Product)}</td>
-      <td>${esc(f.ProductArea)}</td>
-      <td>${esc(f.FeatureName)}</td>
-      <td>${esc(f.FeatureType)}</td>
-      <td>${esc(getWave(f))}</td>
-      <td>${esc(ppDate)}</td>
-      <td>${esc(gaDate)}</td>
-      <td>${esc(f.GAStatus)}</td>
-      <td>${esc(stripHtml(f.BusinessValue))}</td>
-      <td>${docs}</td>
-    </tr>`;
-      }).join('\n');
+        const docsUrl = f.DocsUrl ? sanitize(f.DocsUrl) : '';
+        const docs = docsUrl
+          ? { html: window.OutlookExport.link(docsUrl, docsUrl) }
+          : '—';
+        return [
+          f.Product || '—',
+          f.ProductArea || '—',
+          f.FeatureName || '—',
+          f.FeatureType || '—',
+          getWave(f) || '—',
+          ppDate,
+          gaDate,
+          f.GAStatus || '—',
+          stripHtml(f.BusinessValue) || '—',
+          docs,
+        ];
+      });
 
       const now = new Date().toLocaleString();
-      const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Power Platform Release Plan Export — ${esc(now)}</title>
-  <style>
-    body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; margin: 24px; background: #ffffff; color: #111827; }
-    h2 { font-size: 16px; margin-bottom: 4px; color: #111827; }
-    p  { font-size: 12px; color: #6b7280; margin: 0 0 8px; }
-    table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-family: 'Segoe UI', Calibri, Arial, sans-serif;
-      font-size: 13px;
-      margin: 16px 0;
-      border: none;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-      border-radius: 6px;
-      overflow: hidden;
-      background-color: #ffffff;
-      color: #111827;
-    }
-    thead { background-color: #1f2937; color: #ffffff; }
-    thead th {
-      text-align: left;
-      padding: 10px 12px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      border-bottom: 1px solid #374151;
-    }
-    tbody tr { transition: background-color 0.2s; background-color: #ffffff; }
-    tbody tr:nth-child(even) { background-color: #f9fafb; }
-    tbody tr:hover { background-color: #e5e7eb; }
-    tbody td {
-      padding: 10px 12px;
-      border-bottom: 1px solid #e5e7eb;
-      vertical-align: middle;
-      color: #111827;
-    }
-    tbody tr:last-child td { border-bottom: none; }
-    a { color: #0078d4; }
-  </style>
-</head>
-<body>
-  <h2>Power Platform Release Plan</h2>
-  <p>Exported ${esc(now)} &bull; ${rows.length} feature${rows.length !== 1 ? 's' : ''}</p>
-  <table>
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Product Area</th>
-        <th>Feature Name</th>
-        <th>Feature Type</th>
-        <th>Release Wave</th>
-        <th>Public Preview</th>
-        <th>GA Date</th>
-        <th>GA Status</th>
-        <th>Business Value</th>
-        <th>Docs</th>
-      </tr>
-    </thead>
-    <tbody>
-${tableRows}
-    </tbody>
-  </table>
-</body>
-</html>`;
+      window.OutlookExport.download({
+        title:    'Power Platform Release Plan',
+        subtitle: 'Exported ' + now + ' • ' + rows.length + ' feature' + (rows.length !== 1 ? 's' : ''),
+        filename: 'release-plan-export-' + new Date().toISOString().slice(0,10) + '.html',
+        columns:  ['Product', 'Product Area', 'Feature Name', 'Feature Type', 'Release Wave',
+                   'Public Preview', 'GA Date', 'GA Status', 'Business Value', 'Docs'],
+        rows: tableRows,
+      });
 
-      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-      const url  = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `release-plan-export-${new Date().toISOString().slice(0,10)}.html`;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-
-      btn.disabled = false; btn.textContent = '⬇ Export HTML';
+      btn.disabled = false; btn.textContent = '⬇ Export';
     }
 
     // ════════════════════════════════════════════════
@@ -1777,5 +1872,44 @@ ${tableRows}
     buildProductPicker();
     loadAll();
   </script>
+  <script src="/static/product-icons.js" defer></script>
+  <script src="/static/outlook-export.js" defer></script>
+
+  <!-- Generate Export modal -->
+  <div class="gen-modal" id="gen-modal" hidden>
+    <div class="gen-modal-backdrop" onclick="closeExportModal()"></div>
+    <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
+      <header class="gen-modal-header">
+        <h3 class="gen-modal-title" id="gen-modal-title">Generate Full Export</h3>
+        <button class="gen-modal-close" type="button" onclick="closeExportModal()" aria-label="Close">×</button>
+      </header>
+      <div class="gen-modal-body">
+        <div class="gen-field">
+          <span class="gen-field-label">Date range (GA Date)</span>
+          <div class="gen-range">
+            <input type="date" id="gen-from-date" onchange="updateExportCount()" aria-label="From date">
+            <span>to</span>
+            <input type="date" id="gen-to-date" onchange="updateExportCount()" aria-label="To date">
+            <button type="button" class="gen-quick" onclick="clearExportDates()">Clear</button>
+          </div>
+          <p class="gen-hint">Leave blank for no date limit. Items without a date are excluded when a range is set.</p>
+        </div>
+        <div class="gen-field">
+          <span class="gen-field-label">Products</span>
+          <div class="gen-product-controls">
+            <button type="button" class="gen-quick" onclick="selectAllExportProducts(true)">Select all</button>
+            <button type="button" class="gen-quick" onclick="selectAllExportProducts(false)">Clear</button>
+            <input type="search" id="gen-product-search" placeholder="Filter products…" oninput="filterExportProductSearch()" aria-label="Filter products">
+          </div>
+          <div class="gen-product-list" id="gen-product-list"></div>
+        </div>
+      </div>
+      <footer class="gen-modal-footer">
+        <span class="gen-count" id="gen-count">0 items match</span>
+        <button type="button" class="gen-cancel-btn" onclick="closeExportModal()">Cancel</button>
+        <button type="button" class="export-btn" id="gen-generate-btn" onclick="submitExportModal()">Generate</button>
+      </footer>
+    </div>
+  </div>
 </body>
 </html>
