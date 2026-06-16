@@ -11,6 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
+  <script src="/static/util.js"></script>
   <style>
     :root {
       color-scheme: light;
@@ -564,20 +565,7 @@
     // Generic noise categories from Azure RSS that aren't useful as products.
     const IGNORED_PRODUCT_CATEGORIES = new Set(['Features', 'Feature', 'Services', 'Service']);
 
-    function toggleTheme() {
-      const html = document.documentElement;
-      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', next);
-      document.getElementById('theme-btn').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
-    }
-    const curTheme = document.documentElement.getAttribute('data-theme');
-    document.getElementById('theme-btn').textContent = curTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
-
-    function escapeHtml(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
+    // toggleTheme() and escapeHtml() are provided by /static/util.js.
 
     function classifyCategories(cats) {
       const c = Array.isArray(cats) ? cats : [];

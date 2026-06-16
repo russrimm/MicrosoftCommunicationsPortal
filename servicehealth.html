@@ -11,6 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
+  <script src="/static/util.js"></script>
   <style>
     :root {
       color-scheme: light;
@@ -760,16 +761,15 @@
     let refreshTimer = null;
     let issuesById = new Map();
 
-    function toggleTheme() {
-      const html = document.documentElement;
-      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', next);
-      document.getElementById('theme-btn').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
-      // Re-render trend so SVG colors pick up new theme
-      renderTrend();
-    }
-    document.getElementById('theme-btn').textContent =
-      document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️ Light' : '🌙 Dark';
+    // The shared toggleTheme() in /static/util.js handles the theme flip and
+    // button label. Wrap it so the trend SVG re-renders with new theme colors.
+    (function () {
+      const sharedToggle = window.toggleTheme;
+      window.toggleTheme = function () {
+        if (sharedToggle) sharedToggle();
+        if (typeof renderTrend === 'function') renderTrend();
+      };
+    })();
 
     function statusClass(status) {
       if (!status) return 'unknown';
@@ -785,11 +785,7 @@
       return 'unknown';
     }
 
-    function escapeHtml(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
+    // escapeHtml() is provided by /static/util.js.
 
     function severityFromIssue(it) {
       const s = String(it.status || '').toLowerCase();

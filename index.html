@@ -11,6 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
+  <script src="/static/util.js"></script>
   <style>
     :root {
       color-scheme: light;
@@ -1607,12 +1608,7 @@
       }
     }
 
-    function toggleTheme() {
-      const cur  = document.documentElement.getAttribute('data-theme');
-      const next = cur === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      document.getElementById('theme-btn').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
-    }
+    // toggleTheme() is provided by /static/util.js.
 
     // ════════════════════════════════════════════════
     // PRODUCT PICKER

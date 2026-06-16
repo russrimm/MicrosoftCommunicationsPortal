@@ -11,6 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
+  <script src="/static/util.js"></script>
   <style>
     :root {
       color-scheme: light;
@@ -556,14 +557,7 @@
   <script>
     let allMessages = [];
 
-    function toggleTheme() {
-      const html = document.documentElement;
-      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', next);
-      document.getElementById('theme-btn').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
-    }
-    const curTheme = document.documentElement.getAttribute('data-theme');
-    document.getElementById('theme-btn').textContent = curTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+    // toggleTheme() and escapeHtml() are provided by /static/util.js.
 
     async function loadMessageCenter() {
       const container = document.getElementById('mc-messages-container');
@@ -831,14 +825,7 @@
 
     let currentFiltered = [];
 
-    function escapeHtml(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
+    // escapeHtml() is provided by /static/util.js.
 
     function formatDateTime(value) {
       if (!value) return '—';
