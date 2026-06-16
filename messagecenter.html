@@ -465,7 +465,7 @@
       <div class="header-title">Microsoft Communications Portal</div>
       <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
     </div>
-    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme">🌙 Dark</button>
   </header>
 
   <nav class="page-tabs" aria-label="Primary">
@@ -482,12 +482,12 @@
       <label for="mc-search" class="sr-only">Search messages by title or description</label>
       <input type="text" class="mc-search-input" id="mc-search"
              placeholder="Search messages by title or description…"
-             aria-label="Search messages by title or description" oninput="debouncedSearch()">
+             aria-label="Search messages by title or description">
     </div>
     <div class="mc-filters">
       <div class="mc-filter-group">
         <label class="mc-filter-label" for="mc-severity-filter">Severity:</label>
-        <select class="mc-filter-select" id="mc-severity-filter" onchange="filterMessages()">
+        <select class="mc-filter-select" id="mc-severity-filter">
           <option value="">All Severities</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
@@ -497,14 +497,14 @@
       <div class="mc-filter-group">
         <label class="mc-filter-label" id="mc-product-label">Product:</label>
         <div class="mc-multi" id="mc-service-multi">
-          <button type="button" class="mc-multi-toggle" id="mc-service-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="mc-product-label mc-service-label" onclick="toggleServiceMenu(event)">
+          <button type="button" class="mc-multi-toggle" id="mc-service-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="mc-product-label mc-service-label">
             <span id="mc-service-label">All Products</span>
             <span class="mc-multi-caret" aria-hidden="true">▾</span>
           </button>
-          <div class="mc-multi-panel" id="mc-service-panel" onclick="event.stopPropagation()">
+          <div class="mc-multi-panel" id="mc-service-panel">
             <div class="mc-multi-actions">
-              <button type="button" onclick="setAllServices(true)">Select all</button>
-              <button type="button" onclick="setAllServices(false)">Clear</button>
+              <button type="button" id="mc-svc-select-all">Select all</button>
+              <button type="button" id="mc-svc-clear-all">Clear</button>
             </div>
             <div id="mc-service-options"></div>
           </div>
@@ -512,7 +512,7 @@
       </div>
       <div class="mc-filter-group">
         <label class="mc-filter-label" for="mc-sort">Sort:</label>
-        <select class="mc-filter-select" id="mc-sort" onchange="filterMessages()">
+        <select class="mc-filter-select" id="mc-sort">
           <option value="date-desc">Newest First</option>
           <option value="date-asc">Oldest First</option>
           <option value="product">Group by Product</option>
@@ -520,17 +520,17 @@
       </div>
       <div class="mc-filter-group">
         <label class="mc-filter-label" for="mc-date-from">From:</label>
-        <input type="date" class="mc-filter-input" id="mc-date-from" onchange="filterMessages()">
+        <input type="date" class="mc-filter-input" id="mc-date-from">
       </div>
       <div class="mc-filter-group">
         <label class="mc-filter-label" for="mc-date-to">To:</label>
-        <input type="date" class="mc-filter-input" id="mc-date-to" onchange="filterMessages()">
+        <input type="date" class="mc-filter-input" id="mc-date-to">
       </div>
       <div class="mc-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="mc-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" type="button" onclick="openExportModal()">🛠 Generate Full Export</button>
-        <button class="export-btn" id="mc-export-btn" type="button" onclick="exportMessagesToHtml()">⬇ Export</button>
-        <button class="export-btn" onclick="loadMessageCenter()">↻ Refresh</button>
+        <button class="export-btn" id="mc-gen-export-btn" type="button">🛠 Generate Full Export</button>
+        <button class="export-btn" id="mc-export-btn" type="button">⬇ Export</button>
+        <button class="export-btn" id="mc-refresh-btn">↻ Refresh</button>
       </div>
     </div>
     <div class="mc-messages" id="mc-messages-container">
@@ -541,14 +541,14 @@
     </div>
   </div>
 
-  <div class="mc-modal-overlay" id="mc-modal" onclick="handleModalBackdrop(event)">
+  <div class="mc-modal-overlay" id="mc-modal">
     <div class="mc-modal" role="dialog" aria-modal="true" aria-labelledby="mc-modal-title">
       <div class="mc-modal-header">
         <div>
           <div class="mc-modal-title" id="mc-modal-title"></div>
           <div class="mc-modal-meta" id="mc-modal-meta"></div>
         </div>
-        <button class="mc-modal-close" onclick="closeMessage()" aria-label="Close">×</button>
+        <button class="mc-modal-close" id="mc-modal-close-btn" aria-label="Close">×</button>
       </div>
       <div class="mc-modal-body" id="mc-modal-body"></div>
     </div>
@@ -634,7 +634,7 @@
         const checked = selectedServices.has(name) ? 'checked' : '';
         return `
           <label class="mc-multi-option">
-            <input type="checkbox" id="${id}" value="${escapeHtml(name)}" ${checked} onchange="onServiceToggle(this)">
+            <input type="checkbox" id="${id}" value="${escapeHtml(name)}" ${checked}>
             <span>${escapeHtml(name)}</span>
           </label>`;
       }).join('');
@@ -801,7 +801,7 @@
         : '';
 
       return `
-        <div class="mc-message" onclick="openMessage(${idx})" data-idx="${idx}" title="${escapeHtml(title)}">
+        <div class="mc-message" data-idx="${idx}" title="${escapeHtml(title)}">
           ${isMajor ? '<div class="mc-major-banner">⚠ Major Change</div>' : ''}
           <div class="mc-card-body">
             <div class="mc-card-top">
@@ -988,7 +988,7 @@
       } else {
         list.innerHTML = products.map(p => {
           const safe = p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-          return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}" checked onchange="updateExportCount()"> ${safe}</label>`;
+          return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}" checked> ${safe}</label>`;
         }).join('');
       }
       document.getElementById('gen-from-date').value = '';
@@ -1118,44 +1118,85 @@
         },
       });
     }
+    // ── Event listeners (replaces inline handlers) ────────────────────────
+    document.getElementById('theme-btn').addEventListener('click', toggleTheme);
+    document.getElementById('mc-search').addEventListener('input', debouncedSearch);
+    document.getElementById('mc-severity-filter').addEventListener('change', filterMessages);
+    document.getElementById('mc-service-toggle').addEventListener('click', function(e) { toggleServiceMenu(e); });
+    document.getElementById('mc-service-panel').addEventListener('click', function(e) { e.stopPropagation(); });
+    document.getElementById('mc-svc-select-all').addEventListener('click', function() { setAllServices(true); });
+    document.getElementById('mc-svc-clear-all').addEventListener('click', function() { setAllServices(false); });
+    document.getElementById('mc-sort').addEventListener('change', filterMessages);
+    document.getElementById('mc-date-from').addEventListener('change', filterMessages);
+    document.getElementById('mc-date-to').addEventListener('change', filterMessages);
+    document.getElementById('mc-gen-export-btn').addEventListener('click', openExportModal);
+    document.getElementById('mc-export-btn').addEventListener('click', exportMessagesToHtml);
+    document.getElementById('mc-refresh-btn').addEventListener('click', loadMessageCenter);
+    document.getElementById('mc-modal').addEventListener('click', function(e) { handleModalBackdrop(e); });
+    document.getElementById('mc-modal-close-btn').addEventListener('click', closeMessage);
+    // Delegated handler for dynamically generated service checkboxes
+    document.getElementById('mc-service-options').addEventListener('change', function(e) {
+      if (e.target.matches('input[type="checkbox"]')) onServiceToggle(e.target);
+    });
+    // Delegated handler for dynamically generated message cards
+    document.getElementById('mc-messages-container').addEventListener('click', function(e) {
+      const card = e.target.closest('.mc-message[data-idx]');
+      if (card) openMessage(Number(card.dataset.idx));
+    });
   </script>
-
-  <!-- Generate Export modal -->
   <div class="gen-modal" id="gen-modal" hidden>
-    <div class="gen-modal-backdrop" onclick="closeExportModal()"></div>
+    <div class="gen-modal-backdrop" id="gen-modal-backdrop"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
         <h3 class="gen-modal-title" id="gen-modal-title">Generate Full Export</h3>
-        <button class="gen-modal-close" type="button" onclick="closeExportModal()" aria-label="Close">×</button>
+        <button class="gen-modal-close" id="gen-modal-close-btn" type="button" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
         <div class="gen-field">
           <span class="gen-field-label">Date range (Published)</span>
           <div class="gen-range">
-            <input type="date" id="gen-from-date" onchange="updateExportCount()" aria-label="From date">
+            <input type="date" id="gen-from-date" aria-label="From date">
             <span>to</span>
-            <input type="date" id="gen-to-date" onchange="updateExportCount()" aria-label="To date">
-            <button type="button" class="gen-quick" onclick="clearExportDates()">Clear</button>
+            <input type="date" id="gen-to-date" aria-label="To date">
+            <button type="button" class="gen-quick" id="gen-clear-dates-btn">Clear</button>
           </div>
           <p class="gen-hint">Leave blank for no date limit. Items without a date are excluded when a range is set.</p>
         </div>
         <div class="gen-field">
           <span class="gen-field-label">Services</span>
           <div class="gen-product-controls">
-            <button type="button" class="gen-quick" onclick="selectAllExportProducts(true)">Select all</button>
-            <button type="button" class="gen-quick" onclick="selectAllExportProducts(false)">Clear</button>
-            <input type="search" id="gen-product-search" placeholder="Filter services…" oninput="filterExportProductSearch()" aria-label="Filter services">
+            <button type="button" class="gen-quick" id="gen-select-all-btn">Select all</button>
+            <button type="button" class="gen-quick" id="gen-clear-all-btn">Clear</button>
+            <input type="search" id="gen-product-search" placeholder="Filter services…" aria-label="Filter services">
           </div>
           <div class="gen-product-list" id="gen-product-list"></div>
         </div>
       </div>
       <footer class="gen-modal-footer">
         <span class="gen-count" id="gen-count">0 items match</span>
-        <button type="button" class="gen-cancel-btn" onclick="closeExportModal()">Cancel</button>
-        <button type="button" class="export-btn" id="gen-generate-btn" onclick="submitExportModal()">Generate</button>
+        <button type="button" class="gen-cancel-btn" id="gen-cancel-btn">Cancel</button>
+        <button type="button" class="export-btn" id="gen-generate-btn">Generate</button>
       </footer>
     </div>
   </div>
+
+  <!-- Event listeners for export modal elements -->
+  <script>
+    document.getElementById('gen-modal-backdrop').addEventListener('click', closeExportModal);
+    document.getElementById('gen-modal-close-btn').addEventListener('click', closeExportModal);
+    document.getElementById('gen-from-date').addEventListener('change', updateExportCount);
+    document.getElementById('gen-to-date').addEventListener('change', updateExportCount);
+    document.getElementById('gen-clear-dates-btn').addEventListener('click', clearExportDates);
+    document.getElementById('gen-select-all-btn').addEventListener('click', function() { selectAllExportProducts(true); });
+    document.getElementById('gen-clear-all-btn').addEventListener('click', function() { selectAllExportProducts(false); });
+    document.getElementById('gen-product-search').addEventListener('input', filterExportProductSearch);
+    document.getElementById('gen-cancel-btn').addEventListener('click', closeExportModal);
+    document.getElementById('gen-generate-btn').addEventListener('click', submitExportModal);
+    // Delegated handler for dynamically generated product checkboxes
+    document.getElementById('gen-product-list').addEventListener('change', function(e) {
+      if (e.target.matches('input[type="checkbox"]')) updateExportCount();
+    });
+  </script>
 
   <script src="/static/product-icons.js" defer></script>
   <script src="/static/outlook-export.js" defer></script>
