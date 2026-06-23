@@ -1,5 +1,5 @@
 // Local dev server — serves index.html and proxies the release plans API to bypass CORS
-// Usage: node server.js   (then open http://localhost:3010)
+// Usage: node server.js   (then open http://localhost:3000)
 
 const http  = require('http');
 const https = require('https');
@@ -9,7 +9,7 @@ const zlib  = require('zlib');
 const crypto = require('crypto');
 require('dotenv').config();
 
-const PORT     = Number(process.env.PORT) || 3010;
+const PORT     = Number(process.env.PORT) || 3000;
 const API_HOST = 'releaseplans.microsoft.com';
 // The /en-US/ locale-prefixed path now 301-redirects to the locale-less path;
 // locale is supplied via the langCode query parameter instead.

@@ -722,7 +722,7 @@
     <a class="nav-tab" href="/messagecenter">Microsoft 365 Message Center</a>
     <a class="nav-tab" href="/m365updates">Microsoft 365 Roadmap</a>
     <a class="nav-tab" href="/servicehealth">Microsoft 365 Service Health</a>
-    <a class="nav-tab" href="/azureupdates">Azure Updates</a>
+    <a class="nav-tab" href="/azureupdates">Azure Roadmap</a>
   </nav>
 
   <div class="app-layout">
@@ -962,6 +962,11 @@
       ? '/proxy?langCode=en-US&productId='
       : 'https://releaseplans.microsoft.com/releaseplanner-json/?langCode=en-US&productId=';
 
+    // Debug logging
+    console.log('[ReleasePlanner] URL:', window.location.href);
+    console.log('[ReleasePlanner] IS_LOCAL_SERVER:', IS_LOCAL_SERVER);
+    console.log('[ReleasePlanner] API base:', API);
+
     // Track fetch outcomes for diagnostics
     const fetchStats = { ok: 0, empty: 0, failed: 0, lastError: null };
 
@@ -989,27 +994,39 @@
     // API
     // ════════════════════════════════════════════════
     async function fetchProduct(id) {
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 12000);
-        const res = await fetch(API + id, { signal: ctrl.signal });
-        clearTimeout(timer);
-        if (!res.ok) {
+      // Smart fallback: always try local proxy first (works from any deployment),
+      // then fall back to direct URL if proxy is unreachable.
+      const proxyUrl = '/proxy?langCode=en-US&productId=' + id;
+      const directUrl = 'https://releaseplans.microsoft.com/releaseplanner-json/?langCode=en-US&productId=' + id;
+      
+      const tryUrl = async (url, fallback) => {
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 12000);
+          const res = await fetch(url, { signal: ctrl.signal });
+          clearTimeout(timer);
+          if (!res.ok) {
+            fetchStats.failed++;
+            fetchStats.lastError = `HTTP ${res.status} for ${id}`;
+            console.warn('[ReleasePlanner] fetch failed', url, res.status);
+            if (fallback) return tryUrl(fallback, null);
+            return [];
+          }
+          const data = await res.json();
+          const results = Array.isArray(data.results) ? data.results : [];
+          if (results.length) fetchStats.ok++; else fetchStats.empty++;
+          console.log('[ReleasePlanner] fetch ok', id, results.length, 'results from', url.split('?')[0]);
+          return results;
+        } catch (err) {
           fetchStats.failed++;
-          fetchStats.lastError = `HTTP ${res.status} for ${id}`;
-          console.warn('[ReleasePlanner] fetch failed', id, res.status);
+          fetchStats.lastError = err && err.message ? err.message : String(err);
+          console.warn('[ReleasePlanner] fetch error', url, err);
+          if (fallback) return tryUrl(fallback, null);
           return [];
         }
-        const data = await res.json();
-        const results = Array.isArray(data.results) ? data.results : [];
-        if (results.length) fetchStats.ok++; else fetchStats.empty++;
-        return results;
-      } catch (err) {
-        fetchStats.failed++;
-        fetchStats.lastError = err && err.message ? err.message : String(err);
-        console.warn('[ReleasePlanner] fetch error', id, err);
-        return [];
-      }
+      };
+      
+      return tryUrl(proxyUrl, directUrl);
     }
 
     function dedup(features) {
@@ -1039,10 +1056,18 @@
       // If everything failed/empty, surface the most likely cause instead of
       // continuing to probe (which will also fail).
       if (!allFeatures.length) {
-        if (!IS_LOCAL_SERVER) {
+        if (fetchStats.failed > 0) {
+          const msg = `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed.\n\n` +
+            `Last error: ${fetchStats.lastError || 'unknown'}\n\n` +
+            `Diagnostics:\n` +
+            `  • Server: ${window.location.href}\n` +
+            `  • IS_LOCAL_SERVER: ${IS_LOCAL_SERVER}\n` +
+            `  • Proxy URL: /proxy?langCode=en-US&productId=<id>\n` +
+            `  • Check browser DevTools → Network tab to see which requests failed.\n` +
+            `  • Check server console: npm start`;
+          setLoading(true, msg);
+        } else if (!IS_LOCAL_SERVER) {
           setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3000');
-        } else if (fetchStats.failed > 0) {
-          setLoading(true, `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed (proxy reachable?). Last error: ${fetchStats.lastError || 'unknown'}`);
         } else {
           setLoading(true, '⚠️ Proxy returned empty results for every product. Check server.js console for errors.');
         }
@@ -1663,7 +1688,7 @@
       refresh();
       if (!allFeatures.length) {
         if (!IS_LOCAL_SERVER) {
-          setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3010');
+          setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3000');
         } else if (fetchStats.failed > 0) {
           setLoading(true, `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed. Last error: ${fetchStats.lastError || 'unknown'}`);
         } else {

@@ -22,7 +22,7 @@ tenant-side incidents in one place.
 |---|---|---|---|
 | Power Platform Release Planner | `/powerplatform` | `index.html` | `releaseplans.microsoft.com` (proxied) |
 | Microsoft 365 Roadmap | `/m365updates` | `m365updates.html` | M365 Roadmap RSS |
-| Azure Updates | `/azureupdates` | `azureupdates.html` | Azure Updates RSS |
+| Azure Roadmap | `/azureupdates` | `azureupdates.html` | Azure Updates RSS |
 | Microsoft 365 Message Center | `/messagecenter` | `messagecenter.html` | Microsoft Graph |
 | Microsoft 365 Service Health | `/servicehealth` | `servicehealth.html` | Microsoft Graph |
 
@@ -35,7 +35,7 @@ The site root (`/`) redirects to `/powerplatform`.
 
 Each page is shown in light and dark mode below. Regenerate with
 `node scripts/capture-screenshots.js` (Playwright) while the server is running
-on `http://localhost:3010`. The script visits each route with both theme query
+on `http://localhost:3000`. The script visits each route with both theme query
 strings, waits for any visible "Loading…" banner to clear (up to 45 s, since
 the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 1440×900 × 2 DPR PNGs to `screenshots/`.
@@ -52,11 +52,11 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 |---|---|
 | ![Microsoft 365 Roadmap — light](screenshots/m365-roadmap-light.png) | ![Microsoft 365 Roadmap — dark](screenshots/m365-roadmap-dark.png) |
 
-### Azure Updates
+### Azure Roadmap
 
 | Light | Dark |
 |---|---|
-| ![Azure Updates — light](screenshots/azure-updates-light.png) | ![Azure Updates — dark](screenshots/azure-updates-dark.png) |
+| ![Azure Roadmap — light](screenshots/azure-updates-light.png) | ![Azure Roadmap — dark](screenshots/azure-updates-dark.png) |
 
 ### Microsoft 365 Message Center
 
@@ -79,7 +79,7 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 
 2. **Configure Entra ID credentials** (required only for Message Center and Service Health):
 
-   The Power Platform, M365 Roadmap, and Azure Updates pages work without credentials —
+   The Power Platform, M365 Roadmap, and Azure Roadmap pages work without credentials —
    skip this step if you only need those.
 
    **2a. Create the app registration**
@@ -148,14 +148,14 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
    ```
 
 4. **Open in browser:**
-   http://localhost:3010
+   http://localhost:3000
 
 ## Features
 
 ### Content sources
 - **Power Platform Release Planner** — browse release features by product, wave, and date.
 - **Microsoft 365 Roadmap** — current and upcoming M365 features from the official RSS feed.
-- **Azure Updates** — Azure product announcements from the official RSS feed.
+- **Azure Roadmap** — Azure product announcements from the official RSS feed.
 - **Message Center** — tenant-specific Microsoft 365 Message Center announcements,
   filterable by severity and date.
 - **Service Health** — current service incidents and advisories for your tenant.
@@ -237,7 +237,7 @@ The Node server exposes the following local endpoints (all return JSON):
 |---|---|---|
 | `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None |
 | `GET /api/m365updates` | Microsoft 365 Roadmap RSS, parsed to JSON | None |
-| `GET /api/azureupdates` | Azure Updates RSS, parsed to JSON | None |
+| `GET /api/azureupdates` | Azure Roadmap RSS, parsed to JSON | None |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` |
 | `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` |
 | `GET /api/ai-status` | Reports whether AI is configured and which provider is active | None |
@@ -259,7 +259,7 @@ Static `/public/` icons are sent with a 24-hour `Cache-Control` and an ETag, and
 ```
 index.html                       Power Platform Release Planner UI
 m365updates.html                 M365 Roadmap UI
-azureupdates.html                Azure Updates UI
+azureupdates.html                Azure Roadmap UI
 messagecenter.html               M365 Message Center UI
 servicehealth.html               M365 Service Health UI
 server.js                        Node HTTP server, static file host, API proxy, AI endpoints

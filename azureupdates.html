@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Azure Updates – Microsoft Communications Portal</title>
+  <title>Azure Roadmap – Microsoft Communications Portal</title>
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
@@ -467,7 +467,7 @@
     <a class="nav-tab" href="/messagecenter">Microsoft 365 Message Center</a>
     <a class="nav-tab" href="/m365updates">Microsoft 365 Roadmap</a>
     <a class="nav-tab" href="/servicehealth">Microsoft 365 Service Health</a>
-    <a class="nav-tab active" href="/azureupdates" aria-current="page">Azure Updates</a>
+    <a class="nav-tab active" href="/azureupdates" aria-current="page">Azure Roadmap</a>
   </nav>
 
   <div class="page-content">
@@ -533,7 +533,7 @@
     <div class="au-cards" id="au-cards-container">
       <div class="au-loading" role="status" aria-live="polite">
         <div class="spinner" aria-hidden="true"></div>
-        <span>Loading Azure Updates…</span>
+        <span>Loading Azure Roadmap…</span>
       </div>
     </div>
   </div>
@@ -642,7 +642,7 @@
 
     async function loadAzureUpdates() {
       const container = document.getElementById('au-cards-container');
-      container.innerHTML = '<div class="au-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading Azure Updates…</span></div>';
+      container.innerHTML = '<div class="au-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading Azure Roadmap…</span></div>';
       try {
         const res = await fetch('/api/azureupdates');
         const data = await res.json();
@@ -915,7 +915,7 @@
         ${u.link ? `
           <div class="au-modal-section">
             <div class="au-modal-section-title">Reference</div>
-            <p><a href="${escapeHtml(safeUrl(u.link))}" target="_blank" rel="noopener noreferrer">View on Azure updates →</a></p>
+            <p><a href="${escapeHtml(safeUrl(u.link))}" target="_blank" rel="noopener noreferrer">View on Azure roadmap →</a></p>
           </div>` : ''}
       `;
       document.getElementById('au-modal').classList.add('open');
@@ -1060,7 +1060,7 @@
 
       const now = new Date().toLocaleString();
       window.OutlookExport.download({
-        title:    'Azure Updates',
+        title:    'Azure Roadmap',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' update' + (rows.length !== 1 ? 's' : ''),
         filename: 'azureupdates-export-' + new Date().toISOString().slice(0,10) + '.html',
         columns:  ['ID', 'Product / Area', 'Title', 'Status', 'Release Type', 'Published', 'Description', 'Link'],
