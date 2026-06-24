@@ -1882,9 +1882,9 @@
       const tableRows = rows.map(f => {
         const gaDate = displayDate(f.GADateValue, f.GADate)            || '—';
         const ppDate = displayDate(f.PPDateValue, f.PublicPreviewDate) || '—';
-        const docsUrl = f.DocsUrl ? safeUrl(f.DocsUrl) : '';
-        const docs = (docsUrl && docsUrl !== '#')
-          ? { html: window.OutlookExport.link(docsUrl, docsUrl) }
+        const safeDocsUrl = f.DocsUrl ? safeUrl(f.DocsUrl) : '';
+        const docs = (safeDocsUrl && safeDocsUrl !== '#')
+          ? { html: window.OutlookExport.link(safeDocsUrl, safeDocsUrl) }
           : '—';
         return [
           f.Product || '—',
