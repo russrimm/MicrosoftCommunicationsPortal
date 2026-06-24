@@ -1583,10 +1583,10 @@
       const bv = f.BusinessValue ? sanitize(f.BusinessValue) : '';
       const fd = f.FeatureDetails ? sanitize(f.FeatureDetails) : '';
       const docs = f.DocsUrl
-        ? `<a href="${xa(f.DocsUrl)}" target="_blank" rel="noopener" class="docs-link">📄 Documentation</a>`
+        ? `<a href="${xa(safeUrl(f.DocsUrl))}" target="_blank" rel="noopener" class="docs-link">📄 Documentation</a>`
         : '';
       const blog = f.BlogURL
-        ? `<a href="${xa(f.BlogURL)}" target="_blank" rel="noopener" class="docs-link" style="margin-left:0.4rem">📝 Blog Post</a>`
+        ? `<a href="${xa(safeUrl(f.BlogURL))}" target="_blank" rel="noopener" class="docs-link" style="margin-left:0.4rem">📝 Blog Post</a>`
         : '';
       return `
         ${bv ? `<div class="detail-sec"><div class="detail-title">Business Value</div><div class="detail-body">${bv}</div></div>` : ''}
@@ -1700,14 +1700,35 @@
     }
 
     // Sanitize HTML from API (make links open in new tab, pass through safe tags)
+    // Sanitize HTML from external APIs via DOMParser — removes dangerous tags, event
+    // handlers, and non-http(s) URL schemes, then opens all links in a new tab.
+    // SVG is removed entirely: it can embed <script> and arbitrary event handlers,
+    // making safe allow-listing impractical for untrusted external content.
     function sanitize(html) {
       if (!html) return '';
-      // Add target=_blank to all links
-      return html.replace(/<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/gi, (m, q, url) => {
-        // Fix malformed releaseplans URLs (URL-encoded quotes)
-        const cleanUrl = url.replace(/^https:\/\/releaseplans\.microsoft\.com\/%22/, 'https://');
-        return `<a target="_blank" rel="noopener" href="${xa(cleanUrl)}"`;
+      const doc = new DOMParser().parseFromString(String(html), 'text/html');
+      doc.querySelectorAll('script, style, iframe, object, embed, form, base, meta, link, svg').forEach(n => n.remove());
+      doc.querySelectorAll('*').forEach(el => {
+        for (const attr of [...el.attributes]) {
+          const name = attr.name.toLowerCase();
+          const value = attr.value || '';
+          // Strip event handlers, CSS injection vectors, and other dangerous attrs.
+          if (/^on/i.test(name) || name === 'formaction' || name === 'srcdoc' || name === 'style') {
+            el.removeAttribute(attr.name);
+            continue;
+          }
+          // Strip dangerous URL schemes (including blob: which can execute scripts).
+          if ((name === 'href' || name === 'src' || name === 'xlink:href') &&
+              /^\s*(javascript|data|vbscript|file|blob):/i.test(value)) {
+            el.removeAttribute(attr.name);
+          }
+        }
+        if (el.tagName === 'A') {
+          el.setAttribute('target', '_blank');
+          el.setAttribute('rel', 'noopener');
+        }
       });
+      return doc.body.innerHTML;
     }
 
     function xh(s) {
@@ -1715,6 +1736,15 @@
     }
     function xa(s) {
       return String(s || '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    // Allow only http(s), mailto, and tel URL schemes in href attributes.
+    // Protocol-relative URLs (//...) are also blocked to prevent scheme inheritance.
+    function safeUrl(s) {
+      if (!s) return '#';
+      const trimmed = String(s).trim();
+      if (trimmed.startsWith('//')) return '#';
+      if (/^(?!https?:|mailto:|tel:)[a-z][a-z0-9+.-]*:/i.test(trimmed)) return '#';
+      return trimmed;
     }
 
     // ════════════════════════════════════════════════
@@ -1852,9 +1882,9 @@
       const tableRows = rows.map(f => {
         const gaDate = displayDate(f.GADateValue, f.GADate)            || '—';
         const ppDate = displayDate(f.PPDateValue, f.PublicPreviewDate) || '—';
-        const docsUrl = f.DocsUrl ? sanitize(f.DocsUrl) : '';
-        const docs = docsUrl
-          ? { html: window.OutlookExport.link(docsUrl, docsUrl) }
+        const safeDocsUrl = f.DocsUrl ? safeUrl(f.DocsUrl) : '';
+        const docs = (safeDocsUrl && safeDocsUrl !== '#')
+          ? { html: window.OutlookExport.link(safeDocsUrl, safeDocsUrl) }
           : '—';
         return [
           f.Product || '—',
