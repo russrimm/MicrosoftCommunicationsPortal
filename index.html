@@ -1712,12 +1712,14 @@
         for (const attr of [...el.attributes]) {
           const name = attr.name.toLowerCase();
           const value = attr.value || '';
-          if (/^on/i.test(name) || name === 'formaction' || name === 'srcdoc') {
+          // Strip event handlers, CSS injection vectors, and other dangerous attrs.
+          if (/^on/i.test(name) || name === 'formaction' || name === 'srcdoc' || name === 'style') {
             el.removeAttribute(attr.name);
             continue;
           }
+          // Strip dangerous URL schemes (including blob: which can execute scripts).
           if ((name === 'href' || name === 'src' || name === 'xlink:href') &&
-              /^\s*(javascript|data|vbscript|file):/i.test(value)) {
+              /^\s*(javascript|data|vbscript|file|blob):/i.test(value)) {
             el.removeAttribute(attr.name);
           }
         }
@@ -1736,9 +1738,11 @@
       return String(s || '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
     // Allow only http(s), mailto, and tel URL schemes in href attributes.
+    // Protocol-relative URLs (//...) are also blocked to prevent scheme inheritance.
     function safeUrl(s) {
       if (!s) return '#';
       const trimmed = String(s).trim();
+      if (trimmed.startsWith('//')) return '#';
       if (/^(?!https?:|mailto:|tel:)[a-z][a-z0-9+.-]*:/i.test(trimmed)) return '#';
       return trimmed;
     }
@@ -1879,7 +1883,7 @@
         const gaDate = displayDate(f.GADateValue, f.GADate)            || '—';
         const ppDate = displayDate(f.PPDateValue, f.PublicPreviewDate) || '—';
         const docsUrl = f.DocsUrl ? safeUrl(f.DocsUrl) : '';
-        const docs = docsUrl
+        const docs = (docsUrl && docsUrl !== '#')
           ? { html: window.OutlookExport.link(docsUrl, docsUrl) }
           : '—';
         return [
