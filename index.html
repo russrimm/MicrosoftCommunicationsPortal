@@ -1702,6 +1702,8 @@
     // Sanitize HTML from API (make links open in new tab, pass through safe tags)
     // Sanitize HTML from external APIs via DOMParser — removes dangerous tags, event
     // handlers, and non-http(s) URL schemes, then opens all links in a new tab.
+    // SVG is removed entirely: it can embed <script> and arbitrary event handlers,
+    // making safe allow-listing impractical for untrusted external content.
     function sanitize(html) {
       if (!html) return '';
       const doc = new DOMParser().parseFromString(String(html), 'text/html');
@@ -1737,9 +1739,7 @@
     function safeUrl(s) {
       if (!s) return '#';
       const trimmed = String(s).trim();
-      if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
-        if (!/^(https?|mailto|tel):/i.test(trimmed)) return '#';
-      }
+      if (/^(?!https?:|mailto:|tel:)[a-z][a-z0-9+.-]*:/i.test(trimmed)) return '#';
       return trimmed;
     }
 
