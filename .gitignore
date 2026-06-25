@@ -22,3 +22,6 @@ build/
 
 # Runtime caches
 empty-products.json
+
+# Sample/debug data
+response.json

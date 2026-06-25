@@ -1,5 +1,12 @@
 # Microsoft Communications Portal
 
+> **Disclaimer:** This is a sample/reference implementation provided "AS IS"
+> without warranty. It is not an official Microsoft product or service and is
+> not supported by Microsoft Support. See [NOTICE.md](NOTICE.md) for full
+> details.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 ## About
 
 This project grew out of a recurring request from customers: they wanted a **single
@@ -279,6 +286,16 @@ screenshots/                     Light + dark mode PNGs rendered into the README
 
 - Node.js 24+ (uses the built-in `http`, `https`, and global `URL` APIs)
 - An Entra app registration (only for the Message Center and Service Health pages)
+
+## Contributing
+
+This project welcomes suggestions and feedback. Please open an issue to discuss
+changes before submitting a pull request. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+for community guidelines.
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
 
 ## Contact
 
