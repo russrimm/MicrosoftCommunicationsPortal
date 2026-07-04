@@ -1,4 +1,6 @@
-// Local dev server — serves index.html and proxies the release plans API to bypass CORS
+// Microsoft Communications Portal — Node HTTP server
+// Serves 5 HTML pages, proxies upstream feeds, handles Graph auth (managed
+// identity or client-secret), optional AI endpoints, and per-IP rate limiting.
 // Usage: node server.js   (then open http://localhost:3000)
 
 const http  = require('http');

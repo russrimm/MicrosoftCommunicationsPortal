@@ -84,19 +84,41 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
    npm install
    ```
 
-2. **Configure Entra ID credentials** (required only for Message Center and Service Health):
+2. **Configure Microsoft Graph authentication** (required only for Message Center and Service Health):
 
    The Power Platform, M365 Roadmap, and Azure Roadmap pages work without credentials —
    skip this step if you only need those.
+
+   **Option A — Managed identity (recommended for Azure deployments)**
+
+   If the portal runs on Azure (App Service, Container Apps, or a VM), assign a
+   system- or user-assigned managed identity to the host and grant it the
+   `ServiceMessage.Read.All` + `ServiceHealth.Read.All` Graph **application**
+   permissions with admin consent. Then set one variable in `.env`:
+
+   ```
+   USE_MANAGED_IDENTITY=true
+   ```
+
+   For a **user-assigned** identity, also add:
+
+   ```
+   AZURE_CLIENT_ID=<managed-identity-client-id>
+   ```
+
+   No client secret is needed — the platform issues the token automatically. On
+   App Service / Container Apps the `IDENTITY_ENDPOINT` and `IDENTITY_HEADER`
+   environment variables are set by the platform. On a VM the Azure IMDS endpoint
+   is used.
+
+   **Option B — Scripted app registration (local dev or non-Azure hosts)**
 
    You'll need an account that can register apps **and** grant tenant-wide admin
    consent (Global Administrator, Privileged Role Administrator, or Cloud Application
    Administrator).
 
-   **Option A — Scripted (recommended)**
-
    [`scripts/create-entra-app.ps1`](scripts/create-entra-app.ps1) does everything in
-   Option B for you: creates the app registration, adds the two required Microsoft
+   Option C for you: creates the app registration, adds the two required Microsoft
    Graph application permissions, grants admin consent, creates a client secret, and
    writes `M365_TENANT_ID` / `M365_CLIENT_ID` / `M365_CLIENT_SECRET` into `.env`
    (backing up any existing `.env` first). It's idempotent — safe to re-run to
@@ -120,7 +142,7 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 
    Skip ahead to step 3 once the script finishes.
 
-   **Option B — Manual (portal UI)**
+   **Option C — Manual (portal UI)**
 
    <details>
    <summary>Click to expand manual steps</summary>
@@ -243,6 +265,36 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 - Highlights breaking changes, retirements, GA launches, security/compliance changes,
   and items requiring admin action. See [AI summarization](#ai-summarization-optional) below.
 
+### Security hardening
+- **Strict Content Security Policy** — inline scripts are authorized via a per-request
+  cryptographic nonce (`script-src 'self' 'nonce-…'`); `'unsafe-inline'` is **not** used.
+  Additional directives: `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'none'`,
+  `object-src 'none'`, `frame-src 'none'`.
+- **Allow-list HTML sanitizer** — a single hardened sanitizer in
+  [`static/util.js`](static/util.js) is shared across all pages. It parses untrusted
+  feed / Graph HTML via `DOMParser`, keeps only an explicit allow-list of safe tags and
+  attributes (links forced to `target="_blank" rel="noopener noreferrer"`), and drops
+  everything else — including `<script>`, `<style>`, `<iframe>`, `<math>`, `<template>`,
+  `<svg>`, event-handler attributes, `javascript:` / `data:` / `blob:` URLs, and `style`
+  attributes. This resists mutation-XSS far better than the deny-list approach.
+- **Event delegation (no inline handlers)** — all user-facing event handlers use a
+  `data-act` delegation system in `util.js`. No `onclick=`, `onchange=`, or other
+  inline handler attributes appear anywhere in the markup, so the CSP nonce policy is
+  fully enforceable.
+- **Per-IP rate limiting** on every API endpoint (AI, Graph, RSS, and proxy), with a
+  `TRUST_PROXY` option for correct client-IP extraction behind a reverse proxy.
+- **Managed identity support** — preferred for Azure deployments; eliminates the
+  client secret entirely. See [Setup → Option A](#setup).
+- **Redirect-following restricted to Microsoft hosts** — the RSS and release-plan
+  fetchers only follow redirects to `*.microsoft.com` / `*.azure.com` over HTTPS.
+  Graph bearer tokens are never sent to any host other than `graph.microsoft.com`.
+- **Admin endpoint auth** — the `/api/empty-products` endpoint is restricted to
+  loopback and, when `ADMIN_TOKEN` is set, requires a bearer token compared in
+  constant time (`crypto.timingSafeEqual`).
+- **Prototype pollution guard** — the JSON body parser strips `__proto__`,
+  `constructor`, and `prototype` keys before they reach application code.
+- **`X-Content-Type-Options: nosniff`** on all HTML, JSON, and static-asset responses.
+
 ## AI summarization (optional)
 
 The portal can call an LLM to surface what actually matters in the firehose of
@@ -278,22 +330,23 @@ button is hidden.
 
 The Node server exposes the following local endpoints (all return JSON):
 
-| Endpoint | Description | Auth |
-|---|---|---|
-| `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None |
-| `GET /api/m365updates` | Microsoft 365 Roadmap RSS, parsed to JSON | None |
-| `GET /api/azureupdates` | Azure Roadmap RSS, parsed to JSON | None |
-| `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` |
-| `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` |
-| `GET /api/ai-status` | Reports whether AI is configured and which provider is active | None |
-| `POST /api/summarize` | Body `{source, items[]}` → per-item AI summaries | AI provider |
-| `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider |
-| `GET /api/empty-products` | List product IDs cached as known-empty by the `/proxy` route | None |
-| `DELETE /api/empty-products` | Clear the entire known-empty cache (use `?id=<guid>` to clear one) | None |
-| `GET /static/<file>` | Shared client JS (`product-icons.js`, `outlook-export.js`, `ai-insights.js`) and other static assets | None |
-| `GET /public/<file>` | Microsoft product / service SVG icons used by the card logos | None |
+| Endpoint | Description | Auth | Rate limit |
+|---|---|---|---|
+| `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None | 600/min |
+| `GET /api/m365updates` | Microsoft 365 Roadmap RSS, parsed to JSON | None | 60/min |
+| `GET /api/azureupdates` | Azure Roadmap RSS, parsed to JSON | None | 60/min |
+| `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` | 60/min |
+| `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` | 60/min |
+| `GET /api/ai-status` | Reports whether AI is configured and which provider is active | None | — |
+| `POST /api/summarize` | Body `{source, items[]}` → per-item AI summaries | AI provider | 5/min |
+| `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider | 10/min |
+| `GET /api/empty-products` | List product IDs cached as known-empty by the `/proxy` route | Loopback + `ADMIN_TOKEN` | — |
+| `DELETE /api/empty-products` | Clear the entire known-empty cache (use `?id=<guid>` to clear one) | Loopback + `ADMIN_TOKEN` | — |
+| `GET /static/<file>` | Shared client JS (`util.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`) and other static assets | None | — |
+| `GET /public/<file>` | Microsoft product / service SVG icons used by the card logos | None | — |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
+Rate limits are per-IP fixed-window counters; set `TRUST_PROXY=true` when running behind a reverse proxy so the limiter reads the client IP from `X-Forwarded-For`.
 AI provider responses are cached in-memory (summarize: 10 min, digest: 15 min, hashed by input).
 The known-empty product cache is persisted to [`empty-products.json`](empty-products.json) so
 restarts don't lose the auto-skip list.
@@ -309,13 +362,15 @@ messagecenter.html               M365 Message Center UI
 servicehealth.html               M365 Service Health UI
 server.js                        Node HTTP server, static file host, API proxy, AI endpoints
 static/
+  util.js                        Shared client-side utilities (escapeHtml, sanitizeHtml, safeUrl, theme toggle, event delegation)
   ai-insights.js                 Shared client-side AI helper (digest panel + per-item summarize)
   product-icons.js               Shared client-side product-icon resolver (alias map + fuzzy matcher)
   outlook-export.js              Shared client-side Outlook-friendly HTML exporter (inline styles + bgcolor)
+  export-formats.js              Multi-format export (HTML, Markdown, PDF, Word) for the Generate Full Export modal
 public/                          Microsoft product / service SVG icons served at /public/<file>.svg
 empty-products.json              Persisted cache of known-empty Release Planner product IDs (auto-skip list)
 package.json                     Dependencies (dotenv only)
-.env.example                     Template for Entra ID credentials and optional AI provider
+.env.example                     Template for Graph auth, AI providers, and server/security options
 scripts/capture-screenshots.js   Playwright script that regenerates the README screenshot gallery
 screenshots/                     Light + dark mode PNGs rendered into the README above
 ```

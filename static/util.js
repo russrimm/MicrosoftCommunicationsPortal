@@ -4,8 +4,12 @@
 //
 // Exposes:
 //   window.escapeHtml(value)        — string -> HTML-safe string
+//   window.safeUrl(value)           — URL -> safe URL (http/https/mailto/tel only)
+//   window.sanitizeHtml(html)       — untrusted HTML -> allow-list-sanitized HTML
 //   window.toggleTheme()            — flip data-theme, persist, update button label
 //   window.applyThemeButtonLabel()  — set the #theme-btn label from current theme
+//   window.CPUtil.{escapeHtml, safeUrl, sanitizeHtml} — namespaced accessors
+//   window.CPActions.register(map)  — register data-act event delegation handlers
 //
 // Theme is also persisted in localStorage so reloads keep the user's choice.
 (function () {

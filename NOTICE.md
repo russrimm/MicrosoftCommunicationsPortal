@@ -21,9 +21,11 @@ customers build their own unified Microsoft communications dashboard. It
 demonstrates patterns for:
 
 - Proxying Microsoft public APIs (Release Plans, RSS feeds)
-- Authenticating with Microsoft Graph using the client credentials flow
+- Authenticating with Microsoft Graph using managed identity or the client credentials flow
 - Aggregating multiple Microsoft update streams into a single UI
 - Optional AI-powered summarization of announcements
+- Security hardening (nonce-based CSP, allow-list HTML sanitization, rate limiting,
+  SSRF-resistant redirect following)
 
 ## Trademarks
 
