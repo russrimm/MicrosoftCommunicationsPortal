@@ -1,0 +1,22 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "Alien",
+      "assigned_at": "2026-07-04T13:48:31-05:00"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "2026-07-04T13:48:31-05:00": {
+      "assignment_id": "initial-2026-07-04",
+      "universe": "Alien",
+      "team_size": 4,
+      "shape": "web-portal-node-static",
+      "cast": {
+        "lead": "Ripley",
+        "frontend": "Lambert",
+        "backend": "Parker",
+        "tester": "Kane"
+      }
+    }
+  }
+}

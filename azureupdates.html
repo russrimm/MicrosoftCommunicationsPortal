@@ -450,6 +450,11 @@
       font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
     }
     .gen-cancel-btn:hover { background: var(--cp-surface-soft); }
+    .gen-format-group { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .gen-format-group label { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 13px; color: var(--cp-text); padding: 4px 10px; border: 1px solid var(--cp-border); border-radius: 4px; background: var(--cp-surface); }
+    .gen-format-group label:hover { background: var(--cp-surface-soft); }
+    .gen-format-group input[type="radio"] { margin: 0; accent-color: var(--cp-accent); }
+    .gen-format-note { font-size: 11px; color: var(--cp-text-muted); margin: 6px 0 0; }
   </style>
 </head>
 <body>
@@ -525,8 +530,7 @@
       </div>
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="au-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" type="button" onclick="openExportModal()">🛠 Generate Full Export</button>
-        <button class="export-btn" id="au-export-btn" type="button" onclick="exportAzureUpdatesToHtml()">⬇ Export</button>
+        <button class="export-btn" id="au-export-btn" type="button" onclick="openExportModal()">⬇ Export</button>
         <button class="export-btn" onclick="loadAzureUpdates()">↻ Refresh</button>
       </div>
     </div>
@@ -941,7 +945,7 @@
       getAllRows:  () => allUpdates || [],
       getProducts: (u) => (u && u.buckets && u.buckets.product) || [],
       getDate:     (u) => { const d = Date.parse(u && u.pubDate || ''); return isNaN(d) ? null : d; },
-      runExport:   (rows) => exportAzureUpdatesToHtml(rows),
+      runExport:   (rows, format) => exportAzureUpdatesToHtml(rows, format),
     };
     const EXPORT_UNCLASSIFIED = '(Unclassified)';
     function getExportProducts(row) {
@@ -1022,17 +1026,18 @@
     function submitExportModal() {
       const rows = computeExportRows();
       if (!rows.length) { alert('No items match the selected filters.'); return; }
+      const format = (document.querySelector('input[name="gen-format"]:checked') || {}).value || 'html';
       closeExportModal();
-      EXPORT_MODAL_CONFIG.runExport(rows);
+      EXPORT_MODAL_CONFIG.runExport(rows, format);
     }
 
     // ════════════════════════════════════════════════
     // EXPORT
     // ════════════════════════════════════════════════
-    function exportAzureUpdatesToHtml(customRows) {
+    function exportAzureUpdatesToHtml(customRows, format) {
       const rows = (customRows && customRows.length) ? customRows : (currentFiltered || []);
       if (!rows.length) { alert('No updates to export with current filters.'); return; }
-      if (!window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
+      if (!window.ExportFormats || !window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
 
       const btn = document.getElementById('au-export-btn');
       if (btn) { btn.disabled = true; btn.textContent = '…Exporting'; }
@@ -1059,12 +1064,13 @@
       });
 
       const now = new Date().toLocaleString();
-      window.OutlookExport.download({
+      window.ExportFormats.download({
         title:    'Azure Roadmap',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' update' + (rows.length !== 1 ? 's' : ''),
-        filename: 'azureupdates-export-' + new Date().toISOString().slice(0,10) + '.html',
+        baseFilename: 'azureupdates-export-' + new Date().toISOString().slice(0,10),
         columns:  ['ID', 'Product / Area', 'Title', 'Status', 'Release Type', 'Published', 'Description', 'Link'],
         rows: tableRows,
+        format:   format || 'html',
       });
 
       if (btn) { btn.disabled = false; btn.textContent = '⬇ Export'; }
@@ -1087,10 +1093,20 @@
     <div class="gen-modal-backdrop" onclick="closeExportModal()"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Generate Full Export</h3>
+        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
         <button class="gen-modal-close" type="button" onclick="closeExportModal()" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
+        <div class="gen-field">
+          <span class="gen-field-label">Format</span>
+          <div class="gen-format-group" role="radiogroup" aria-label="Export format">
+            <label><input type="radio" name="gen-format" value="html" checked> HTML</label>
+            <label><input type="radio" name="gen-format" value="md"> Markdown</label>
+            <label><input type="radio" name="gen-format" value="pdf"> PDF</label>
+            <label><input type="radio" name="gen-format" value="docx"> Word</label>
+          </div>
+          <p class="gen-format-note">PDF opens a print dialog (choose "Save as PDF"). Word export opens in Word / LibreOffice.</p>
+        </div>
         <div class="gen-field">
           <span class="gen-field-label">Date range (Published)</span>
           <div class="gen-range">
@@ -1121,6 +1137,7 @@
 
   <script src="/static/product-icons.js" defer></script>
   <script src="/static/outlook-export.js" defer></script>
+  <script src="/static/export-formats.js" defer></script>
   <script src="/static/ai-insights.js" defer></script>
 </body>
 </html>

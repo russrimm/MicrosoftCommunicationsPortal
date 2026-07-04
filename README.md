@@ -89,12 +89,46 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
    The Power Platform, M365 Roadmap, and Azure Roadmap pages work without credentials —
    skip this step if you only need those.
 
+   You'll need an account that can register apps **and** grant tenant-wide admin
+   consent (Global Administrator, Privileged Role Administrator, or Cloud Application
+   Administrator).
+
+   **Option A — Scripted (recommended)**
+
+   [`scripts/create-entra-app.ps1`](scripts/create-entra-app.ps1) does everything in
+   Option B for you: creates the app registration, adds the two required Microsoft
+   Graph application permissions, grants admin consent, creates a client secret, and
+   writes `M365_TENANT_ID` / `M365_CLIENT_ID` / `M365_CLIENT_SECRET` into `.env`
+   (backing up any existing `.env` first). It's idempotent — safe to re-run to
+   rotate the secret or repair drift.
+
+   Prerequisites: [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+   and [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)
+   (`pwsh`).
+
+   ```powershell
+   az login --tenant <your-tenant-id>
+   pwsh .\scripts\create-entra-app.ps1
+   ```
+
+   Optional overrides (set before running):
+
+   ```powershell
+   $env:APP_NAME     = 'My Portal Name'   # default: Microsoft Communications Portal
+   $env:SECRET_YEARS = '1'                # default: 2
+   ```
+
+   Skip ahead to step 3 once the script finishes.
+
+   **Option B — Manual (portal UI)**
+
+   <details>
+   <summary>Click to expand manual steps</summary>
+
    **2a. Create the app registration**
 
    1. Sign in to the [Entra admin center](https://entra.microsoft.com) (or
-      [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade/~/AppRegistrations))
-      with an account that can register apps and grant tenant-wide admin consent
-      (Global Administrator, Privileged Role Administrator, or Cloud Application Administrator).
+      [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade/~/AppRegistrations)).
    2. Go to **Identity → Applications → App registrations** and click **+ New registration**.
    3. Fill in:
       - **Name:** `Microsoft Communications Portal` (or any name you like)
@@ -125,9 +159,6 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
       This is your `M365_CLIENT_SECRET`. If you navigate away before copying it, delete it
       and create a new one.
 
-   > Treat the secret like a password. Never commit `.env` to source control —
-   > the included `.gitignore` already excludes it.
-
    **2d. Configure `.env`**
 
    1. Copy the template:
@@ -144,8 +175,15 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
       M365_CLIENT_SECRET=your-client-secret-value
       M365_TENANT_ID=00000000-0000-0000-0000-000000000000
       ```
-   3. Save the file. The server reads `.env` at startup, so restart `node server.js`
-      after any change.
+
+   </details>
+
+   > Treat the client secret like a password. Never commit `.env` to source
+   > control — the included `.gitignore` already excludes it. The server reads
+   > `.env` at startup, so restart `node server.js` after any change.
+   >
+   > **Heads up:** Message Center and Service Health data can take up to ~1 hour
+   > to appear after first consent while Microsoft Graph provisions access.
 
 3. **Run the server:**
    ```bash

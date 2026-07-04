@@ -482,6 +482,21 @@ function fetchServiceHealth(token, done) {
 // (legacy kept for shape compatibility)
 function _fetchMessageCenterMessages_shape() { /* removed: superseded by graphGetAllPages */ }
 
+// Translate a Microsoft Graph error object + HTTP status into a diagnostic
+// message. Graph often returns 403 with { code: "UnknownError", message: "" }
+// when the app registration lacks the required application permission or has
+// not received admin consent — surface that possibility to the caller.
+function describeGraphError(status, err, requiredPermission) {
+  const code = (err && err.code) || '';
+  const msg  = (err && err.message) || '';
+  if (status === 403 || status === 401) {
+    const perm = requiredPermission || 'the required Microsoft Graph application permission';
+    const detail = msg && msg.toLowerCase() !== code.toLowerCase() ? ` Graph said: "${msg}".` : '';
+    return `Microsoft Graph returned ${status} ${code || 'Forbidden'}. Check that the Entra app registration has the "${perm}" Microsoft Graph application permission AND that a tenant admin has granted admin consent for it. Fastest fix: re-run scripts/create-entra-app.ps1 as a Global Admin, or add the permission and click "Grant admin consent" in Azure portal → Entra ID → App registrations → your app → API permissions.${detail}`;
+  }
+  return msg || code || `Graph API error (HTTP ${status})`;
+}
+
 // Generic HTTPS GET that follows redirects. Used for the Azure Updates RSS feed.
 function httpsGetFollow(hostname, pathname, redirectsLeft, done) {
   const options = {
@@ -843,7 +858,10 @@ const server = http.createServer((req, res) => {
         }
 
         const { status, body } = result;
-        const error = body && body.error ? (body.error.message || body.error.code || 'Graph API error') : null;
+        const error = body && body.error
+          ? describeGraphError(status, body.error, 'ServiceMessage.Read.All')
+          : null;
+        if (error) console.error('[messagecenter] graph error:', status, error);
         res.writeHead(status, {
           'Content-Type': 'application/json; charset=utf-8',
           'Cache-Control': 'max-age=60',
@@ -877,7 +895,10 @@ const server = http.createServer((req, res) => {
         }
 
         const { status, body } = result;
-        const error = body && body.error ? (body.error.message || body.error.code || 'Graph API error') : null;
+        const error = body && body.error
+          ? describeGraphError(status, body.error, 'ServiceHealth.Read.All')
+          : null;
+        if (error) console.error('[servicehealth] graph error:', status, error);
         res.writeHead(status, {
           'Content-Type': 'application/json; charset=utf-8',
           'Cache-Control': 'max-age=60',
@@ -973,7 +994,10 @@ const server = http.createServer((req, res) => {
         const looksLikeEmpty = !parsed && /["']results["']\s*:\s*\[\s*\]/.test(body);
         const count = parsed && Array.isArray(parsed.results) ? parsed.results.length : 0;
         const isEmpty = (parsed && count === 0) || looksLikeEmpty;
-      console.log(`[proxy] ${status} ${productId} \u2192 ${count} results (${body.length} bytes)${looksLikeEmpty ? ' [recovered-empty]' : ''}`);
+      // Only log non-success or noteworthy cases; normal 200 responses stay quiet.
+      if (status !== 200 || looksLikeEmpty || !parsed) {
+        console.log(`[proxy] ${status} ${productId} \u2192 ${count} results (${body.length} bytes)${looksLikeEmpty ? ' [recovered-empty]' : ''}${!parsed ? ' [unparseable]' : ''}`);
+      }
         // Update empty-product cache based on this response.
         if (productId) {
           if (isEmpty) recordEmpty(productId);

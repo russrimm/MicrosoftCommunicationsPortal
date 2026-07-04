@@ -602,6 +602,11 @@
       font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
     }
     .gen-cancel-btn:hover { background: var(--cp-surface-soft); }
+    .gen-format-group { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .gen-format-group label { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 13px; color: var(--cp-text); padding: 4px 10px; border: 1px solid var(--cp-border); border-radius: 4px; background: var(--cp-surface); }
+    .gen-format-group label:hover { background: var(--cp-surface-soft); }
+    .gen-format-group input[type="radio"] { margin: 0; accent-color: var(--cp-accent); }
+    .gen-format-note { font-size: 11px; color: var(--cp-text-muted); margin: 6px 0 0; }
   </style>
 </head>
 <body>
@@ -720,7 +725,6 @@
             <span class="sh-panel-title-count" id="sh-issues-total">—</span>
           </div>
           <div style="display:flex;gap:0.4rem;align-items:center">
-            <button class="export-btn" id="sh-gen-export-btn" type="button">🛠 Generate Full Export</button>
             <button class="export-btn" id="sh-export-btn" type="button">⬇ Export</button>
             <button class="ghost-btn" id="sh-expand-btn" type="button" aria-expanded="false">Show all</button>
             <button class="ghost-btn" id="sh-pause-btn" type="button" aria-pressed="false">Pause</button>
@@ -1319,7 +1323,7 @@
       getAllRows:  () => (typeof flatIssues === 'function' ? flatIssues() : []),
       getProducts: (it) => [it && it.service].filter(Boolean),
       getDate:     (it) => { const d = Date.parse((it && (it.startDateTime || it.lastModifiedDateTime)) || ''); return isNaN(d) ? null : d; },
-      runExport:   (rows) => exportServiceHealthToHtml(rows),
+      runExport:   (rows, format) => exportServiceHealthToHtml(rows, format),
     };
     const EXPORT_UNCLASSIFIED = '(Unclassified)';
     function getExportProducts(row) {
@@ -1400,17 +1404,18 @@
     function submitExportModal() {
       const rows = computeExportRows();
       if (!rows.length) { alert('No items match the selected filters.'); return; }
+      const format = (document.querySelector('input[name="gen-format"]:checked') || {}).value || 'html';
       closeExportModal();
-      EXPORT_MODAL_CONFIG.runExport(rows);
+      EXPORT_MODAL_CONFIG.runExport(rows, format);
     }
 
     // ════════════════════════════════
     // EXPORT
     // ════════════════════════════════
-    function exportServiceHealthToHtml(customRows) {
+    function exportServiceHealthToHtml(customRows, format) {
       const issues = (customRows && customRows.length) ? customRows : (typeof flatIssues === 'function' ? flatIssues() : []);
       const counts = (typeof getCounts === 'function' ? getCounts() : null);
-      if (!window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
+      if (!window.ExportFormats || !window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
 
       const btn = document.getElementById('sh-export-btn');
       if (btn) { btn.disabled = true; btn.textContent = '…Exporting'; }
@@ -1454,37 +1459,18 @@
         ? `Operational ${counts.operational} · Degraded ${counts.degraded} · Extended Recovery ${counts.extended} · Active issues ${counts.totalIssues} · Affected services ${counts.affected}`
         : `${issues.length} active issue${issues.length !== 1 ? 's' : ''}`;
       const now = new Date().toLocaleString();
-      const subtitle = 'Exported ' + now + ' • ' + summary;
+      let subtitle = 'Exported ' + now + ' • ' + summary;
+      if (!issues.length) subtitle += ' — ✓ No active issues at the time of export.';
 
-      if (!issues.length) {
-        // Special empty-state page (the helper expects at least one row to build a table).
-        const html = '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8">'
-          + '<meta name="color-scheme" content="light only">'
-          + '<title>Microsoft 365 Service Health</title></head>'
-          + '<body bgcolor="#ffffff" style="margin:0;padding:24px;background-color:#ffffff;color:#1f2937;'
-          + "font-family:'Segoe UI',Calibri,Arial,sans-serif;\">"
-          + '<h2 style="font-size:18px;font-weight:600;margin:0 0 4px;color:#1f2937;">Microsoft 365 Service Health</h2>'
-          + '<p style="font-size:12px;color:#6b7280;margin:0 0 14px;">' + window.OutlookExport.escapeHtml(subtitle) + '</p>'
-          + '<p style="font-style:italic;color:#6b7280;padding:16px 0;">✓ No active issues at the time of export.</p>'
-          + '</body></html>';
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        const url  = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'servicehealth-export-' + new Date().toISOString().slice(0,10) + '.html';
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-      } else {
-        window.OutlookExport.download({
-          title:    'Microsoft 365 Service Health',
-          subtitle: subtitle,
-          filename: 'servicehealth-export-' + new Date().toISOString().slice(0,10) + '.html',
-          columns:  ['ID', 'Service', 'Title', 'Classification', 'Status', 'Feature', 'Feature Group',
-                     'High Impact', 'Started', 'Last Updated', 'Impact', 'Latest Update'],
-          rows: tableRows,
-        });
-      }
+      window.ExportFormats.download({
+        title:        'Microsoft 365 Service Health',
+        subtitle:     subtitle,
+        baseFilename: 'servicehealth-export-' + new Date().toISOString().slice(0,10),
+        columns:      ['ID', 'Service', 'Title', 'Classification', 'Status', 'Feature', 'Feature Group',
+                       'High Impact', 'Started', 'Last Updated', 'Impact', 'Latest Update'],
+        rows:         tableRows,
+        format:       format || 'html',
+      });
 
       if (btn) { btn.disabled = false; btn.textContent = '⬇ Export'; }
     }
@@ -1500,8 +1486,7 @@
     // ── Event listeners (replaces inline handlers for elements above) ───
     document.getElementById('theme-btn').addEventListener('click', toggleTheme);
     document.getElementById('sh-refresh-btn').addEventListener('click', loadServiceHealth);
-    document.getElementById('sh-gen-export-btn').addEventListener('click', openExportModal);
-    document.getElementById('sh-export-btn').addEventListener('click', exportServiceHealthToHtml);
+    document.getElementById('sh-export-btn').addEventListener('click', openExportModal);
     document.getElementById('sh-expand-btn').addEventListener('click', toggleExpandIssues);
     document.getElementById('sh-pause-btn').addEventListener('click', togglePause);
   </script>
@@ -1509,10 +1494,20 @@
     <div class="gen-modal-backdrop" id="gen-modal-backdrop"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Generate Full Export</h3>
+        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
         <button class="gen-modal-close" id="gen-modal-close-btn" type="button" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
+        <div class="gen-field">
+          <span class="gen-field-label">Format</span>
+          <div class="gen-format-group" role="radiogroup" aria-label="Export format">
+            <label><input type="radio" name="gen-format" value="html" checked> HTML</label>
+            <label><input type="radio" name="gen-format" value="md"> Markdown</label>
+            <label><input type="radio" name="gen-format" value="pdf"> PDF</label>
+            <label><input type="radio" name="gen-format" value="docx"> Word</label>
+          </div>
+          <p class="gen-format-note">PDF opens a print dialog (choose "Save as PDF"). Word export opens in Word / LibreOffice.</p>
+        </div>
         <div class="gen-field">
           <span class="gen-field-label">Date range (Started)</span>
           <div class="gen-range">
@@ -1561,6 +1556,7 @@
 
   <script src="/static/product-icons.js" defer></script>
   <script src="/static/outlook-export.js" defer></script>
+  <script src="/static/export-formats.js" defer></script>
   <script src="/static/ai-insights.js" defer></script>
 </body>
 </html>

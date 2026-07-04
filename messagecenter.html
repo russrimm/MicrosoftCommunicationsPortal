@@ -456,6 +456,11 @@
       font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
     }
     .gen-cancel-btn:hover { background: var(--cp-surface-soft); }
+    .gen-format-group { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .gen-format-group label { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 13px; color: var(--cp-text); padding: 4px 10px; border: 1px solid var(--cp-border); border-radius: 4px; background: var(--cp-surface); }
+    .gen-format-group label:hover { background: var(--cp-surface-soft); }
+    .gen-format-group input[type="radio"] { margin: 0; accent-color: var(--cp-accent); }
+    .gen-format-note { font-size: 11px; color: var(--cp-text-muted); margin: 6px 0 0; }
   </style>
 </head>
 <body>
@@ -528,7 +533,6 @@
       </div>
       <div class="mc-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="mc-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="mc-gen-export-btn" type="button">🛠 Generate Full Export</button>
         <button class="export-btn" id="mc-export-btn" type="button">⬇ Export</button>
         <button class="export-btn" id="mc-refresh-btn">↻ Refresh</button>
       </div>
@@ -965,7 +969,7 @@
       getAllRows:  () => allMessages || [],
       getProducts: (m) => (m && m.services || []).map(s => (typeof getServiceName === 'function' ? getServiceName(s) : '')).filter(Boolean),
       getDate:     (m) => { const d = Date.parse((m && (m.startDateTime || m.lastModifiedDateTime)) || ''); return isNaN(d) ? null : d; },
-      runExport:   (rows) => exportMessagesToHtml(rows),
+      runExport:   (rows, format) => exportMessagesToHtml(rows, format),
     };
     const EXPORT_UNCLASSIFIED = '(Unclassified)';
     function getExportProducts(row) {
@@ -1046,17 +1050,18 @@
     function submitExportModal() {
       const rows = computeExportRows();
       if (!rows.length) { alert('No items match the selected filters.'); return; }
+      const format = (document.querySelector('input[name="gen-format"]:checked') || {}).value || 'html';
       closeExportModal();
-      EXPORT_MODAL_CONFIG.runExport(rows);
+      EXPORT_MODAL_CONFIG.runExport(rows, format);
     }
 
     // ════════════════════════════════
     // EXPORT
     // ════════════════════════════════
-    function exportMessagesToHtml(customRows) {
+    function exportMessagesToHtml(customRows, format) {
       const rows = (customRows && customRows.length) ? customRows : (currentFiltered || []);
       if (!rows.length) { alert('No messages to export with current filters.'); return; }
-      if (!window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
+      if (!window.ExportFormats || !window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
 
       const btn = document.getElementById('mc-export-btn');
       if (btn) { btn.disabled = true; btn.textContent = '…Exporting'; }
@@ -1091,13 +1096,14 @@
       });
 
       const now = new Date().toLocaleString();
-      window.OutlookExport.download({
+      window.ExportFormats.download({
         title:    'Microsoft 365 Message Center',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' message' + (rows.length !== 1 ? 's' : ''),
-        filename: 'messagecenter-export-' + new Date().toISOString().slice(0,10) + '.html',
+        baseFilename: 'messagecenter-export-' + new Date().toISOString().slice(0,10),
         columns:  ['ID', 'Product / Service', 'Title', 'Category', 'Severity', 'Status',
                    'Published', 'Last Modified', 'Summary'],
         rows: tableRows,
+        format:   format || 'html',
       });
 
       if (btn) { btn.disabled = false; btn.textContent = '⬇ Export'; }
@@ -1129,8 +1135,7 @@
     document.getElementById('mc-sort').addEventListener('change', filterMessages);
     document.getElementById('mc-date-from').addEventListener('change', filterMessages);
     document.getElementById('mc-date-to').addEventListener('change', filterMessages);
-    document.getElementById('mc-gen-export-btn').addEventListener('click', openExportModal);
-    document.getElementById('mc-export-btn').addEventListener('click', exportMessagesToHtml);
+    document.getElementById('mc-export-btn').addEventListener('click', openExportModal);
     document.getElementById('mc-refresh-btn').addEventListener('click', loadMessageCenter);
     document.getElementById('mc-modal').addEventListener('click', function(e) { handleModalBackdrop(e); });
     document.getElementById('mc-modal-close-btn').addEventListener('click', closeMessage);
@@ -1148,10 +1153,20 @@
     <div class="gen-modal-backdrop" id="gen-modal-backdrop"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Generate Full Export</h3>
+        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
         <button class="gen-modal-close" id="gen-modal-close-btn" type="button" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
+        <div class="gen-field">
+          <span class="gen-field-label">Format</span>
+          <div class="gen-format-group" role="radiogroup" aria-label="Export format">
+            <label><input type="radio" name="gen-format" value="html" checked> HTML</label>
+            <label><input type="radio" name="gen-format" value="md"> Markdown</label>
+            <label><input type="radio" name="gen-format" value="pdf"> PDF</label>
+            <label><input type="radio" name="gen-format" value="docx"> Word</label>
+          </div>
+          <p class="gen-format-note">PDF opens a print dialog (choose "Save as PDF"). Word export opens in Word / LibreOffice.</p>
+        </div>
         <div class="gen-field">
           <span class="gen-field-label">Date range (Published)</span>
           <div class="gen-range">
@@ -1200,6 +1215,7 @@
 
   <script src="/static/product-icons.js" defer></script>
   <script src="/static/outlook-export.js" defer></script>
+  <script src="/static/export-formats.js" defer></script>
   <script src="/static/ai-insights.js" defer></script>
 </body>
 </html>
