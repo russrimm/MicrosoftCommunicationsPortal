@@ -140,7 +140,10 @@
 
   function printPdf(spec) {
     const html = buildPrintPage(spec);
-    const w = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
+    // Note: do NOT use 'noopener' or 'noreferrer' here — they cause
+    // window.open() to return null, which we need to write content and
+    // trigger print(). This is safe: we open about:blank (no URL leak).
+    const w = window.open('', '_blank', 'width=1024,height=768');
     if (!w) {
       alert('Pop-up blocked. Allow pop-ups for this site to use PDF export, then try again.');
       return;
@@ -148,6 +151,8 @@
     w.document.open();
     w.document.write(html);
     w.document.close();
+    // Sever the opener reference after writing for defense-in-depth.
+    try { w.opener = null; } catch (_) { /* sandboxed */ }
     // Wait for layout, then invoke print. Some browsers need a small delay.
     const trigger = () => { try { w.focus(); w.print(); } catch (e) { /* user closed */ } };
     if (w.document.readyState === 'complete') setTimeout(trigger, 200);

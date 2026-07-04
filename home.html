@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5; --cp-border: #dedede; --cp-border-strong: #919191;
+      --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
+      --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
+      --cp-warning: #f59e0b; --cp-link: #0078d4;
+      --cp-highlight: rgba(177,31,75,0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e; --cp-border: #474747; --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede; --cp-text-muted: #919191; --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
+      --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
+      --cp-warning: #fbbf24; --cp-link: #4da6ff;
+      --cp-highlight: rgba(253,142,161,0.12);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    .sr-only {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+
+    a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--cp-accent);
+      outline-offset: 2px;
+    }
+
+    body {
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      background: var(--cp-bg);
+      color: var(--cp-text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--cp-surface);
+      border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem;
+      display: flex; align-items: center; gap: 0.875rem;
+      height: 56px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      flex-shrink: 0;
+    }
+    .header-logo {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-logo svg { display: block; width: 28px; height: 28px; }
+    .header-title { font-size: 15px; font-weight: 700; color: var(--cp-text); }
+    .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted); margin-top: 1px; }
+    .header-subtitle a { color: inherit; text-decoration: none; }
+    .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
+    .theme-btn {
+      margin-left: auto;
+      background: var(--cp-surface-soft);
+      border: 1px solid var(--cp-border);
+      border-radius: 0.625rem;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer; font-size: 12px;
+      color: var(--cp-text-muted); font-family: inherit;
+      transition: all 0.15s;
+    }
+    .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
+
+    /* ── Nav tabs ── */
+    .page-tabs {
+      position: sticky; top: 56px; z-index: 99;
+      background: var(--cp-surface);
+      border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem;
+      display: flex; align-items: stretch; justify-content: center;
+      gap: 0.25rem;
+      height: 48px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .page-tabs::-webkit-scrollbar { height: 0; }
+    .nav-tab {
+      display: inline-flex; align-items: center;
+      padding: 0 1rem;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      color: var(--cp-text-muted);
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+      margin-bottom: -1px;
+    }
+    .nav-tab:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
+    .nav-tab.active {
+      color: var(--cp-accent);
+      border-bottom-color: var(--cp-accent);
+      background: transparent;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 3rem 1.5rem 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .hero-icon {
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      width: 64px; height: 64px;
+      margin-bottom: 1.25rem;
+    }
+    .hero-icon svg { width: 56px; height: 56px; }
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--cp-text);
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.01em;
+    }
+    .hero p {
+      font-size: 15px;
+      color: var(--cp-text-muted);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* ── Card grid ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+      padding: 0 2rem 3rem;
+      max-width: 1120px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .page-card {
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s;
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+      overflow: hidden;
+    }
+    .page-card:hover {
+      border-color: var(--cp-accent);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      transform: translateY(-2px);
+    }
+    .page-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      border-radius: 12px 12px 0 0;
+    }
+    .page-card[data-color="purple"]::before { background: #7B2FBE; }
+    .page-card[data-color="blue"]::before { background: #0078D4; }
+    .page-card[data-color="teal"]::before { background: #0E7A6A; }
+    .page-card[data-color="orange"]::before { background: #D73B02; }
+    .page-card[data-color="azure"]::before { background: #0078D4; }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .card-icon {
+      width: 40px; height: 40px;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card-icon img {
+      width: 36px; height: 36px;
+      object-fit: contain;
+    }
+    .card-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--cp-text);
+      line-height: 1.3;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--cp-text-muted);
+      line-height: 1.55;
+      flex: 1;
+    }
+    .card-source {
+      font-size: 11px;
+      color: var(--cp-text-soft);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.25rem;
+    }
+    .card-source-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .card-source-dot.green { background: var(--cp-success); }
+    .card-source-dot.blue { background: var(--cp-link); }
+    .card-source-dot.amber { background: var(--cp-warning); }
+    .card-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--cp-accent);
+      margin-top: 0.25rem;
+    }
+    .card-cta svg {
+      width: 14px; height: 14px;
+      transition: transform 0.15s;
+    }
+    .page-card:hover .card-cta svg {
+      transform: translateX(3px);
+    }
+
+    /* ── Divider ── */
+    .section-divider {
+      max-width: 1120px;
+      margin: 0 auto 2rem;
+      padding: 0 2rem;
+    }
+    .section-divider hr {
+      border: none;
+      border-top: 1px solid var(--cp-border);
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--cp-text-muted);
+      margin-bottom: 0.75rem;
+      padding: 0 2rem;
+      max-width: 1120px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ── Footer ── */
+    .home-footer {
+      margin-top: auto;
+      padding: 1.5rem 2rem;
+      text-align: center;
+      font-size: 11px;
+      color: var(--cp-text-soft);
+      border-top: 1px solid var(--cp-border);
+    }
+    .home-footer a { color: var(--cp-text-muted); text-decoration: none; }
+    .home-footer a:hover { text-decoration: underline; }
+
+    /* ── Features row ── */
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2rem;
+      padding: 0 2rem 2.5rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      max-width: 240px;
+    }
+    .feature-icon {
+      flex-shrink: 0;
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--cp-accent-soft);
+      border-radius: 6px;
+      color: var(--cp-accent);
+      margin-top: 1px;
+    }
+    .feature-icon svg { width: 16px; height: 16px; }
+    .feature-text { font-size: 12px; color: var(--cp-text-muted); line-height: 1.5; }
+    .feature-text strong { color: var(--cp-text); display: block; font-size: 13px; margin-bottom: 2px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 720px) {
+      .card-grid { grid-template-columns: 1fr; padding: 0 1rem 2rem; }
+      .hero { padding: 2rem 1rem 1.5rem; }
+      .hero h1 { font-size: 22px; }
+      .features { padding: 0 1rem 2rem; gap: 1.25rem; }
+      .feature { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
+    <div>
+      <div class="header-title">Microsoft Communications Portal</div>
+      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
+    </div>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme">🌙 Dark</button>
+  </header>
+
+  <nav class="page-tabs" aria-label="Primary">
+    <a class="nav-tab active" href="/home" aria-current="page">Home</a>
+    <a class="nav-tab" href="/powerplatform">Power Platform Release Planner</a>
+    <a class="nav-tab" href="/messagecenter">Microsoft 365 Message Center</a>
+    <a class="nav-tab" href="/m365updates">Microsoft 365 Roadmap</a>
+    <a class="nav-tab" href="/servicehealth">Microsoft 365 Service Health</a>
+    <a class="nav-tab" href="/azureupdates">Azure Roadmap</a>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg>
+    </div>
+    <h1>Your single pane of glass for Microsoft updates</h1>
+    <p>Track release plans, roadmap announcements, tenant-specific communications, and service health across Power Platform, Microsoft 365, and Azure — all in one place.</p>
+  </section>
+
+  <!-- Feature highlights -->
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M3 8h10M3 11.5h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="feature-text">
+        <strong>Unified feed</strong>
+        Five Microsoft communication streams in one filterable view
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v4l2.5 1.5M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-text">
+        <strong>Always current</strong>
+        Live data from Microsoft APIs, Graph, and RSS feeds
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M5.5 8.5 7 10l3.5-4M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-text">
+        <strong>AI-powered insights</strong>
+        Optional LLM summarization and impact triage
+      </div>
+    </div>
+  </div>
+
+  <!-- Section label -->
+  <div class="section-label">Explore communication streams</div>
+
+  <!-- Card grid -->
+  <div class="card-grid">
+    <!-- Power Platform -->
+    <a class="page-card" href="/powerplatform" data-color="purple">
+      <div class="card-header">
+        <div class="card-icon"><img src="/public/PowerPlatform_scalable.svg" alt=""></div>
+        <div class="card-title">Power Platform Release Planner</div>
+      </div>
+      <div class="card-desc">Browse planned features and release timelines for Power Apps, Power Automate, Power BI, Copilot Studio, and the entire Power Platform ecosystem.</div>
+      <div class="card-source">
+        <span class="card-source-dot green"></span>
+        Public API — no credentials required
+      </div>
+      <div class="card-cta">
+        Open Release Planner
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </a>
+
+    <!-- M365 Message Center -->
+    <a class="page-card" href="/messagecenter" data-color="blue">
+      <div class="card-header">
+        <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
+        <div class="card-title">Microsoft 365 Message Center</div>
+      </div>
+      <div class="card-desc">View tenant-specific advisory messages, feature rollouts, planned changes, and required admin actions from the Microsoft 365 Message Center.</div>
+      <div class="card-source">
+        <span class="card-source-dot blue"></span>
+        Microsoft Graph — requires app registration
+      </div>
+      <div class="card-cta">
+        Open Message Center
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </a>
+
+    <!-- M365 Roadmap -->
+    <a class="page-card" href="/m365updates" data-color="teal">
+      <div class="card-header">
+        <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
+        <div class="card-title">Microsoft 365 Roadmap</div>
+      </div>
+      <div class="card-desc">Track upcoming and recently launched features across Teams, Outlook, SharePoint, OneDrive, and other Microsoft 365 services via the public roadmap feed.</div>
+      <div class="card-source">
+        <span class="card-source-dot green"></span>
+        RSS feed — no credentials required
+      </div>
+      <div class="card-cta">
+        Open M365 Roadmap
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </a>
+
+    <!-- Service Health -->
+    <a class="page-card" href="/servicehealth" data-color="orange">
+      <div class="card-header">
+        <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
+        <div class="card-title">Microsoft 365 Service Health</div>
+      </div>
+      <div class="card-desc">Monitor service incidents, advisories, and degradation events across Microsoft 365 services with real-time status from your tenant.</div>
+      <div class="card-source">
+        <span class="card-source-dot blue"></span>
+        Microsoft Graph — requires app registration
+      </div>
+      <div class="card-cta">
+        Open Service Health
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </a>
+
+    <!-- Azure Roadmap -->
+    <a class="page-card" href="/azureupdates" data-color="azure">
+      <div class="card-header">
+        <div class="card-icon"><img src="/public/Azure.svg" alt=""></div>
+        <div class="card-title">Azure Roadmap</div>
+      </div>
+      <div class="card-desc">Stay up to date with Azure service announcements, new features, retirements, and updates across all Azure products and regions.</div>
+      <div class="card-source">
+        <span class="card-source-dot green"></span>
+        RSS feed — no credentials required
+      </div>
+      <div class="card-cta">
+        Open Azure Roadmap
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </a>
+  </div>
+
+  <!-- Footer -->
+  <footer class="home-footer">
+    <a href="https://github.com/russrimm/MicrosoftCommunicationsPortal" target="_blank" rel="noopener noreferrer">GitHub</a>
+    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; Not an official Microsoft product
+  </footer>
+
+  <script>
+    (() => {
+      const btn = document.getElementById('theme-btn');
+      function applyTheme(t) {
+        document.documentElement.setAttribute('data-theme', t);
+        btn.textContent = t === 'dark' ? '☀️ Light' : '🌙 Dark';
+      }
+      applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
+      btn.addEventListener('click', () => {
+        const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+      });
+    })();
+  </script>
+</body>
+</html>

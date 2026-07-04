@@ -1285,15 +1285,16 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── Redirect root to the Power Platform Release Planner ────────────────────
+  // ── Redirect root to the home page ─────────────────────────────────────────
   if (parsed.pathname === '/') {
-    res.writeHead(302, { Location: '/powerplatform', 'Cache-Control': 'no-cache' });
+    res.writeHead(302, { Location: '/home', 'Cache-Control': 'no-cache' });
     res.end();
     return;
   }
 
   // ── Serve static HTML pages ─────────────────────────────────────────────────
   const pageMap = {
+    '/home':          'home.html',
     '/powerplatform': 'index.html',
     '/messagecenter': 'messagecenter.html',
     '/servicehealth': 'servicehealth.html',
