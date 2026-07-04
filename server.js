@@ -53,7 +53,51 @@ function cachedFetch(key, ttlMs, fetcher, done) {
   });
 }
 
+// ── Per-IP token bucket rate limiter ────────────────────────────────────────
+// Simple fixed-window counter keyed by remote address. State: Map<ip, {count, resetAt}>.
+const rateLimitBuckets = new Map();
+const RATE_LIMIT_PURGE_INTERVAL = 512; // opportunistic purge every N checks
+let rateLimitPurgeCounter = 0;
+
+function checkRateLimit(req, res, limit, windowMs) {
+  const now = Date.now();
+  if (++rateLimitPurgeCounter >= RATE_LIMIT_PURGE_INTERVAL) {
+    rateLimitPurgeCounter = 0;
+    for (const [k, v] of rateLimitBuckets) {
+      if (v.resetAt <= now) rateLimitBuckets.delete(k);
+    }
+  }
+  const ip = (req.socket && req.socket.remoteAddress) || 'unknown';
+  let bucket = rateLimitBuckets.get(ip);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + windowMs };
+    rateLimitBuckets.set(ip, bucket);
+  }
+  bucket.count++;
+  if (bucket.count > limit) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+    sendJson(req, res, 429, { error: 'Rate limit exceeded', retryAfterSeconds }, {
+      'Retry-After': String(retryAfterSeconds),
+    });
+    return false;
+  }
+  return true;
+}
+
 // ── Response helpers ────────────────────────────────────────────────────────
+// Build CORS headers by echoing an allow-listed Origin. CORS_ORIGINS is a
+// comma-separated list of exact origins; if unset, no CORS header is emitted
+// (same-origin only). Wildcards are not supported.
+function corsHeaders(req) {
+  const raw = process.env.CORS_ORIGINS;
+  if (!raw) return {};
+  const origin = req.headers.origin;
+  if (!origin) return {};
+  const allowed = raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (!allowed.includes(origin)) return {};
+  return { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' };
+}
+
 // Send a JSON response, honoring Accept-Encoding for gzip/deflate.
 function sendJson(req, res, status, payload, extraHeaders) {
   const json = typeof payload === 'string' ? payload : JSON.stringify(payload);
@@ -727,6 +771,7 @@ const server = http.createServer((req, res) => {
   // POST /api/summarize  body: { items: [{id,title,description,link,source,...}, ...] }
   // Returns: { summaries: [{id,summary,impact,impactReason,audience,actionRequired}] }
   if (parsed.pathname === '/api/summarize' && req.method === 'POST') {
+    if (!checkRateLimit(req, res, 5, 60_000)) return;
     readJsonBody(req, (err, body) => {
       if (err) return sendJson(req, res, 400, { error: err.message });
       const source = String(body.source || 'unknown').slice(0, 32);
@@ -764,6 +809,7 @@ const server = http.createServer((req, res) => {
   // ── AI: cross-feed impact digest (Top N most impactful from a source) ────
   // GET /api/impact-digest?source=azure|m365|messagecenter|servicehealth&limit=5&windowDays=14
   if (parsed.pathname === '/api/impact-digest') {
+    if (!checkRateLimit(req, res, 10, 60_000)) return;
     if (!AI_PROVIDER) {
       return sendJson(req, res, 503, { error: 'AI provider not configured. See .env.example.' });
     }
@@ -918,7 +964,7 @@ const server = http.createServer((req, res) => {
     fetchM365Updates((err, result) => {
       if (err) {
         console.error('[m365updates] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
         res.end(JSON.stringify({ items: [], error: err.message }));
         return;
       }
@@ -926,8 +972,8 @@ const server = http.createServer((req, res) => {
       console.log(`[m365updates] ${status} \u2192 ${items.length} items`);
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
-        'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'max-age=300',
+        ...corsHeaders(req),
       });
       res.end(JSON.stringify({ items, count: items.length, error: error || null }));
     });
@@ -939,7 +985,7 @@ const server = http.createServer((req, res) => {
     fetchAzureUpdates((err, result) => {
       if (err) {
         console.error('[azureupdates] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
         res.end(JSON.stringify({ items: [], error: err.message }));
         return;
       }
@@ -947,8 +993,8 @@ const server = http.createServer((req, res) => {
       console.log(`[azureupdates] ${status} \u2192 ${items.length} items`);
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
-        'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'max-age=300',
+        ...corsHeaders(req),
       });
       res.end(JSON.stringify({ items, count: items.length, error: error || null }));
     });
@@ -965,9 +1011,9 @@ const server = http.createServer((req, res) => {
     if (productId && !force && isKnownEmpty(productId)) {
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
-        'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'max-age=300',
         'X-Empty-Cache': 'hit',
+        ...corsHeaders(req),
       });
       res.end(JSON.stringify({ results: [], cached: 'empty' }));
       return;
@@ -977,7 +1023,7 @@ const server = http.createServer((req, res) => {
     requestReleasePlans(proxyPath, MAX_REDIRECTS, (err, upstream) => {
       if (err) {
         console.error('[proxy] error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
         res.end(JSON.stringify({ results: [], error: err.message }));
         return;
       }
@@ -1006,24 +1052,24 @@ const server = http.createServer((req, res) => {
         if (parsed) {
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
-            'Access-Control-Allow-Origin': '*',
             'Cache-Control': 'max-age=300',
+            ...corsHeaders(req),
           });
           res.end(body);
         } else if (looksLikeEmpty) {
           // Malformed upstream but clearly empty — return clean JSON.
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
-            'Access-Control-Allow-Origin': '*',
             'Cache-Control': 'max-age=300',
             'X-Empty-Cache': 'recovered',
+            ...corsHeaders(req),
           });
           res.end(JSON.stringify({ results: [], recovered: true }));
         } else {
           // Upstream returned non-JSON; pass through a structured error
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
-            'Access-Control-Allow-Origin': '*',
+            ...corsHeaders(req),
           });
           res.end(JSON.stringify({
             results: [],
@@ -1039,8 +1085,21 @@ const server = http.createServer((req, res) => {
   // GET    /api/empty-products             → list current entries
   // DELETE /api/empty-products             → clear entire cache
   // DELETE /api/empty-products?id=<guid>   → clear a single ID
+  // Admin endpoint — loopback + optional bearer token only
   if (parsed.pathname === '/api/empty-products') {
+    const remote = req.socket.remoteAddress;
+    if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') {
+      sendJson(req, res, 403, { error: 'Forbidden' });
+      return;
+    }
     if (req.method === 'DELETE') {
+      if (process.env.ADMIN_TOKEN) {
+        const auth = req.headers['authorization'] || '';
+        if (auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+          sendJson(req, res, 403, { error: 'Forbidden' });
+          return;
+        }
+      }
       const id = parsed.searchParams.get('id');
       if (id) { clearEmpty(id); sendJson(req, res, 200, { ok: true, cleared: 1, id }); }
       else {
@@ -1162,9 +1221,33 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end('Not found');
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+const HOST = process.env.HOST || '127.0.0.1';
+const IS_LOOPBACK = HOST === '127.0.0.1' || HOST === '::1';
+if (!IS_LOOPBACK) {
+  const risks = [
+    'holds a Microsoft Graph client_secret in memory/env',
+    'calls billed LLM APIs (Azure OpenAI / OpenAI / GitHub Models)',
+    'exposes an unauthenticated /api/empty-products endpoint',
+  ];
+  if (process.env.ALLOW_REMOTE_BIND !== 'true') {
+    console.error('\n\x1b[31mFATAL: refusing to bind to non-loopback host "' + HOST + '".\x1b[0m');
+    console.error('This server:');
+    for (const r of risks) console.error('  - ' + r);
+    console.error('Set ALLOW_REMOTE_BIND=true to override (only behind an authenticated reverse proxy on a trusted network).\n');
+    process.exit(1);
+  }
+  const bar = '='.repeat(72);
+  console.warn('\n\x1b[41m\x1b[97m' + bar + '\x1b[0m');
+  console.warn('\x1b[41m\x1b[97m  WARNING: BINDING TO NON-LOOPBACK HOST "' + HOST + '"' + ' '.repeat(Math.max(0, 72 - 42 - HOST.length)) + '\x1b[0m');
+  console.warn('\x1b[41m\x1b[97m' + bar + '\x1b[0m');
+  console.warn('\x1b[31mThis process:\x1b[0m');
+  for (const r of risks) console.warn('\x1b[31m  ! ' + r + '\x1b[0m');
+  console.warn('\x1b[31mOnly do this behind an authenticated reverse proxy on a trusted network.\x1b[0m\n');
+}
+
+server.listen(PORT, HOST, () => {
   console.log(`\n  Microsoft Communications Portal`);
-  console.log(`  → http://localhost:${PORT}`);
+  console.log(`  → http://${IS_LOOPBACK ? 'localhost' : HOST}:${PORT}`);
   if (AI_PROVIDER) {
     console.log(`  → AI: ${AI_PROVIDER.name} (${AI_PROVIDER.model})\n`);
   } else {
