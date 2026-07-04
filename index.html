@@ -744,7 +744,7 @@
       <div class="header-title">Microsoft Communications Portal</div>
       <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
     </div>
-    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" data-act="toggleTheme">🌙 Dark</button>
   </header>
 
   <nav class="page-tabs" aria-label="Primary">
@@ -758,7 +758,7 @@
   <div class="app-layout">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <button class="clear-all-btn" onclick="clearAll()">↺ Clear All Filters</button>
+      <button class="clear-all-btn" data-act="clearAll">↺ Clear All Filters</button>
 
       <div class="filter-sec">
         <div class="filter-title">Search</div>
@@ -766,67 +766,68 @@
         <input type="text" class="search-input" id="search-input"
                placeholder="Search features, products, areas…"
                aria-label="Search features, products, areas"
-               oninput="handleSearch(this.value)">
+               data-act="handleSearch" data-on="input">
       </div>
 
       <div class="sep"></div>
 
       <div class="filter-sec">
-        <div class="filter-title">Date Range (GA / Preview) <button class="filter-clear" onclick="clearDateRange()">Clear</button></div>
+        <div class="filter-title">Date Range (GA / Preview) <button class="filter-clear" data-act="clearDateRange">Clear</button></div>
         <div class="date-presets">
-          <button class="preset-btn" id="preset-30" onclick="applyPreset(30)">±30 days</button>
-          <button class="preset-btn" id="preset-90" onclick="applyPreset(90)">±90 days</button>
-          <button class="preset-btn" id="preset-wave" onclick="applyCurrentWave()">Current Wave</button>
+          <button class="preset-btn" id="preset-7" data-act="applyPreset" data-days="7">±7 days</button>
+          <button class="preset-btn" id="preset-30" data-act="applyPreset" data-days="30">±30 days</button>
+          <button class="preset-btn" id="preset-60" data-act="applyPreset" data-days="60">±60 days</button>
+          <button class="preset-btn" id="preset-wave" data-act="applyCurrentWave">Current Wave</button>
         </div>
         <div class="date-range-row">
           <label class="date-label" for="date-from">From</label>
-          <input type="date" class="date-input" id="date-from" title="Filter from date" onchange="handleDateChange()">
+          <input type="date" class="date-input" id="date-from" title="Filter from date" data-act="handleDateChange" data-on="change">
         </div>
         <div class="date-range-row">
           <label class="date-label" for="date-to">To</label>
-          <input type="date" class="date-input" id="date-to" title="Filter to date" onchange="handleDateChange()">
+          <input type="date" class="date-input" id="date-to" title="Filter to date" data-act="handleDateChange" data-on="change">
         </div>
       </div>
 
       <div class="sep"></div>
 
       <div class="filter-sec">
-        <div class="filter-title">Product <span class="filter-title-actions"><button class="select-all-btn" onclick="selectAllProducts()">All</button><button class="filter-clear" onclick="clearKey('products')">Clear</button></span></div>
+        <div class="filter-title">Product <span class="filter-title-actions"><button class="select-all-btn" data-act="selectAllProducts">All</button><button class="filter-clear" data-act="clearKey" data-key="products">Clear</button></span></div>
         <div class="cb-list" id="f-products"></div>
       </div>
 
       <div class="sep"></div>
 
       <div class="filter-sec">
-        <div class="filter-title">Product Area <button class="filter-clear" onclick="clearKey('areas')">Clear</button></div>
+        <div class="filter-title">Product Area <button class="filter-clear" data-act="clearKey" data-key="areas">Clear</button></div>
         <div class="cb-list" id="f-areas"></div>
       </div>
 
       <div class="sep"></div>
 
       <div class="filter-sec">
-        <div class="filter-title">Release Wave (GA) <button class="filter-clear" onclick="clearKey('waves')">Clear</button></div>
+        <div class="filter-title">Release Wave (GA) <button class="filter-clear" data-act="clearKey" data-key="waves">Clear</button></div>
         <div class="cb-list" id="f-waves"></div>
       </div>
 
       <div class="sep"></div>
 
       <div class="filter-sec">
-        <div class="filter-title">GA Status <button class="filter-clear" onclick="clearKey('gaStatus')">Clear</button></div>
+        <div class="filter-title">GA Status <button class="filter-clear" data-act="clearKey" data-key="gaStatus">Clear</button></div>
         <div class="cb-list" id="f-ga-status"></div>
       </div>
 
       <div class="sep"></div>
 
       <div class="filter-sec">
-        <div class="filter-title">Feature Type <button class="filter-clear" onclick="clearKey('featureType')">Clear</button></div>
+        <div class="filter-title">Feature Type <button class="filter-clear" data-act="clearKey" data-key="featureType">Clear</button></div>
         <div class="cb-list" id="f-type"></div>
       </div>
 
       <div class="sep"></div>
 
       <div class="filter-sec">
-        <div class="filter-title">Enabled For <button class="filter-clear" onclick="clearKey('enabledFor')">Clear</button></div>
+        <div class="filter-title">Enabled For <button class="filter-clear" data-act="clearKey" data-key="enabledFor">Clear</button></div>
         <div class="cb-list" id="f-enabled"></div>
       </div>
 
@@ -835,7 +836,7 @@
       <div class="filter-sec">
         <div class="filter-title">AI Features Only</div>
         <label class="toggle-row">
-          <input type="checkbox" class="toggle-input" id="ai-toggle" onchange="handleAi(this.checked)">
+          <input type="checkbox" class="toggle-input" id="ai-toggle" data-act="handleAi" data-on="change">
           <span class="toggle-visual"></span>
           <span class="cb-lbl">AI Contribution features only</span>
         </label>
@@ -844,9 +845,9 @@
       <div class="sep" hidden></div>
 
       <div class="filter-sec" hidden>
-        <div class="filter-title">Load Products <span class="filter-title-actions"><button class="select-all-btn" onclick="selectAllPickerProducts(true)">All</button><button class="filter-clear" onclick="selectAllPickerProducts(false)">None</button></span></div>
+        <div class="filter-title">Load Products <span class="filter-title-actions"><button class="select-all-btn" data-act="selectAllPickerProducts" data-state="1">All</button><button class="filter-clear" data-act="selectAllPickerProducts" data-state="0">None</button></span></div>
         <div class="cb-list" id="product-picker" style="max-height:300px"></div>
-        <button class="custom-load-btn" onclick="loadSelectedProducts()" style="margin-top:0.5rem">Load Selected →</button>
+        <button class="custom-load-btn" data-act="loadSelectedProducts" style="margin-top:0.5rem">Load Selected →</button>
       </div>
     </aside>
 
@@ -857,13 +858,13 @@
         <div class="feat-count" id="feat-count">Loading…</div>
         <div style="display:flex;gap:0.5rem;align-items:center">
           <label for="sort-select" class="sr-only">Sort or group order</label>
-          <select class="sort-select" id="sort-select" onchange="renderFeatures()" aria-label="Sort or group order">
+          <select class="sort-select" id="sort-select" data-act="renderFeatures" data-on="change" aria-label="Sort or group order">
             <option value="date">Sort by GA Date (newest first)</option>
             <option value="product">Group by Product</option>
             <option value="wave">Sort by Release Wave</option>
             <option value="name">Sort by Feature Name</option>
           </select>
-          <button class="export-btn" id="export-btn" type="button" onclick="openExportModal()">⬇ Export</button>
+          <button class="export-btn" id="export-btn" type="button" data-act="openExportModal">⬇ Export</button>
         </div>
       </div>
 
@@ -877,6 +878,21 @@
   </div>
 
   <script>
+    // Register delegated actions (data-act) that need arguments from data-* attrs.
+    // Argument-less handlers resolve automatically to same-named global functions.
+    if (window.CPActions) window.CPActions.register({
+      handleSearch:            (e, el) => handleSearch(el.value),
+      applyPreset:             (e, el) => applyPreset(Number(el.dataset.days)),
+      applyExportPreset:       (e, el) => applyExportPreset(Number(el.dataset.days)),
+      clearKey:                (e, el) => clearKey(el.dataset.key),
+      handleAi:                (e, el) => handleAi(el.checked),
+      selectAllPickerProducts: (e, el) => selectAllPickerProducts(el.dataset.state === '1'),
+      selectAllExportProducts: (e, el) => selectAllExportProducts(el.dataset.state === '1'),
+      toggle:                  (e, el) => toggle(el.dataset.key, el.dataset.val, el.checked),
+      toggleProductGroup:      (e, el) => toggleProductGroup(el.dataset.cat),
+      togglePickerProduct:     (e, el) => togglePickerProduct(el.dataset.pid, el.checked),
+    });
+
     // ════════════════════════════════════════════════
     // CONFIG
     // ════════════════════════════════════════════════
@@ -1026,6 +1042,37 @@
     // ════════════════════════════════════════════════
     // API
     // ════════════════════════════════════════════════
+    // Decode HTML entities in API response strings (e.g. &#39; → ', &amp; → &).
+    // The Release Planner API often returns entity-encoded text in plain-text fields.
+    function decodeEntities(s) {
+      if (!s || typeof s !== 'string') return s;
+      return s
+        .replace(/&amp;/g, '&')
+        .replace(/&#(\d+);/g, function(_, n) { return String.fromCharCode(parseInt(n, 10)); })
+        .replace(/&#x([0-9a-fA-F]+);/g, function(_, h) { return String.fromCharCode(parseInt(h, 16)); })
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+    }
+    // Decode double-encoded entities in HTML content fields so DOMParser
+    // can handle them (e.g. &amp;#39; → &#39; which DOMParser decodes to ').
+    function decodeDoubleEncoded(s) {
+      if (!s || typeof s !== 'string') return s;
+      return s.replace(/&amp;(#\d+;|#x[0-9a-fA-F]+;|[a-zA-Z]+;)/g, '&$1');
+    }
+    // Normalize a feature object's text fields after fetching from the API.
+    function normalizeFeature(f) {
+      if (f.FeatureName)  f.FeatureName  = decodeEntities(f.FeatureName);
+      if (f.Product)      f.Product      = decodeEntities(f.Product);
+      if (f.ProductArea)  f.ProductArea  = decodeEntities(f.ProductArea);
+      if (f.FeatureType)  f.FeatureType  = decodeEntities(f.FeatureType);
+      if (f.EnabledFor)   f.EnabledFor   = decodeEntities(f.EnabledFor);
+      if (f.BusinessValue)  f.BusinessValue  = decodeDoubleEncoded(f.BusinessValue);
+      if (f.FeatureDetails) f.FeatureDetails = decodeDoubleEncoded(f.FeatureDetails);
+      return f;
+    }
+
     async function fetchProduct(id) {
       // Smart fallback: always try local proxy first (works from any deployment),
       // then fall back to direct URL if proxy is unreachable.
@@ -1047,6 +1094,7 @@
           }
           const data = await res.json();
           const results = Array.isArray(data.results) ? data.results : [];
+          results.forEach(normalizeFeature);
           if (results.length) fetchStats.ok++; else fetchStats.empty++;
           console.log('[ReleasePlanner] fetch ok', id, results.length, 'results from', url.split('?')[0]);
           return results;
@@ -1274,7 +1322,7 @@
           <label class="cb-item">
             <input type="checkbox" value="${xa(v)}"
                    ${filters.products.has(v) ? 'checked' : ''}
-                   onchange="toggle('products','${xa(v)}',this.checked)">
+                   data-act="toggle" data-key="products" data-val="${xa(v)}" data-on="change">
             <span class="cb-lbl">${xh(v)}</span>
             <span class="cb-count">${filtCounts[v] || 0}</span>
           </label>
@@ -1286,7 +1334,7 @@
         }
         const selectedCount = list.reduce((n, v) => n + (filters.products.has(v) ? 1 : 0), 0);
         const expanded = expandedProductGroups.has(cat);
-        return `<button type="button" class="cb-grp-toggle" aria-expanded="${expanded}" onclick="toggleProductGroup('${xa(cat)}')">
+        return `<button type="button" class="cb-grp-toggle" aria-expanded="${expanded}" data-act="toggleProductGroup" data-cat="${xa(cat)}">
           <span class="cb-grp-caret" aria-hidden="true">▾</span>
           <span class="cb-grp-name">${xh(cat)}</span>
           <span class="cb-grp-badge">${selectedCount} of ${list.length} selected</span>
@@ -1320,7 +1368,7 @@
         <label class="cb-item">
           <input type="checkbox" value="${xa(v)}"
                  ${filters[key].has(v) ? 'checked' : ''}
-                 onchange="toggle('${key}','${xa(v)}',this.checked)">
+                 data-act="toggle" data-key="${key}" data-val="${xa(v)}" data-on="change">
           <span class="cb-lbl">${xh(v)}</span>
           <span class="cb-count">${filtCounts[v] || 0}</span>
         </label>
@@ -1425,8 +1473,9 @@
     }
 
     function updatePresetButtons(active) {
+      document.getElementById('preset-7').classList.toggle('active', active === 7);
       document.getElementById('preset-30').classList.toggle('active', active === 30);
-      document.getElementById('preset-90').classList.toggle('active', active === 90);
+      document.getElementById('preset-60').classList.toggle('active', active === 60);
       document.getElementById('preset-wave').classList.toggle('active', active === 'wave');
     }
 
@@ -1727,7 +1776,7 @@
           <label class="cb-item">
             <input type="checkbox" value="${xa(p.id)}"
                    ${selectedProductIds.has(p.id) ? 'checked' : ''}
-                   onchange="togglePickerProduct('${xa(p.id)}',this.checked)">
+                   data-act="togglePickerProduct" data-pid="${xa(p.id)}" data-on="change">
             <span class="cb-lbl">${xh(p.name)}</span>
           </label>
         `).join('');
@@ -1776,30 +1825,8 @@
     // SVG is removed entirely: it can embed <script> and arbitrary event handlers,
     // making safe allow-listing impractical for untrusted external content.
     function sanitize(html) {
-      if (!html) return '';
-      const doc = new DOMParser().parseFromString(String(html), 'text/html');
-      doc.querySelectorAll('script, style, iframe, object, embed, form, base, meta, link, svg').forEach(n => n.remove());
-      doc.querySelectorAll('*').forEach(el => {
-        for (const attr of [...el.attributes]) {
-          const name = attr.name.toLowerCase();
-          const value = attr.value || '';
-          // Strip event handlers, CSS injection vectors, and other dangerous attrs.
-          if (/^on/i.test(name) || name === 'formaction' || name === 'srcdoc' || name === 'style') {
-            el.removeAttribute(attr.name);
-            continue;
-          }
-          // Strip dangerous URL schemes (including blob: which can execute scripts).
-          if ((name === 'href' || name === 'src' || name === 'xlink:href') &&
-              /^\s*(javascript|data|vbscript|file|blob):/i.test(value)) {
-            el.removeAttribute(attr.name);
-          }
-        }
-        if (el.tagName === 'A') {
-          el.setAttribute('target', '_blank');
-          el.setAttribute('rel', 'noopener');
-        }
-      });
-      return doc.body.innerHTML;
+      // Delegates to the shared hardened allow-list sanitizer in /static/util.js.
+      return (window.CPUtil && window.CPUtil.sanitizeHtml) ? window.CPUtil.sanitizeHtml(html) : '';
     }
 
     function xh(s) {
@@ -1872,7 +1899,7 @@
         list.innerHTML = products.map(p => {
           const safe = p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           const shouldCheck = isPreSelected(p);
-          return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}"${shouldCheck ? ' checked' : ''} onchange="updateExportCount()"> ${safe}</label>`;
+          return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}"${shouldCheck ? ' checked' : ''} data-act="updateExportCount" data-on="change"> ${safe}</label>`;
         }).join('');
       }
       document.getElementById('gen-from-date').value = '';
@@ -1893,6 +1920,14 @@
     function clearExportDates() {
       document.getElementById('gen-from-date').value = '';
       document.getElementById('gen-to-date').value = '';
+      updateExportCount();
+    }
+    function applyExportPreset(days) {
+      const now = new Date();
+      const from = new Date(now); from.setDate(from.getDate() - days);
+      const to   = new Date(now); to.setDate(to.getDate() + days);
+      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
+      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
       updateExportCount();
     }
     function filterExportProductSearch() {
@@ -2015,11 +2050,11 @@
 
   <!-- Generate Export modal -->
   <div class="gen-modal" id="gen-modal" hidden>
-    <div class="gen-modal-backdrop" onclick="closeExportModal()"></div>
+    <div class="gen-modal-backdrop" data-act="closeExportModal"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
         <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
-        <button class="gen-modal-close" type="button" onclick="closeExportModal()" aria-label="Close">×</button>
+        <button class="gen-modal-close" type="button" data-act="closeExportModal" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
         <div class="gen-field">
@@ -2034,28 +2069,33 @@
         </div>
         <div class="gen-field">
           <span class="gen-field-label">Date range (GA Date)</span>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+            <button type="button" class="gen-quick" data-act="applyExportPreset" data-days="7">±7 days</button>
+            <button type="button" class="gen-quick" data-act="applyExportPreset" data-days="30">±30 days</button>
+            <button type="button" class="gen-quick" data-act="applyExportPreset" data-days="60">±60 days</button>
+          </div>
           <div class="gen-range">
-            <input type="date" id="gen-from-date" onchange="updateExportCount()" aria-label="From date">
+            <input type="date" id="gen-from-date" data-act="updateExportCount" data-on="change" aria-label="From date">
             <span>to</span>
-            <input type="date" id="gen-to-date" onchange="updateExportCount()" aria-label="To date">
-            <button type="button" class="gen-quick" onclick="clearExportDates()">Clear</button>
+            <input type="date" id="gen-to-date" data-act="updateExportCount" data-on="change" aria-label="To date">
+            <button type="button" class="gen-quick" data-act="clearExportDates">Clear</button>
           </div>
           <p class="gen-hint">Leave blank for no date limit. Items without a date are excluded when a range is set.</p>
         </div>
         <div class="gen-field">
           <span class="gen-field-label">Products</span>
           <div class="gen-product-controls">
-            <button type="button" class="gen-quick" onclick="selectAllExportProducts(true)">Select all</button>
-            <button type="button" class="gen-quick" onclick="selectAllExportProducts(false)">Clear</button>
-            <input type="search" id="gen-product-search" placeholder="Filter products…" oninput="filterExportProductSearch()" aria-label="Filter products">
+            <button type="button" class="gen-quick" data-act="selectAllExportProducts" data-state="1">Select all</button>
+            <button type="button" class="gen-quick" data-act="selectAllExportProducts" data-state="0">Clear</button>
+            <input type="search" id="gen-product-search" placeholder="Filter products…" data-act="filterExportProductSearch" data-on="input" aria-label="Filter products">
           </div>
           <div class="gen-product-list" id="gen-product-list"></div>
         </div>
       </div>
       <footer class="gen-modal-footer">
         <span class="gen-count" id="gen-count">0 items match</span>
-        <button type="button" class="gen-cancel-btn" onclick="closeExportModal()">Cancel</button>
-        <button type="button" class="export-btn" id="gen-generate-btn" onclick="submitExportModal()">Generate</button>
+        <button type="button" class="gen-cancel-btn" data-act="closeExportModal">Cancel</button>
+        <button type="button" class="export-btn" id="gen-generate-btn" data-act="submitExportModal">Generate</button>
       </footer>
     </div>
   </div>

@@ -460,7 +460,7 @@
       <div class="header-title">Microsoft Communications Portal</div>
       <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
     </div>
-    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" onclick="toggleTheme()">🌙 Dark</button>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" data-act="toggleTheme">🌙 Dark</button>
   </header>
 
   <nav class="page-tabs" aria-label="Primary">
@@ -477,20 +477,20 @@
       <label for="au-search" class="sr-only">Search updates by title or description</label>
       <input type="text" class="au-search-input" id="au-search"
              placeholder="Search updates by title or description…"
-             aria-label="Search updates by title or description" oninput="debouncedSearch()">
+             aria-label="Search updates by title or description" data-act="debouncedSearch" data-on="input">
     </div>
     <div class="au-filters">
       <div class="au-filter-group">
         <label class="au-filter-label" id="au-status-filter-label">Status:</label>
         <div class="au-multi" id="au-status-multi">
-          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-status-filter-label au-status-label" onclick="toggleMenu('au-status-multi', event)">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-status-filter-label au-status-label" data-act="toggleMenu" data-menu="au-status-multi">
             <span id="au-status-label">All Statuses</span>
             <span class="au-multi-caret" aria-hidden="true">▾</span>
           </button>
-          <div class="au-multi-panel" id="au-status-panel" onclick="event.stopPropagation()">
+          <div class="au-multi-panel" id="au-status-panel">
             <div class="au-multi-actions">
-              <button type="button" onclick="setAllOptions('status', true)">Select all</button>
-              <button type="button" onclick="setAllOptions('status', false)">Clear</button>
+              <button type="button" data-act="setAllOptions" data-kind="status" data-checked="1">Select all</button>
+              <button type="button" data-act="setAllOptions" data-kind="status" data-checked="0">Clear</button>
             </div>
             <div id="au-status-options"></div>
           </div>
@@ -499,14 +499,14 @@
       <div class="au-filter-group">
         <label class="au-filter-label" id="au-product-filter-label">Product:</label>
         <div class="au-multi" id="au-product-multi">
-          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-product-filter-label au-product-label" onclick="toggleMenu('au-product-multi', event)">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-product-filter-label au-product-label" data-act="toggleMenu" data-menu="au-product-multi">
             <span id="au-product-label">All Products</span>
             <span class="au-multi-caret" aria-hidden="true">▾</span>
           </button>
-          <div class="au-multi-panel" id="au-product-panel" onclick="event.stopPropagation()">
+          <div class="au-multi-panel" id="au-product-panel">
             <div class="au-multi-actions">
-              <button type="button" onclick="setAllOptions('product', true)">Select all</button>
-              <button type="button" onclick="setAllOptions('product', false)">Clear</button>
+              <button type="button" data-act="setAllOptions" data-kind="product" data-checked="1">Select all</button>
+              <button type="button" data-act="setAllOptions" data-kind="product" data-checked="0">Clear</button>
             </div>
             <div id="au-product-options"></div>
           </div>
@@ -514,25 +514,25 @@
       </div>
       <div class="au-filter-group">
         <label class="au-filter-label" for="au-sort">Sort:</label>
-        <select class="au-filter-select" id="au-sort" onchange="filterUpdates()">
+        <select class="au-filter-select" id="au-sort" data-act="filterUpdates" data-on="change">
           <option value="date-desc">Newest First</option>
           <option value="date-asc">Oldest First</option>
         </select>
       </div>
       <div class="au-filter-group">
         <label class="au-filter-label" for="au-group-product" style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
-          <input type="checkbox" id="au-group-product" onchange="filterUpdates()">
+          <input type="checkbox" id="au-group-product" data-act="filterUpdates" data-on="change">
           Group by product
         </label>
         <label class="au-filter-label" for="au-expand-all" id="au-expand-all-label" style="display:none;align-items:center;gap:0.4rem;cursor:pointer">
-          <input type="checkbox" id="au-expand-all" onchange="toggleExpandAll()">
+          <input type="checkbox" id="au-expand-all" data-act="toggleExpandAll" data-on="change">
           Expand all
         </label>
       </div>
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="au-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="au-export-btn" type="button" onclick="openExportModal()">⬇ Export</button>
-        <button class="export-btn" onclick="loadM365Updates()">↻ Refresh</button>
+        <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal">⬇ Export</button>
+        <button class="export-btn" data-act="loadM365Updates">↻ Refresh</button>
       </div>
     </div>
       <div class="au-cards" id="au-cards-container">
@@ -543,14 +543,14 @@
       </div>
   </div>
 
-  <div class="au-modal-overlay" id="au-modal" onclick="handleModalBackdrop(event)">
+  <div class="au-modal-overlay" id="au-modal" data-act="handleModalBackdrop">
     <div class="au-modal" role="dialog" aria-modal="true" aria-labelledby="au-modal-title">
       <div class="au-modal-header">
         <div>
           <div class="au-modal-title" id="au-modal-title"></div>
           <div class="au-modal-meta" id="au-modal-meta"></div>
         </div>
-        <button class="au-modal-close" onclick="closeUpdate()" aria-label="Close">×</button>
+        <button class="au-modal-close" data-act="closeUpdate" aria-label="Close">×</button>
       </div>
       <div class="au-modal-body" id="au-modal-body"></div>
     </div>
@@ -561,6 +561,19 @@
     let currentFiltered = [];
     const statusFilter  = new Set();
     const productFilter = new Set();
+
+    // Register delegated actions that need arguments carried on data-* attributes.
+    // (Argument-less handlers resolve automatically to same-named global functions.)
+    if (window.CPActions) window.CPActions.register({
+      toggleMenu:              (e, el) => toggleMenu(el.dataset.menu),
+      setAllOptions:           (e, el) => setAllOptions(el.dataset.kind, el.dataset.checked === '1'),
+      toggleProductGroup:      (e, el) => toggleProductGroup(el),
+      openUpdate:              (e, el) => openUpdate(el.dataset.id),
+      selectAllExportProducts: (e, el) => selectAllExportProducts(el.dataset.state === '1'),
+      applyExportPreset7:      () => applyExportPreset(7),
+      applyExportPreset30:     () => applyExportPreset(30),
+      applyExportPreset60:     () => applyExportPreset(60),
+    });
 
     // Known categorical sets so we can split RSS <category> values into buckets.
     const STATUS_KEYWORDS = ['In development', 'Rolling out', 'Launched', 'Cancelled'];
@@ -610,29 +623,10 @@
     }
 
     function descriptionHtml(html) {
-      // The RSS description is HTML; sanitize via DOMParser instead of brittle regex.
+      // The RSS description is untrusted HTML; delegate to the shared hardened
+      // allow-list sanitizer in /static/util.js.
       if (!html) return '';
-      const doc = new DOMParser().parseFromString(String(html), 'text/html');
-      doc.querySelectorAll('script, style, iframe, object, embed, form, base, meta, link, svg').forEach(n => n.remove());
-      doc.querySelectorAll('*').forEach(el => {
-        for (const attr of [...el.attributes]) {
-          const name = attr.name.toLowerCase();
-          const value = attr.value || '';
-          if (/^on/i.test(name) || name === 'formaction' || name === 'srcdoc') {
-            el.removeAttribute(attr.name);
-            continue;
-          }
-          if ((name === 'href' || name === 'src' || name === 'xlink:href') &&
-              /^\s*(javascript|data|vbscript|file):/i.test(value)) {
-            el.removeAttribute(attr.name);
-          }
-        }
-        if (el.tagName === 'A') {
-          el.setAttribute('target', '_blank');
-          el.setAttribute('rel', 'noopener noreferrer');
-        }
-      });
-      return doc.body.innerHTML;
+      return (window.CPUtil && window.CPUtil.sanitizeHtml) ? window.CPUtil.sanitizeHtml(html) : '';
     }
 
     function formatDate(s) {
@@ -688,7 +682,7 @@
         <label class="au-multi-option">
           <input type="checkbox" data-kind="${kind}" data-value="${escapeHtml(v)}"
                  ${selectedSet.has(v) ? 'checked' : ''}
-                 onchange="onMultiChange(event)">
+                 data-act="onMultiChange" data-on="change">
           <span>${escapeHtml(v)}</span>
         </label>`).join('');
     }
@@ -729,8 +723,7 @@
       else labelEl.textContent = `${sel.length} ${plural}`;
     }
 
-    function toggleMenu(id, ev) {
-      ev.stopPropagation();
+    function toggleMenu(id) {
       document.querySelectorAll('.au-multi.open').forEach(el => {
         if (el.id !== id) {
           el.classList.remove('open');
@@ -743,7 +736,8 @@
       const toggle = wrap.querySelector('.au-multi-toggle');
       if (toggle) toggle.setAttribute('aria-expanded', String(isOpen));
     }
-    document.addEventListener('click', () => {
+    document.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('.au-multi')) return;
       document.querySelectorAll('.au-multi.open').forEach(el => {
         el.classList.remove('open');
         const t = el.querySelector('.au-multi-toggle');
@@ -820,7 +814,7 @@
         const collapsedClass = expandAll ? '' : ' is-collapsed';
         return `
           <div class="au-product-group${collapsedClass}">
-            <div class="au-product-header" role="button" tabindex="0" aria-expanded="${expandAll ? 'true' : 'false'}" onclick="toggleProductGroup(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleProductGroup(this);}">
+            <div class="au-product-header" role="button" tabindex="0" aria-expanded="${expandAll ? 'true' : 'false'}" data-act="toggleProductGroup">
               ${chevron}
               <span>${escapeHtml(key)}</span>
               <span class="au-product-count">${list.length} update${list.length !== 1 ? 's' : ''}</span>
@@ -866,7 +860,7 @@
       const date = formatDate(u.pubDate);
       const snippet = stripHtml(u.description).slice(0, 220);
       return `
-        <div class="au-card" onclick="openUpdate('${escapeHtml(u.id)}')">
+        <div class="au-card" data-act="openUpdate" data-id="${escapeHtml(u.id)}">
           <div class="au-card-body">
             <div class="au-card-top">
               <span class="au-card-id">#${escapeHtml(u.id || '')}</span>
@@ -968,7 +962,7 @@
       } else {
         list.innerHTML = products.map(p => {
           const safe = p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-          return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}" checked onchange="updateExportCount()"> ${safe}</label>`;
+          return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}" checked data-act="updateExportCount" data-on="change"> ${safe}</label>`;
         }).join('');
       }
       document.getElementById('gen-from-date').value = '';
@@ -989,6 +983,14 @@
     function clearExportDates() {
       document.getElementById('gen-from-date').value = '';
       document.getElementById('gen-to-date').value = '';
+      updateExportCount();
+    }
+    function applyExportPreset(days) {
+      const now = new Date();
+      const from = new Date(now); from.setDate(from.getDate() - days);
+      const to   = new Date(now); to.setDate(to.getDate() + days);
+      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
+      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
       updateExportCount();
     }
     function filterExportProductSearch() {
@@ -1095,11 +1097,11 @@
 
   <!-- Generate Export modal -->
   <div class="gen-modal" id="gen-modal" hidden>
-    <div class="gen-modal-backdrop" onclick="closeExportModal()"></div>
+    <div class="gen-modal-backdrop" data-act="closeExportModal"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
         <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
-        <button class="gen-modal-close" type="button" onclick="closeExportModal()" aria-label="Close">×</button>
+        <button class="gen-modal-close" type="button" data-act="closeExportModal" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
         <div class="gen-field">
@@ -1114,28 +1116,33 @@
         </div>
         <div class="gen-field">
           <span class="gen-field-label">Date range (Published)</span>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+            <button type="button" class="gen-quick" data-act="applyExportPreset7">±7 days</button>
+            <button type="button" class="gen-quick" data-act="applyExportPreset30">±30 days</button>
+            <button type="button" class="gen-quick" data-act="applyExportPreset60">±60 days</button>
+          </div>
           <div class="gen-range">
-            <input type="date" id="gen-from-date" onchange="updateExportCount()" aria-label="From date">
+            <input type="date" id="gen-from-date" data-act="updateExportCount" data-on="change" aria-label="From date">
             <span>to</span>
-            <input type="date" id="gen-to-date" onchange="updateExportCount()" aria-label="To date">
-            <button type="button" class="gen-quick" onclick="clearExportDates()">Clear</button>
+            <input type="date" id="gen-to-date" data-act="updateExportCount" data-on="change" aria-label="To date">
+            <button type="button" class="gen-quick" data-act="clearExportDates">Clear</button>
           </div>
           <p class="gen-hint">Leave blank for no date limit. Items without a date are excluded when a range is set.</p>
         </div>
         <div class="gen-field">
           <span class="gen-field-label">Products</span>
           <div class="gen-product-controls">
-            <button type="button" class="gen-quick" onclick="selectAllExportProducts(true)">Select all</button>
-            <button type="button" class="gen-quick" onclick="selectAllExportProducts(false)">Clear</button>
-            <input type="search" id="gen-product-search" placeholder="Filter products…" oninput="filterExportProductSearch()" aria-label="Filter products">
+            <button type="button" class="gen-quick" data-act="selectAllExportProducts" data-state="1">Select all</button>
+            <button type="button" class="gen-quick" data-act="selectAllExportProducts" data-state="0">Clear</button>
+            <input type="search" id="gen-product-search" placeholder="Filter products…" data-act="filterExportProductSearch" data-on="input" aria-label="Filter products">
           </div>
           <div class="gen-product-list" id="gen-product-list"></div>
         </div>
       </div>
       <footer class="gen-modal-footer">
         <span class="gen-count" id="gen-count">0 items match</span>
-        <button type="button" class="gen-cancel-btn" onclick="closeExportModal()">Cancel</button>
-        <button type="button" class="export-btn" id="gen-generate-btn" onclick="submitExportModal()">Generate</button>
+        <button type="button" class="gen-cancel-btn" data-act="closeExportModal">Cancel</button>
+        <button type="button" class="export-btn" id="gen-generate-btn" data-act="submitExportModal">Generate</button>
       </footer>
     </div>
   </div>

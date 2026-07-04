@@ -404,6 +404,16 @@
       background: var(--cp-surface-soft); color: var(--cp-text-soft);
       border: 1px solid var(--cp-border); border-radius: 999px;
     }
+    .mc-preset-btn {
+      padding: 0.2rem 0.55rem;
+      border: 1px solid var(--cp-border);
+      border-radius: 999px;
+      background: var(--cp-surface);
+      color: var(--cp-text-soft); font-size: 11px; cursor: pointer;
+      font-family: inherit; transition: all 0.15s; white-space: nowrap;
+    }
+    .mc-preset-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); background: var(--cp-accent-soft); }
+    .mc-preset-btn.active { border-color: var(--cp-accent); color: var(--cp-accent-fg); background: var(--cp-accent); }
 
     /* ── Generate Export modal ── */
     .gen-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
@@ -530,6 +540,11 @@
       <div class="mc-filter-group">
         <label class="mc-filter-label" for="mc-date-to">To:</label>
         <input type="date" class="mc-filter-input" id="mc-date-to">
+      </div>
+      <div class="mc-filter-group" style="gap:0.3rem">
+        <button class="mc-preset-btn" id="mc-preset-7" type="button">±7d</button>
+        <button class="mc-preset-btn" id="mc-preset-30" type="button">±30d</button>
+        <button class="mc-preset-btn" id="mc-preset-60" type="button">±60d</button>
       </div>
       <div class="mc-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="mc-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
@@ -688,6 +703,22 @@
 
     function getMessageDate(msg) {
       return new Date(msg.startDateTime || msg.lastModifiedDateTime || 0);
+    }
+
+    function applyDatePreset(days) {
+      const now = new Date();
+      const from = new Date(now); from.setDate(from.getDate() - days);
+      const to   = new Date(now); to.setDate(to.getDate() + days);
+      document.getElementById('mc-date-from').value = from.toISOString().slice(0, 10);
+      document.getElementById('mc-date-to').value   = to.toISOString().slice(0, 10);
+      updateDatePresetButtons(days);
+      filterMessages();
+    }
+
+    function updateDatePresetButtons(active) {
+      document.getElementById('mc-preset-7').classList.toggle('active', active === 7);
+      document.getElementById('mc-preset-30').classList.toggle('active', active === 30);
+      document.getElementById('mc-preset-60').classList.toggle('active', active === 60);
     }
 
     let __searchTimer = null;
@@ -938,28 +969,10 @@
       if (contentType !== 'html') {
         return `<p>${escapeHtml(content)}</p>`;
       }
-      // Parse and strip dangerous nodes
-      const doc = new DOMParser().parseFromString(content, 'text/html');
-      doc.querySelectorAll('script, style, iframe, object, embed, form, base, meta, link, svg').forEach(n => n.remove());
-      doc.querySelectorAll('*').forEach(el => {
-        for (const attr of [...el.attributes]) {
-          const name = attr.name.toLowerCase();
-          const value = attr.value || '';
-          if (/^on/i.test(name) || name === 'formaction' || name === 'srcdoc') {
-            el.removeAttribute(attr.name);
-            continue;
-          }
-          if ((name === 'href' || name === 'src' || name === 'xlink:href') &&
-              /^\s*(javascript|data|vbscript|file):/i.test(value)) {
-            el.removeAttribute(attr.name);
-          }
-        }
-        if (el.tagName === 'A') {
-          el.setAttribute('target', '_blank');
-          el.setAttribute('rel', 'noopener noreferrer');
-        }
-      });
-      return doc.body.innerHTML;
+      // Delegates to the shared hardened allow-list sanitizer in /static/util.js.
+      return (window.CPUtil && window.CPUtil.sanitizeHtml)
+        ? window.CPUtil.sanitizeHtml(content)
+        : `<p>${escapeHtml(content)}</p>`;
     }
 
     // ════════════════════════════════════════════════
@@ -1013,6 +1026,14 @@
     function clearExportDates() {
       document.getElementById('gen-from-date').value = '';
       document.getElementById('gen-to-date').value = '';
+      updateExportCount();
+    }
+    function applyExportPreset(days) {
+      const now = new Date();
+      const from = new Date(now); from.setDate(from.getDate() - days);
+      const to   = new Date(now); to.setDate(to.getDate() + days);
+      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
+      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
       updateExportCount();
     }
     function filterExportProductSearch() {
@@ -1133,8 +1154,11 @@
     document.getElementById('mc-svc-select-all').addEventListener('click', function() { setAllServices(true); });
     document.getElementById('mc-svc-clear-all').addEventListener('click', function() { setAllServices(false); });
     document.getElementById('mc-sort').addEventListener('change', filterMessages);
-    document.getElementById('mc-date-from').addEventListener('change', filterMessages);
-    document.getElementById('mc-date-to').addEventListener('change', filterMessages);
+    document.getElementById('mc-date-from').addEventListener('change', function() { updateDatePresetButtons(null); filterMessages(); });
+    document.getElementById('mc-date-to').addEventListener('change', function() { updateDatePresetButtons(null); filterMessages(); });
+    document.getElementById('mc-preset-7').addEventListener('click', function() { applyDatePreset(7); });
+    document.getElementById('mc-preset-30').addEventListener('click', function() { applyDatePreset(30); });
+    document.getElementById('mc-preset-60').addEventListener('click', function() { applyDatePreset(60); });
     document.getElementById('mc-export-btn').addEventListener('click', openExportModal);
     document.getElementById('mc-refresh-btn').addEventListener('click', loadMessageCenter);
     document.getElementById('mc-modal').addEventListener('click', function(e) { handleModalBackdrop(e); });
@@ -1169,6 +1193,11 @@
         </div>
         <div class="gen-field">
           <span class="gen-field-label">Date range (Published)</span>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+            <button type="button" class="gen-quick" id="gen-preset-7">±7 days</button>
+            <button type="button" class="gen-quick" id="gen-preset-30">±30 days</button>
+            <button type="button" class="gen-quick" id="gen-preset-60">±60 days</button>
+          </div>
           <div class="gen-range">
             <input type="date" id="gen-from-date" aria-label="From date">
             <span>to</span>
@@ -1202,6 +1231,9 @@
     document.getElementById('gen-from-date').addEventListener('change', updateExportCount);
     document.getElementById('gen-to-date').addEventListener('change', updateExportCount);
     document.getElementById('gen-clear-dates-btn').addEventListener('click', clearExportDates);
+    document.getElementById('gen-preset-7').addEventListener('click', function() { applyExportPreset(7); });
+    document.getElementById('gen-preset-30').addEventListener('click', function() { applyExportPreset(30); });
+    document.getElementById('gen-preset-60').addEventListener('click', function() { applyExportPreset(60); });
     document.getElementById('gen-select-all-btn').addEventListener('click', function() { selectAllExportProducts(true); });
     document.getElementById('gen-clear-all-btn').addEventListener('click', function() { selectAllExportProducts(false); });
     document.getElementById('gen-product-search').addEventListener('input', filterExportProductSearch);

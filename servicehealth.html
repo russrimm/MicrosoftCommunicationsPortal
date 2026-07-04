@@ -1369,6 +1369,14 @@
       document.getElementById('gen-to-date').value = '';
       updateExportCount();
     }
+    function applyExportPreset(days) {
+      const now = new Date();
+      const from = new Date(now); from.setDate(from.getDate() - days);
+      const to   = new Date(now); to.setDate(to.getDate() + days);
+      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
+      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
+      updateExportCount();
+    }
     function filterExportProductSearch() {
       const q = (document.getElementById('gen-product-search').value || '').toLowerCase().trim();
       document.querySelectorAll('#gen-product-list label').forEach(l => {
@@ -1510,6 +1518,11 @@
         </div>
         <div class="gen-field">
           <span class="gen-field-label">Date range (Started)</span>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+            <button type="button" class="gen-quick" id="gen-preset-7">±7 days</button>
+            <button type="button" class="gen-quick" id="gen-preset-30">±30 days</button>
+            <button type="button" class="gen-quick" id="gen-preset-60">±60 days</button>
+          </div>
           <div class="gen-range">
             <input type="date" id="gen-from-date" aria-label="From date">
             <span>to</span>
@@ -1543,6 +1556,9 @@
     document.getElementById('gen-from-date').addEventListener('change', updateExportCount);
     document.getElementById('gen-to-date').addEventListener('change', updateExportCount);
     document.getElementById('gen-clear-dates-btn').addEventListener('click', clearExportDates);
+    document.getElementById('gen-preset-7').addEventListener('click', function() { applyExportPreset(7); });
+    document.getElementById('gen-preset-30').addEventListener('click', function() { applyExportPreset(30); });
+    document.getElementById('gen-preset-60').addEventListener('click', function() { applyExportPreset(60); });
     document.getElementById('gen-select-all-btn').addEventListener('click', function() { selectAllExportProducts(true); });
     document.getElementById('gen-clear-all-btn').addEventListener('click', function() { selectAllExportProducts(false); });
     document.getElementById('gen-product-search').addEventListener('input', filterExportProductSearch);

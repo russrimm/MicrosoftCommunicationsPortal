@@ -59,6 +59,20 @@ const rateLimitBuckets = new Map();
 const RATE_LIMIT_PURGE_INTERVAL = 512; // opportunistic purge every N checks
 let rateLimitPurgeCounter = 0;
 
+// Derive the client IP. Only trust X-Forwarded-For when explicitly enabled
+// (TRUST_PROXY=true), i.e. when running behind a known reverse proxy — otherwise
+// clients could spoof the header to evade rate limits.
+function clientIp(req) {
+  if (process.env.TRUST_PROXY === 'true') {
+    const xff = req.headers['x-forwarded-for'];
+    if (xff) {
+      const first = String(xff).split(',')[0].trim();
+      if (first) return first;
+    }
+  }
+  return (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+
 function checkRateLimit(req, res, limit, windowMs) {
   const now = Date.now();
   if (++rateLimitPurgeCounter >= RATE_LIMIT_PURGE_INTERVAL) {
@@ -67,7 +81,7 @@ function checkRateLimit(req, res, limit, windowMs) {
       if (v.resetAt <= now) rateLimitBuckets.delete(k);
     }
   }
-  const ip = (req.socket && req.socket.remoteAddress) || 'unknown';
+  const ip = clientIp(req);
   let bucket = rateLimitBuckets.get(ip);
   if (!bucket || bucket.resetAt <= now) {
     bucket = { count: 0, resetAt: now + windowMs };
@@ -103,6 +117,7 @@ function sendJson(req, res, status, payload, extraHeaders) {
   const json = typeof payload === 'string' ? payload : JSON.stringify(payload);
   const headers = Object.assign({
     'Content-Type': 'application/json; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
     'Vary': 'Accept-Encoding',
   }, extraHeaders || {});
   const accept = (req.headers['accept-encoding'] || '').toLowerCase();
@@ -128,46 +143,59 @@ function sendJson(req, res, status, payload, extraHeaders) {
   res.end(buf);
 }
 
-// Send an HTML buffer with gzip + ETag/304 support.
-function sendHtml(req, res, buf, etag) {
-  const ifNoneMatch = req.headers['if-none-match'];
-  if (etag && ifNoneMatch === etag) {
-    res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'no-cache' });
-    res.end();
-    return;
-  }
+// Send an HTML buffer. Injects a per-request CSP nonce into standalone inline
+// <script> tags so we can serve script-src 'self' 'nonce-…' WITHOUT 'unsafe-inline'.
+// Because the nonce differs per response, HTML is not ETag/304-cached.
+const INLINE_SCRIPT_RE = /^([ \t]*)<script>[ \t]*$/gm;
+function sendHtml(req, res, buf, _etag) {
+  const nonce = crypto.randomBytes(16).toString('base64');
+  const html = buf.toString('utf8').replace(INLINE_SCRIPT_RE, `$1<script nonce="${nonce}">`);
+  const outBuf = Buffer.from(html, 'utf8');
   const headers = {
     'Content-Type': 'text/html; charset=utf-8',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-store',
     'Vary': 'Accept-Encoding',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
-    // Inline scripts/styles are used throughout these pages; restrict everything else.
+    // Inline scripts are authorized via per-request nonce (no 'unsafe-inline').
+    // Inline styles remain allowed (style injection is far lower risk).
     'Content-Security-Policy':
       "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline'; " +
+      "script-src 'self' 'nonce-" + nonce + "'; " +
       "style-src 'self' 'unsafe-inline'; " +
       "img-src 'self' data: https:; " +
       "font-src 'self' data:; " +
       "connect-src 'self'; " +
+      "object-src 'none'; " +
+      "frame-src 'none'; " +
+      "media-src 'none'; " +
+      "worker-src 'none'; " +
+      "manifest-src 'self'; " +
       "frame-ancestors 'none'; " +
       "base-uri 'none'; " +
       "form-action 'none'",
   };
-  if (etag) headers['ETag'] = etag;
   const accept = (req.headers['accept-encoding'] || '').toLowerCase();
-  if (accept.includes('gzip') && buf.length > 1024) {
-    const gz = zlib.gzipSync(buf);
+  if (accept.includes('gzip') && outBuf.length > 1024) {
+    const gz = zlib.gzipSync(outBuf);
     headers['Content-Encoding'] = 'gzip';
     headers['Content-Length'] = gz.length;
     res.writeHead(200, headers);
     res.end(gz);
     return;
   }
-  headers['Content-Length'] = buf.length;
+  if (accept.includes('deflate') && outBuf.length > 1024) {
+    const df = zlib.deflateSync(outBuf);
+    headers['Content-Encoding'] = 'deflate';
+    headers['Content-Length'] = df.length;
+    res.writeHead(200, headers);
+    res.end(df);
+    return;
+  }
+  headers['Content-Length'] = outBuf.length;
   res.writeHead(200, headers);
-  res.end(buf);
+  res.end(outBuf);
 }
 
 // In-memory cache of static HTML files: { etag, buf, mtimeMs }.
@@ -296,6 +324,9 @@ function readJsonBody(req, done) {
   let received = 0;
   const chunks = [];
   const MAX = 1024 * 1024;
+  // Drop dangerous keys during parse to prevent prototype pollution.
+  const reviver = (key, value) =>
+    (key === '__proto__' || key === 'constructor' || key === 'prototype') ? undefined : value;
   req.on('data', (chunk) => {
     received += chunk.length;
     if (received > MAX) {
@@ -306,7 +337,7 @@ function readJsonBody(req, done) {
   });
   req.on('end', () => {
     if (!chunks.length) return done(null, {});
-    try { done(null, JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+    try { done(null, JSON.parse(Buffer.concat(chunks).toString('utf8'), reviver)); }
     catch (e) { done(new Error(`Invalid JSON body: ${e.message}`)); }
   });
   req.on('error', done);
@@ -363,45 +394,94 @@ const SYSTEM_DIGEST =
   'and broad audience reach. Ignore minor cosmetic tweaks. ' +
   'Return STRICT JSON: {"headline":"one sentence overall theme","topItems":[{"id":"...","title":"...","summary":"...","impact":"high|medium|low","impactReason":"...","actionRequired":true|false}],"themes":["short theme 1","short theme 2"]}';
 
-// Microsoft 365 Message Center configuration
+// ── Microsoft 365 / Graph authentication ─────────────────────────────────────
+// Two supported modes, chosen automatically:
+//   1. Managed identity — no secret in env; the Azure platform issues the token
+//      (App Service / Container Apps IDENTITY_ENDPOINT, or VM IMDS). Preferred
+//      for Azure deployments. Selected when USE_MANAGED_IDENTITY=true, or when an
+//      IDENTITY_ENDPOINT is present and no client secret is configured.
+//   2. Client secret — classic app-registration client-credentials flow.
 const M365_CLIENT_ID     = process.env.M365_CLIENT_ID;
 const M365_CLIENT_SECRET = process.env.M365_CLIENT_SECRET;
 const M365_TENANT_ID     = process.env.M365_TENANT_ID;
+const GRAPH_RESOURCE     = 'https://graph.microsoft.com';
+// Optional user-assigned managed identity client id (omit for system-assigned).
+const MI_CLIENT_ID       = process.env.AZURE_CLIENT_ID || process.env.M365_MANAGED_IDENTITY_CLIENT_ID || '';
+
+function detectM365AuthMode() {
+  const wantMI = process.env.USE_MANAGED_IDENTITY === 'true' ||
+                 (!!process.env.IDENTITY_ENDPOINT && !M365_CLIENT_SECRET);
+  if (wantMI) return 'managed-identity';
+  if (M365_CLIENT_ID && M365_CLIENT_SECRET && M365_TENANT_ID) return 'client-secret';
+  return null;
+}
+const M365_AUTH_MODE = detectM365AuthMode();
+
 let m365AccessToken      = null;
 let m365TokenExpiresAt   = 0;
 let m365TokenInflight    = null;  // Array of pending callbacks while a refresh is in flight
 
-// Get OAuth token for Microsoft Graph API
-function getM365AccessToken(done) {
-  // Return cached token if still valid
-  if (m365AccessToken && Date.now() < m365TokenExpiresAt) {
-    done(null, m365AccessToken);
-    return;
+// Acquire a Graph token from a platform-provided managed identity endpoint.
+// Supports App Service / Container Apps (IDENTITY_ENDPOINT + IDENTITY_HEADER) and
+// IMDS on VMs (169.254.169.254). These are local / link-local endpoints served
+// over http by design, so the http module is used when the scheme is http.
+function fetchManagedIdentityToken(done) {
+  let u, headers;
+  if (process.env.IDENTITY_ENDPOINT) {
+    u = new URL(process.env.IDENTITY_ENDPOINT);
+    u.searchParams.set('resource', GRAPH_RESOURCE);
+    u.searchParams.set('api-version', process.env.IDENTITY_API_VERSION || '2019-08-01');
+    if (MI_CLIENT_ID) u.searchParams.set('client_id', MI_CLIENT_ID);
+    headers = { 'X-IDENTITY-HEADER': process.env.IDENTITY_HEADER || '' };
+  } else {
+    u = new URL('http://169.254.169.254/metadata/identity/oauth2/token');
+    u.searchParams.set('resource', GRAPH_RESOURCE);
+    u.searchParams.set('api-version', '2018-02-01');
+    if (MI_CLIENT_ID) u.searchParams.set('client_id', MI_CLIENT_ID);
+    headers = { 'Metadata': 'true' };
   }
-  // Coalesce concurrent refreshes — N parallel API hits should issue ONE token request.
-  if (m365TokenInflight) {
-    m365TokenInflight.push(done);
-    return;
-  }
-  m365TokenInflight = [done];
-  const finish = (err, token) => {
-    const waiters = m365TokenInflight || [];
-    m365TokenInflight = null;
-    for (const cb of waiters) {
-      try { cb(err, token); } catch (e) { console.error('[token] callback error:', e.message); }
-    }
+  const isHttps = u.protocol === 'https:';
+  const lib = isHttps ? https : http;
+  const options = {
+    hostname: u.hostname,
+    port: u.port || (isHttps ? 443 : 80),
+    path: u.pathname + u.search,
+    method: 'GET',
+    headers,
   };
+  const req = lib.request(options, (res) => {
+    let body = '';
+    res.on('data', c => { body += c; });
+    res.on('end', () => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return done(new Error(`Managed identity token HTTP ${res.statusCode}: ${body.slice(0, 300)}`));
+      }
+      let data;
+      try { data = JSON.parse(body); }
+      catch (e) { return done(new Error(`Managed identity token parse error: ${e.message}`)); }
+      if (!data.access_token) {
+        return done(new Error(`Managed identity response missing access_token: ${body.slice(0, 200)}`));
+      }
+      // expires_on is unix seconds (both platforms); expires_in may also appear.
+      let expiresAt;
+      if (data.expires_in) expiresAt = Date.now() + (Number(data.expires_in) - 60) * 1000;
+      else if (data.expires_on) expiresAt = (Number(data.expires_on) - 60) * 1000;
+      else expiresAt = Date.now() + 3600 * 1000;
+      done(null, { token: data.access_token, expiresAt });
+    });
+  });
+  req.on('error', done);
+  req.setTimeout(UPSTREAM_TIMEOUT_MS, () => req.destroy(new Error('managed identity token timeout')));
+  req.end();
+}
 
-  if (!M365_CLIENT_ID || !M365_CLIENT_SECRET || !M365_TENANT_ID) {
-    finish(new Error('M365 credentials not configured in .env file'));
-    return;
-  }
-
+// Acquire a Graph token via the app-registration client-credentials flow.
+function fetchClientSecretToken(done) {
   const postData = new URLSearchParams({
     client_id: M365_CLIENT_ID,
     client_secret: M365_CLIENT_SECRET,
     grant_type: 'client_credentials',
-    scope: 'https://graph.microsoft.com/.default',
+    scope: `${GRAPH_RESOURCE}/.default`,
   }).toString();
 
   const options = {
@@ -422,22 +502,57 @@ function getM365AccessToken(done) {
       try {
         const data = JSON.parse(body);
         if (data.access_token) {
-          m365AccessToken = data.access_token;
-          m365TokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000; // Refresh 60s before expiry
-          finish(null, m365AccessToken);
+          done(null, { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 60) * 1000 });
         } else {
-          finish(new Error(`Failed to get token: ${data.error_description || body}`));
+          done(new Error(`Failed to get token: ${data.error_description || body}`));
         }
       } catch (e) {
-        finish(new Error(`Token parse error: ${e.message}`));
+        done(new Error(`Token parse error: ${e.message}`));
       }
     });
   });
 
-  req.on('error', finish);
+  req.on('error', done);
   req.setTimeout(UPSTREAM_TIMEOUT_MS, () => req.destroy(new Error('token request timeout')));
   req.write(postData);
   req.end();
+}
+
+// Get (and cache) an OAuth token for Microsoft Graph, coalescing concurrent refreshes.
+function getM365AccessToken(done) {
+  // Return cached token if still valid
+  if (m365AccessToken && Date.now() < m365TokenExpiresAt) {
+    done(null, m365AccessToken);
+    return;
+  }
+  // Coalesce concurrent refreshes — N parallel API hits should issue ONE token request.
+  if (m365TokenInflight) {
+    m365TokenInflight.push(done);
+    return;
+  }
+  m365TokenInflight = [done];
+  const finish = (err, token) => {
+    const waiters = m365TokenInflight || [];
+    m365TokenInflight = null;
+    for (const cb of waiters) {
+      try { cb(err, token); } catch (e) { console.error('[token] callback error:', e.message); }
+    }
+  };
+
+  if (!M365_AUTH_MODE) {
+    finish(new Error('M365 auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.'));
+    return;
+  }
+
+  const onToken = (err, result) => {
+    if (err) return finish(err);
+    m365AccessToken = result.token;
+    m365TokenExpiresAt = result.expiresAt;
+    finish(null, m365AccessToken);
+  };
+
+  if (M365_AUTH_MODE === 'managed-identity') fetchManagedIdentityToken(onToken);
+  else fetchClientSecretToken(onToken);
 }
 
 // Generic Microsoft Graph GET helper. Accepts either a relative path
@@ -449,6 +564,11 @@ function graphGet(token, pathOrUrl, done) {
     const u = new URL(pathOrUrl);
     hostname = u.hostname;
     path = u.pathname + u.search;
+  }
+  // Only ever send the bearer token to Microsoft Graph. A malicious/misconfigured
+  // @odata.nextLink pointing at another host must never receive our access token.
+  if (hostname.toLowerCase() !== 'graph.microsoft.com') {
+    return done(new Error(`Refusing to send Graph token to non-Graph host "${hostname}"`));
   }
   const options = {
     hostname,
@@ -541,6 +661,16 @@ function describeGraphError(status, err, requiredPermission) {
   return msg || code || `Graph API error (HTTP ${status})`;
 }
 
+// Host allow-list for outbound redirect following. Restricts SSRF / token-leak
+// surface to Microsoft-owned domains used by the upstream feeds.
+function isMicrosoftHost(hostname) {
+  const h = String(hostname || '').toLowerCase();
+  return h === 'microsoft.com' ||
+         h.endsWith('.microsoft.com') ||
+         h === 'azure.com' ||
+         h.endsWith('.azure.com');
+}
+
 // Generic HTTPS GET that follows redirects. Used for the Azure Updates RSS feed.
 function httpsGetFollow(hostname, pathname, redirectsLeft, done) {
   const options = {
@@ -562,6 +692,11 @@ function httpsGetFollow(hostname, pathname, redirectsLeft, done) {
 
     if (isRedirect && location && redirectsLeft > 0) {
       const nextUrl = new URL(location, `https://${hostname}`);
+      // Only follow redirects that stay on Microsoft-owned hosts and use https.
+      if (nextUrl.protocol !== 'https:' || !isMicrosoftHost(nextUrl.hostname)) {
+        apiRes.resume();
+        return done(new Error(`Refusing redirect to disallowed host "${nextUrl.hostname}"`));
+      }
       apiRes.resume();
       httpsGetFollow(nextUrl.hostname, `${nextUrl.pathname}${nextUrl.search}`, redirectsLeft - 1, done);
       return;
@@ -670,6 +805,11 @@ function requestReleasePlans(pathname, redirectsLeft, done) {
 
     if (isRedirect && location && redirectsLeft > 0) {
       const nextUrl = new URL(location, `https://${API_HOST}`);
+      // Only follow redirects that stay on Microsoft-owned hosts and use https.
+      if (nextUrl.protocol !== 'https:' || !isMicrosoftHost(nextUrl.hostname)) {
+        apiRes.resume();
+        return done(new Error(`Refusing redirect to disallowed host "${nextUrl.hostname}"`));
+      }
       apiRes.resume();
       requestReleasePlans(`${nextUrl.pathname}${nextUrl.search}`, redirectsLeft - 1, done);
       return;
@@ -750,6 +890,18 @@ function recordEmpty(productId) {
 
 function clearEmpty(productId) {
   if (emptyProducts.delete(productId)) saveEmptyProductsDebounced();
+}
+
+// Constant-time string comparison to avoid leaking token contents via timing.
+function timingSafeEqualStr(a, b) {
+  const ab = Buffer.from(String(a == null ? '' : a));
+  const bb = Buffer.from(String(b == null ? '' : b));
+  if (ab.length !== bb.length) {
+    // Keep the comparison time independent of where the mismatch is.
+    crypto.timingSafeEqual(ab, ab);
+    return false;
+  }
+  return crypto.timingSafeEqual(ab, bb);
 }
 
 loadEmptyProducts();
@@ -887,6 +1039,7 @@ const server = http.createServer((req, res) => {
 
   // ── Message Center API endpoint ──────────────────────────────────────────
   if (parsed.pathname === '/api/messagecenter' || parsed.pathname === '/api/servicemessages' || parsed.pathname === '/servicemessages') {
+    if (!checkRateLimit(req, res, 60, 60_000)) return;
     getM365AccessToken((err, token) => {
       if (err) {
         console.error('[messagecenter] token error:', err.message);
@@ -910,6 +1063,7 @@ const server = http.createServer((req, res) => {
         if (error) console.error('[messagecenter] graph error:', status, error);
         res.writeHead(status, {
           'Content-Type': 'application/json; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff',
           'Cache-Control': 'max-age=60',
         });
         res.end(JSON.stringify({
@@ -924,6 +1078,7 @@ const server = http.createServer((req, res) => {
 
   // ── Service Health API endpoint ───────────────────────────────────────────
   if (parsed.pathname === '/api/servicehealth') {
+    if (!checkRateLimit(req, res, 60, 60_000)) return;
     getM365AccessToken((err, token) => {
       if (err) {
         console.error('[servicehealth] token error:', err.message);
@@ -947,6 +1102,7 @@ const server = http.createServer((req, res) => {
         if (error) console.error('[servicehealth] graph error:', status, error);
         res.writeHead(status, {
           'Content-Type': 'application/json; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff',
           'Cache-Control': 'max-age=60',
         });
         res.end(JSON.stringify({
@@ -961,6 +1117,7 @@ const server = http.createServer((req, res) => {
 
   // ── M365 Updates (M365 roadmap) RSS endpoint ───────────────────────
   if (parsed.pathname === '/api/m365updates') {
+    if (!checkRateLimit(req, res, 60, 60_000)) return;
     fetchM365Updates((err, result) => {
       if (err) {
         console.error('[m365updates] fetch error:', err.message);
@@ -972,6 +1129,7 @@ const server = http.createServer((req, res) => {
       console.log(`[m365updates] ${status} \u2192 ${items.length} items`);
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'max-age=300',
         ...corsHeaders(req),
       });
@@ -982,6 +1140,7 @@ const server = http.createServer((req, res) => {
 
   // ── Azure Updates RSS endpoint ─────────────────────────────────────
   if (parsed.pathname === '/api/azureupdates') {
+    if (!checkRateLimit(req, res, 60, 60_000)) return;
     fetchAzureUpdates((err, result) => {
       if (err) {
         console.error('[azureupdates] fetch error:', err.message);
@@ -993,6 +1152,7 @@ const server = http.createServer((req, res) => {
       console.log(`[azureupdates] ${status} \u2192 ${items.length} items`);
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'max-age=300',
         ...corsHeaders(req),
       });
@@ -1003,6 +1163,9 @@ const server = http.createServer((req, res) => {
 
   // ── Proxy endpoint ──────────────────────────────────────────────────────────
   if (parsed.pathname === '/proxy') {
+    // Generous limit: the Release Planner picker fans out ~30 parallel calls per
+    // page load, so this caps abuse without breaking normal use.
+    if (!checkRateLimit(req, res, 600, 60_000)) return;
     const productId = parsed.searchParams.get('productId') || '';
     const langCode  = parsed.searchParams.get('langCode')  || 'en-US';
     const force     = parsed.searchParams.get('refresh') === '1';
@@ -1052,6 +1215,7 @@ const server = http.createServer((req, res) => {
         if (parsed) {
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
+            'X-Content-Type-Options': 'nosniff',
             'Cache-Control': 'max-age=300',
             ...corsHeaders(req),
           });
@@ -1092,14 +1256,16 @@ const server = http.createServer((req, res) => {
       sendJson(req, res, 403, { error: 'Forbidden' });
       return;
     }
-    if (req.method === 'DELETE') {
-      if (process.env.ADMIN_TOKEN) {
-        const auth = req.headers['authorization'] || '';
-        if (auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
-          sendJson(req, res, 403, { error: 'Forbidden' });
-          return;
-        }
+    // When an ADMIN_TOKEN is configured, require it (constant-time) for BOTH the
+    // read (GET) and mutate (DELETE) operations.
+    if (process.env.ADMIN_TOKEN) {
+      const auth = req.headers['authorization'] || '';
+      if (!timingSafeEqualStr(auth, `Bearer ${process.env.ADMIN_TOKEN}`)) {
+        sendJson(req, res, 403, { error: 'Forbidden' });
+        return;
       }
+    }
+    if (req.method === 'DELETE') {
       const id = parsed.searchParams.get('id');
       if (id) { clearEmpty(id); sendJson(req, res, 200, { ok: true, cleared: 1, id }); }
       else {
@@ -1225,7 +1391,9 @@ const HOST = process.env.HOST || '127.0.0.1';
 const IS_LOOPBACK = HOST === '127.0.0.1' || HOST === '::1';
 if (!IS_LOOPBACK) {
   const risks = [
-    'holds a Microsoft Graph client_secret in memory/env',
+    M365_AUTH_MODE === 'managed-identity'
+      ? 'can obtain Microsoft Graph tokens via the host managed identity'
+      : 'holds a Microsoft Graph client_secret in memory/env',
     'calls billed LLM APIs (Azure OpenAI / OpenAI / GitHub Models)',
     'exposes an unauthenticated /api/empty-products endpoint',
   ];
@@ -1248,6 +1416,11 @@ if (!IS_LOOPBACK) {
 server.listen(PORT, HOST, () => {
   console.log(`\n  Microsoft Communications Portal`);
   console.log(`  → http://${IS_LOOPBACK ? 'localhost' : HOST}:${PORT}`);
+  if (M365_AUTH_MODE) {
+    console.log(`  → Graph auth: ${M365_AUTH_MODE}${M365_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ' (user-assigned)' : ''}`);
+  } else {
+    console.log(`  → Graph auth: disabled (set USE_MANAGED_IDENTITY=true or M365_CLIENT_* in .env)`);
+  }
   if (AI_PROVIDER) {
     console.log(`  → AI: ${AI_PROVIDER.name} (${AI_PROVIDER.model})\n`);
   } else {
