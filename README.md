@@ -27,25 +27,34 @@ tenant-side incidents in one place.
 
 | Page | Route | Source file | Backend |
 |---|---|---|---|
+| Home | `/home` | `home.html` | — (dashboard/landing page) |
 | Power Platform Release Planner | `/powerplatform` | `index.html` | `releaseplans.microsoft.com` (proxied) |
 | Microsoft 365 Roadmap | `/m365updates` | `m365updates.html` | M365 Roadmap RSS |
 | Azure Updates | `/azureupdates` | `azureupdates.html` | Azure Updates RSS |
+| Microsoft Fabric Roadmap | `/fabricroadmap` | `fabricroadmap.html` | `roadmap.fabric.microsoft.com` (proxied) |
 | Microsoft 365 Message Center | `/messagecenter` | `messagecenter.html` | Microsoft Graph |
 | Microsoft 365 Service Health | `/servicehealth` | `servicehealth.html` | Microsoft Graph |
+| Azure Service Health | `/azureservicehealth` | `azureservicehealth.html` | Azure Management API (ARM) |
 
 Every page supports light and dark themes. Pass `?clawpilotTheme=light` or
 `?clawpilotTheme=dark` on the URL, or click the theme toggle in the header.
 
-The site root (`/`) redirects to `/powerplatform`.
+The site root (`/`) redirects to `/home`.
 
 ## Screenshots
 
-Each page is shown in light and dark mode below. Regenerate with
+All 8 pages are shown in light and dark mode below (16 screenshots). Regenerate with
 `node scripts/capture-screenshots.js` (Playwright) while the server is running
 on `http://localhost:3000`. The script visits each route with both theme query
 strings, waits for any visible "Loading…" banner to clear (up to 45 s, since
 the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 1440×900 × 2 DPR PNGs to `screenshots/`.
+
+### Home
+
+| Light | Dark |
+|---|---|
+| ![Home — light](screenshots/home-light.png) | ![Home — dark](screenshots/home-dark.png) |
 
 ### Power Platform Release Planner
 
@@ -65,6 +74,12 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 |---|---|
 | ![Azure Updates — light](screenshots/azure-updates-light.png) | ![Azure Updates — dark](screenshots/azure-updates-dark.png) |
 
+### Microsoft Fabric Roadmap
+
+| Light | Dark |
+|---|---|
+| ![Microsoft Fabric Roadmap — light](screenshots/fabric-roadmap-light.png) | ![Microsoft Fabric Roadmap — dark](screenshots/fabric-roadmap-dark.png) |
+
 ### Microsoft 365 Message Center
 
 | Light | Dark |
@@ -76,6 +91,12 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 | Light | Dark |
 |---|---|
 | ![Microsoft 365 Service Health — light](screenshots/service-health-light.png) | ![Microsoft 365 Service Health — dark](screenshots/service-health-dark.png) |
+
+### Azure Service Health
+
+| Light | Dark |
+|---|---|
+| ![Azure Service Health — light](screenshots/azure-service-health-light.png) | ![Azure Service Health — dark](screenshots/azure-service-health-dark.png) |
 
 ## Setup
 
@@ -223,9 +244,11 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 - **Power Platform Release Planner** — browse release features by product, wave, and date.
 - **Microsoft 365 Roadmap** — current and upcoming M365 features from the official RSS feed.
 - **Azure Updates** — Azure product announcements from the official RSS feed.
+- **Microsoft Fabric Roadmap** — browse Fabric release features across 14 product areas from the official roadmap.
 - **Message Center** — tenant-specific Microsoft 365 Message Center announcements,
   filterable by severity and date.
 - **Service Health** — current service incidents and advisories for your tenant.
+- **Azure Service Health** — Azure-level service health events, resource availability, and emerging issues for selected subscriptions.
 
 ### Across every page
 - **Product / service logos on every card** — each card's product badge auto-resolves
@@ -332,18 +355,31 @@ The Node server exposes the following local endpoints (all return JSON):
 
 | Endpoint | Description | Auth | Rate limit |
 |---|---|---|---|
+| `GET /healthz` or `/health` | Health check / liveness probe | None | — |
+| `GET /api/auth-check` | Reports auth configuration status for Graph, ARM, and AI | None | — |
 | `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None | 600/min |
 | `GET /api/m365updates` | Microsoft 365 Roadmap RSS, parsed to JSON | None | 60/min |
 | `GET /api/azureupdates` | Azure Updates RSS, parsed to JSON | None | 60/min |
+| `GET /api/fabricroadmap` | Microsoft Fabric Roadmap JSON (14 product areas) | None | 60/min |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` | 60/min |
 | `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` | 60/min |
+| `GET /api/subscriptions` | List Azure subscriptions (for subscription picker) | `.env` | 30/min |
+| `GET /api/subscriptions/selected` | Get currently selected Azure subscriptions | None | 30/min |
+| `POST /api/subscriptions/selected` | Save selected Azure subscriptions | None | 30/min |
+| `GET /api/azure-resource-health/emerging-issues` | Azure emerging issues (tenant-level) | `.env` | 60/min |
+| `GET /api/azure-resource-health/events` | Azure Resource Health events (subscription-scoped) | `.env` | 60/min |
+| `GET /api/azure-resource-health/availability-statuses` | Azure resource availability summary | `.env` | 60/min |
+| `GET /api/azure-resource-health/impacted-resources` | Resources impacted by an event | `.env` | 60/min |
+| `GET /api/azure-resource-health/resource-events` | Events for a specific resource | `.env` | 60/min |
+| `GET /api/azure-resource-health/resource-availability` | Availability history for a resource | `.env` | 60/min |
+| `GET /api/azure-resource-health/resource-status` | Current status of a resource | `.env` | 60/min |
 | `GET /api/ai-status` | Reports whether AI is configured and which provider is active | None | — |
 | `POST /api/summarize` | Body `{source, items[]}` → per-item AI summaries | AI provider | 5/min |
-| `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider | 10/min |
+| `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth\|fabricroadmap&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider | 10/min |
 | `GET /api/empty-products` | List product IDs cached as known-empty by the `/proxy` route | Loopback + `ADMIN_TOKEN` | — |
-| `DELETE /api/empty-products` | Clear the entire known-empty cache (use `?id=<guid>` to clear one) | Loopback + `ADMIN_TOKEN` | — |
-| `GET /static/<file>` | Shared client JS (`util.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`) and other static assets | None | — |
-| `GET /public/<file>` | Microsoft product / service SVG icons used by the card logos | None | — |
+| `DELETE /api/empty-products` | Clear the entire known-empty cache | Loopback + `ADMIN_TOKEN` | — |
+| `GET /static/<file>` | Shared client JS (`util.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`, `subscription-picker.js`) and other static assets | None | — |
+| `GET /public/<file>` | Microsoft product / service SVG icons | None | — |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
 Rate limits are per-IP fixed-window counters; set `TRUST_PROXY=true` when running behind a reverse proxy so the limiter reads the client IP from `X-Forwarded-For`.
@@ -355,11 +391,14 @@ Static `/public/` icons are sent with a 24-hour `Cache-Control` and an ETag, and
 ## Project structure
 
 ```
+home.html                        Home / dashboard landing page
 index.html                       Power Platform Release Planner UI
 m365updates.html                 M365 Roadmap UI
 azureupdates.html                Azure Updates UI
+fabricroadmap.html               Microsoft Fabric Roadmap UI
 messagecenter.html               M365 Message Center UI
 servicehealth.html               M365 Service Health UI
+azureservicehealth.html          Azure Service Health UI
 server.js                        Node HTTP server, static file host, API proxy, AI endpoints
 static/
   util.js                        Shared client-side utilities (escapeHtml, sanitizeHtml, safeUrl, theme toggle, event delegation)
@@ -367,6 +406,7 @@ static/
   product-icons.js               Shared client-side product-icon resolver (alias map + fuzzy matcher)
   outlook-export.js              Shared client-side Outlook-friendly HTML exporter (inline styles + bgcolor)
   export-formats.js              Multi-format export (HTML, Markdown, PDF, Word) for the Generate Full Export modal
+  subscription-picker.js         Shared Azure subscription selection picker
 public/                          Microsoft product / service SVG icons served at /public/<file>.svg
 empty-products.json              Persisted cache of known-empty Release Planner product IDs (auto-skip list)
 package.json                     Dependencies (dotenv only)
@@ -377,7 +417,7 @@ screenshots/                     Light + dark mode PNGs rendered into the README
 
 ## Requirements
 
-- Node.js 24+ (uses the built-in `http`, `https`, and global `URL` APIs)
+- Node.js 18+ (uses the built-in `http`, `https`, and global `URL` APIs)
 - An Entra app registration (only for the Message Center and Service Health pages)
 
 ## Contributing

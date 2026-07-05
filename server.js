@@ -84,10 +84,12 @@ function checkRateLimit(req, res, limit, windowMs) {
     }
   }
   const ip = clientIp(req);
-  let bucket = rateLimitBuckets.get(ip);
+  const routePath = (req.url || '/').split('?')[0];
+  const key = `${ip}:${routePath}`;
+  let bucket = rateLimitBuckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
     bucket = { count: 0, resetAt: now + windowMs };
-    rateLimitBuckets.set(ip, bucket);
+    rateLimitBuckets.set(key, bucket);
   }
   bucket.count++;
   if (bucket.count > limit) {

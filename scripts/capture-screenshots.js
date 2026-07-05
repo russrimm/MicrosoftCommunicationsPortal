@@ -9,11 +9,14 @@ const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const OUT  = path.join(__dirname, '..', 'screenshots');
 
 const PAGES = [
-  { slug: 'power-platform', url: '/powerplatform' },
-  { slug: 'm365-roadmap',   url: '/m365updates' },
-  { slug: 'azure-updates',  url: '/azureupdates' },
-  { slug: 'message-center', url: '/messagecenter' },
-  { slug: 'service-health', url: '/servicehealth' },
+  { slug: 'home',                 url: '/home' },
+  { slug: 'power-platform',       url: '/powerplatform' },
+  { slug: 'm365-roadmap',         url: '/m365updates' },
+  { slug: 'azure-updates',        url: '/azureupdates' },
+  { slug: 'message-center',       url: '/messagecenter' },
+  { slug: 'service-health',       url: '/servicehealth' },
+  { slug: 'azure-service-health', url: '/azureservicehealth' },
+  { slug: 'fabric-roadmap',       url: '/fabricroadmap' },
 ];
 
 const THEMES = ['light', 'dark'];
