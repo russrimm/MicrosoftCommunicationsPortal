@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Microsoft 365 Roadmap – Microsoft Communications Portal</title>
+  <title>Fabric Roadmap – Microsoft Communications Portal</title>
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
@@ -21,6 +21,7 @@
       --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
       --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
       --cp-warning: #f59e0b; --cp-link: #0078d4;
+      --cp-purple: #7c3aed;
       --cp-highlight: rgba(177,31,75,0.12);
     }
     html[data-theme="dark"] {
@@ -31,11 +32,11 @@
       --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
       --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
       --cp-warning: #fbbf24; --cp-link: #4da6ff;
+      --cp-purple: #c4b5fd;
       --cp-highlight: rgba(253,142,161,0.12);
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* Screen-reader-only text (visually hidden but accessible) */
     .sr-only {
       position: absolute !important;
       width: 1px; height: 1px;
@@ -43,8 +44,6 @@
       overflow: hidden; clip: rect(0,0,0,0);
       white-space: nowrap; border: 0;
     }
-
-    /* Visible focus indicator for keyboard navigation */
     a:focus-visible, button:focus-visible, input:focus-visible,
     select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
       outline: 2px solid var(--cp-accent);
@@ -72,7 +71,6 @@
     .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted, #605e5c); margin-top: 1px; }
     .header-subtitle a { color: inherit; text-decoration: none; }
     .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
-    .header-sub { font-size: 11px; color: var(--cp-text-muted); }
     .page-heading {
       font-size: 22px; font-weight: 700;
       color: var(--cp-text);
@@ -120,52 +118,21 @@
       border-bottom-color: var(--cp-accent);
       background: transparent;
     }
-
-    /* ── Nav dropdown ── */
-    .nav-dropdown {
-      position: relative;
-      display: inline-flex;
-      align-items: stretch;
-    }
-    .nav-dropdown-toggle { font-family: inherit; gap: 0.3rem; }
-    .nav-dropdown-caret {
-      font-size: 10px;
-      transition: transform 0.15s;
-    }
-    .nav-dropdown.open .nav-dropdown-caret { transform: rotate(180deg); }
+    .nav-dropdown { position: relative; display: inline-flex; align-items: stretch; }
+    .nav-dropdown-toggle { gap: 0.35rem; }
+    .nav-dropdown-caret { font-size: 9px; }
     .nav-dropdown-menu {
-      display: none;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      min-width: 220px;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.5rem;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-      z-index: 200;
-      padding: 0.35rem 0;
-      margin-top: 1px;
+      display: none; position: absolute; top: 100%; left: 0;
+      background: var(--cp-surface); border: 1px solid var(--cp-border);
+      border-radius: 0.375rem; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      min-width: 180px; z-index: 50; padding: 0.25rem;
     }
     .nav-dropdown.open .nav-dropdown-menu { display: block; }
     .nav-dropdown-item {
-      display: block;
-      padding: 0.5rem 1rem;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--cp-text);
-      text-decoration: none;
-      transition: background 0.15s, color 0.15s;
+      display: block; padding: 0.4rem 0.75rem; border-radius: 0.25rem;
+      color: var(--cp-text); text-decoration: none; font-size: 13px; font-weight: 500;
     }
-    .nav-dropdown-item:hover {
-      background: var(--cp-surface-soft);
-      color: var(--cp-accent);
-    }
-    .nav-dropdown-item.active {
-      color: var(--cp-accent);
-      font-weight: 600;
-      background: var(--cp-accent-soft);
-    }
+    .nav-dropdown-item:hover { background: var(--cp-surface-soft); color: var(--cp-accent); }
     .theme-btn {
       margin-left: auto; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
       border-radius: 0.625rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 12px;
@@ -277,22 +244,15 @@
       display: flex; align-items: center; justify-content: space-between;
       gap: 0.5rem;
     }
-    .au-card-id {
-      font-size: 12px; font-weight: 600; color: var(--cp-link);
-      font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-      letter-spacing: 0.01em; flex-shrink: 0;
-    }
     .au-status-pill {
       font-size: 10px; font-weight: 700; text-transform: uppercase;
       padding: 0.15rem 0.5rem; border-radius: 999px;
       letter-spacing: 0.04em; flex-shrink: 0; white-space: nowrap;
       border: 1px solid;
     }
-    .au-status-pill.development { background: rgba(0,120,212,0.12); color: var(--cp-link); border-color: rgba(0,120,212,0.3); }
-    .au-status-pill.rolling     { background: rgba(245,158,11,0.12); color: var(--cp-warning); border-color: rgba(245,158,11,0.3); }
-    .au-status-pill.launched    { background: rgba(22,163,74,0.12); color: var(--cp-success); border-color: rgba(22,163,74,0.3); }
-    .au-status-pill.cancelled   { background: var(--cp-surface-soft); color: var(--cp-text-muted); border-color: var(--cp-border); }
-    .au-status-pill.unknown     { background: var(--cp-surface-soft); color: var(--cp-text-muted); border-color: var(--cp-border); }
+    .au-status-pill.planned    { background: rgba(0,120,212,0.12); color: var(--cp-link); border-color: rgba(0,120,212,0.3); }
+    .au-status-pill.shipped    { background: rgba(22,163,74,0.12); color: var(--cp-success); border-color: rgba(22,163,74,0.3); }
+    .au-status-pill.unknown    { background: var(--cp-surface-soft); color: var(--cp-text-muted); border-color: var(--cp-border); }
 
     .au-card-product {
       display: flex; align-items: center; gap: 0.35rem;
@@ -303,9 +263,6 @@
     .au-card-product-dot {
       width: 8px; height: 8px; border-radius: 50%;
       background: var(--cp-accent); flex-shrink: 0;
-    }
-    .au-card-product .product-icon {
-      width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;
     }
     .au-card-title {
       font-size: 13px; font-weight: 600; color: var(--cp-text);
@@ -334,6 +291,9 @@
       white-space: nowrap;
     }
     .au-tag-pill.release { color: var(--cp-link); border-color: rgba(0,120,212,0.4); background: rgba(0,120,212,0.08); }
+    .au-tag-pill.preview { color: var(--cp-purple); border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.08); }
+    .au-tag-pill.ga      { color: var(--cp-success); border-color: rgba(22,163,74,0.4); background: rgba(22,163,74,0.08); }
+    .au-tag-pill.timeline { color: var(--cp-warning); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.08); }
 
     /* Group view */
     .au-product-group { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -439,7 +399,7 @@
     .au-detail-list dd { color: var(--cp-text); margin: 0; word-break: break-word; }
     .au-tag-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
-    /* ── Generate Export modal ── */
+    /* Generate Export modal */
     .gen-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
     .gen-modal[hidden] { display: none; }
     .gen-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
@@ -458,12 +418,6 @@
     .gen-modal-body { padding: 14px 16px; overflow: auto; }
     .gen-field { margin-bottom: 14px; }
     .gen-field-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; color: var(--cp-text-muted); }
-    .gen-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .gen-range input[type="date"] {
-      padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 4px;
-      background: var(--cp-surface); color: var(--cp-text); font: inherit;
-    }
-    .gen-hint { font-size: 11px; color: var(--cp-text-muted); margin: 6px 0 0; }
     .gen-product-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
     .gen-product-controls input[type="search"] {
       flex: 1 1 160px; padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 4px;
@@ -510,18 +464,18 @@
   <nav class="page-tabs" aria-label="Primary">
     <a class="nav-tab" href="/home">Home</a>
     <div class="nav-dropdown">
-      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Roadmaps <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
+      <button class="nav-tab nav-dropdown-toggle active" type="button" aria-expanded="false" aria-haspopup="true">Roadmaps <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item" href="/powerplatform">Power Platform</a>
-        <a class="nav-dropdown-item" href="/fabricroadmap">Fabric</a>
+        <a class="nav-dropdown-item active" href="/fabricroadmap" aria-current="page">Fabric</a>
         <a class="nav-dropdown-item" href="/azureupdates">Azure</a>
       </div>
     </div>
     <div class="nav-dropdown">
-      <button class="nav-tab nav-dropdown-toggle active" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
+      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item" href="/messagecenter">Message Center</a>
-        <a class="nav-dropdown-item active" href="/m365updates" aria-current="page">Roadmap</a>
+        <a class="nav-dropdown-item" href="/m365updates">Roadmap</a>
       </div>
     </div>
     <div class="nav-dropdown">
@@ -555,12 +509,12 @@
   </script>
 
   <div class="page-content">
-    <h1 class="page-heading">Microsoft 365 Roadmap</h1>
+    <h1 class="page-heading">Microsoft Fabric Roadmap</h1>
     <div class="au-search-bar">
-      <label for="au-search" class="sr-only">Search updates by title or description</label>
+      <label for="au-search" class="sr-only">Search features by name or description</label>
       <input type="text" class="au-search-input" id="au-search"
-             placeholder="Search updates by title or description…"
-             aria-label="Search updates by title or description" data-act="debouncedSearch" data-on="input">
+             placeholder="Search features by name or description…"
+             aria-label="Search features by name or description" data-act="debouncedSearch" data-on="input">
     </div>
     <div class="au-filters">
       <div class="au-filter-group">
@@ -596,17 +550,37 @@
         </div>
       </div>
       <div class="au-filter-group">
-        <label class="au-filter-label" for="au-sort">Sort:</label>
-        <select class="au-filter-select" id="au-sort" data-act="filterUpdates" data-on="change">
-          <option value="date-desc">Newest First</option>
-          <option value="date-asc">Oldest First</option>
+        <label class="au-filter-label" id="au-type-filter-label">Release Type:</label>
+        <div class="au-multi" id="au-type-multi">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-type-filter-label au-type-label" data-act="toggleMenu" data-menu="au-type-multi">
+            <span id="au-type-label">All Types</span>
+            <span class="au-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="au-multi-panel" id="au-type-panel">
+            <div class="au-multi-actions">
+              <button type="button" data-act="setAllOptions" data-kind="type" data-checked="1">Select all</button>
+              <button type="button" data-act="setAllOptions" data-kind="type" data-checked="0">Clear</button>
+            </div>
+            <div id="au-type-options"></div>
+          </div>
+        </div>
+      </div>
+      <div class="au-filter-group">
+        <label class="au-filter-label" for="au-timerange">Time Range:</label>
+        <select class="au-filter-select" id="au-timerange" data-act="filterUpdates" data-on="change">
+          <option value="3">Last 3 months</option>
+          <option value="6" selected>Last 6 months</option>
+          <option value="12">Last 12 months</option>
+          <option value="0">All time</option>
         </select>
       </div>
       <div class="au-filter-group">
-        <label class="au-filter-label" for="au-group-product" style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
-          <input type="checkbox" id="au-group-product" data-act="filterUpdates" data-on="change">
-          Group by product
-        </label>
+        <label class="au-filter-label" for="au-sort">Sort:</label>
+        <select class="au-filter-select" id="au-sort" data-act="filterUpdates" data-on="change">
+          <option value="timeline-asc">Timeline (earliest)</option>
+          <option value="timeline-desc">Timeline (latest)</option>
+          <option value="product">Group by Product</option>
+        </select>
         <label class="au-filter-label" for="au-expand-all" id="au-expand-all-label" style="display:none;align-items:center;gap:0.4rem;cursor:pointer">
           <input type="checkbox" id="au-expand-all" data-act="toggleExpandAll" data-on="change">
           Expand all
@@ -615,15 +589,15 @@
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="au-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
         <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal">⬇ Export</button>
-        <button class="export-btn" data-act="loadM365Updates">↻ Refresh</button>
+        <button class="export-btn" data-act="loadFabricRoadmap">↻ Refresh</button>
       </div>
     </div>
-      <div class="au-cards" id="au-cards-container">
-        <div class="au-loading" role="status" aria-live="polite">
-          <div class="spinner" aria-hidden="true"></div>
-          <span>Loading Microsoft 365 Roadmap…</span>
-        </div>
+    <div class="au-cards" id="au-cards-container">
+      <div class="au-loading" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span>Loading Fabric Roadmap…</span>
       </div>
+    </div>
   </div>
 
   <div class="au-modal-overlay" id="au-modal" data-act="handleModalBackdrop">
@@ -644,50 +618,36 @@
     let currentFiltered = [];
     const statusFilter  = new Set();
     const productFilter = new Set();
+    const typeFilter    = new Set();
 
-    // Register delegated actions that need arguments carried on data-* attributes.
-    // (Argument-less handlers resolve automatically to same-named global functions.)
     if (window.CPActions) window.CPActions.register({
       toggleMenu:              (e, el) => toggleMenu(el.dataset.menu),
       setAllOptions:           (e, el) => setAllOptions(el.dataset.kind, el.dataset.checked === '1'),
       toggleProductGroup:      (e, el) => toggleProductGroup(el),
       openUpdate:              (e, el) => openUpdate(el.dataset.id),
       selectAllExportProducts: (e, el) => selectAllExportProducts(el.dataset.state === '1'),
-      applyExportPreset7:      () => applyExportPreset(7),
-      applyExportPreset30:     () => applyExportPreset(30),
-      applyExportPreset60:     () => applyExportPreset(60),
     });
 
-    // Known categorical sets so we can split RSS <category> values into buckets.
-    const STATUS_KEYWORDS = ['In development', 'Rolling out', 'Launched', 'Cancelled'];
-    const RELEASE_KEYWORDS = ['General Availability', 'Targeted Release', 'Public Preview', 'Private Preview', 'Preview'];
-    const CLOUD_KEYWORDS = ['Worldwide (Standard Multi-Tenant)', 'GCC High', 'GCC', 'DoD', '21Vianet', 'Education'];
-    const PLATFORM_KEYWORDS = ['Android', 'iOS', 'Mac', 'Desktop', 'Web', 'Windows'];
-
-    // toggleTheme() and escapeHtml() are provided by /static/util.js.
-
-    function classifyCategories(cats) {
-      const c = Array.isArray(cats) ? cats : [];
-      const out = { status: '', release: [], cloud: [], platform: [], product: [] };
-      for (const raw of c) {
-        const cat = (raw || '').trim();
-        if (!cat) continue;
-        if (!out.status && STATUS_KEYWORDS.includes(cat)) { out.status = cat; continue; }
-        if (RELEASE_KEYWORDS.includes(cat)) { out.release.push(cat); continue; }
-        if (CLOUD_KEYWORDS.includes(cat)) { out.cloud.push(cat); continue; }
-        if (PLATFORM_KEYWORDS.includes(cat)) { out.platform.push(cat); continue; }
-        out.product.push(cat);
-      }
-      return out;
+    // Quarter sorting helper: converts "Q3 2026" → 20263, "Q1 2025" → 20251
+    function quarterSortKey(releaseDate) {
+      if (!releaseDate) return 99999;
+      const m = /Q(\d)\s+(\d{4})/.exec(releaseDate);
+      if (!m) return 99999;
+      return parseInt(m[2]) * 10 + parseInt(m[1]);
     }
 
     function statusClass(status) {
       const s = (status || '').toLowerCase();
-      if (s.includes('development')) return 'development';
-      if (s.includes('rolling'))     return 'rolling';
-      if (s.includes('launched'))    return 'launched';
-      if (s.includes('cancel'))      return 'cancelled';
+      if (s.includes('planned')) return 'planned';
+      if (s.includes('shipped')) return 'shipped';
       return 'unknown';
+    }
+
+    function typeClass(type) {
+      const t = (type || '').toLowerCase();
+      if (t.includes('general')) return 'ga';
+      if (t.includes('preview')) return 'preview';
+      return '';
     }
 
     function stripHtml(html) {
@@ -696,43 +656,27 @@
       return (tmp.textContent || tmp.innerText || '').trim();
     }
 
-    function safeUrl(value) {
-      if (!value) return '#';
-      const trimmed = String(value).trim();
-      if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
-        if (!/^(https?|mailto|tel):/i.test(trimmed)) return '#';
-      }
-      return trimmed;
-    }
-
-    function descriptionHtml(html) {
-      // The RSS description is untrusted HTML; delegate to the shared hardened
-      // allow-list sanitizer in /static/util.js.
-      if (!html) return '';
-      return (window.CPUtil && window.CPUtil.sanitizeHtml) ? window.CPUtil.sanitizeHtml(html) : '';
-    }
-
-    function formatDate(s) {
-      if (!s) return '';
-      const d = new Date(s);
-      if (isNaN(d.getTime())) return s;
-      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-
-    async function loadM365Updates() {
+    async function loadFabricRoadmap() {
       const container = document.getElementById('au-cards-container');
-      container.innerHTML = '<div class="au-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading Microsoft 365 Roadmap…</span></div>';
+      container.innerHTML = '<div class="au-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading Fabric Roadmap…</span></div>';
       try {
-        const res = await fetch('/api/m365updates');
+        const res = await fetch('/api/fabricroadmap');
         const data = await res.json();
         if (data.error && (!data.items || !data.items.length)) {
           container.innerHTML = `<div class="au-empty">⚠️ ${escapeHtml(data.error)}</div>`;
           return;
         }
-        allUpdates = (data.items || []).map(item => {
-          const buckets = classifyCategories(item.categories);
-          return { ...item, buckets };
-        });
+        allUpdates = (data.items || []).map(item => ({
+          id: item.ReleaseItemID,
+          title: item.FeatureName,
+          description: item.FeatureDescription || '',
+          product: item.ProductName || '',
+          status: item.ReleaseStatus || '',
+          releaseType: item.ReleaseType || '',
+          releaseDate: item.ReleaseDate || '',
+          releaseSemester: item.ReleaseSemester || '',
+          sortKey: quarterSortKey(item.ReleaseDate),
+        }));
         rebuildFilters();
         filterUpdates();
       } catch (err) {
@@ -743,20 +687,23 @@
     function rebuildFilters() {
       const statuses = new Set();
       const products = new Set();
+      const types    = new Set();
       allUpdates.forEach(u => {
-        if (u.buckets.status) statuses.add(u.buckets.status);
-        u.buckets.product.forEach(p => products.add(p));
+        if (u.status) statuses.add(u.status);
+        if (u.product) products.add(u.product);
+        if (u.releaseType) types.add(u.releaseType);
       });
 
-      // Preserve existing selections; only add new options.
-      const sortedStatuses = STATUS_KEYWORDS.filter(s => statuses.has(s))
-        .concat([...statuses].filter(s => !STATUS_KEYWORDS.includes(s)).sort());
+      const sortedStatuses = [...statuses].sort();
       const sortedProducts = [...products].sort((a, b) => a.localeCompare(b));
+      const sortedTypes    = [...types].sort();
 
       renderMultiOptions('au-status-options', sortedStatuses, statusFilter, 'status');
       renderMultiOptions('au-product-options', sortedProducts, productFilter, 'product');
+      renderMultiOptions('au-type-options', sortedTypes, typeFilter, 'type');
       updateMultiLabel('status', sortedStatuses, 'Statuses');
       updateMultiLabel('product', sortedProducts, 'Products');
+      updateMultiLabel('type', sortedTypes, 'Types');
     }
 
     function renderMultiOptions(containerId, values, selectedSet, kind) {
@@ -773,32 +720,32 @@
     function onMultiChange(ev) {
       const kind = ev.target.dataset.kind;
       const value = ev.target.dataset.value;
-      const set = kind === 'status' ? statusFilter : productFilter;
+      const set = kind === 'status' ? statusFilter : kind === 'product' ? productFilter : typeFilter;
       if (ev.target.checked) set.add(value); else set.delete(value);
-      const allKnown = kind === 'status'
-        ? Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value)
-        : Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value);
-      updateMultiLabel(kind, allKnown, kind === 'status' ? 'Statuses' : 'Products');
+      const containerId = kind === 'status' ? 'au-status-options' : kind === 'product' ? 'au-product-options' : 'au-type-options';
+      const allKnown = Array.from(document.querySelectorAll(`#${containerId} input`)).map(i => i.dataset.value);
+      const label = kind === 'status' ? 'Statuses' : kind === 'product' ? 'Products' : 'Types';
+      updateMultiLabel(kind, allKnown, label);
       filterUpdates();
     }
 
     function setAllOptions(kind, checked) {
-      const set = kind === 'status' ? statusFilter : productFilter;
-      const inputs = kind === 'status'
-        ? document.querySelectorAll('#au-status-options input')
-        : document.querySelectorAll('#au-product-options input');
+      const set = kind === 'status' ? statusFilter : kind === 'product' ? productFilter : typeFilter;
+      const containerId = kind === 'status' ? 'au-status-options' : kind === 'product' ? 'au-product-options' : 'au-type-options';
+      const inputs = document.querySelectorAll(`#${containerId} input`);
       inputs.forEach(i => {
         i.checked = checked;
         if (checked) set.add(i.dataset.value); else set.delete(i.dataset.value);
       });
       const allKnown = Array.from(inputs).map(i => i.dataset.value);
-      updateMultiLabel(kind, allKnown, kind === 'status' ? 'Statuses' : 'Products');
+      const label = kind === 'status' ? 'Statuses' : kind === 'product' ? 'Products' : 'Types';
+      updateMultiLabel(kind, allKnown, label);
       filterUpdates();
     }
 
     function updateMultiLabel(kind, allValues, plural) {
       const labelEl = document.getElementById(`au-${kind}-label`);
-      const set = kind === 'status' ? statusFilter : productFilter;
+      const set = kind === 'status' ? statusFilter : kind === 'product' ? productFilter : typeFilter;
       const total = allValues.length;
       const sel = [...set].filter(v => allValues.includes(v));
       if (sel.length === 0 || sel.length === total) labelEl.textContent = `All ${plural}`;
@@ -834,37 +781,61 @@
       __searchTimer = setTimeout(filterUpdates, 150);
     }
 
+    // Convert "Q3 2026" to a comparable number: 2026 * 4 + 3 = 8107
+    function quarterToNum(rd) {
+      const m = /Q(\d)\s+(\d{4})/.exec(rd);
+      if (!m) return null;
+      return parseInt(m[2]) * 4 + parseInt(m[1]);
+    }
+
     function filterUpdates() {
       const q = (document.getElementById('au-search').value || '').toLowerCase().trim();
       const sort = document.getElementById('au-sort').value;
-      const groupByProduct = !!document.getElementById('au-group-product').checked;
+      const timeRange = parseInt(document.getElementById('au-timerange').value) || 0;
 
-      const allKnownStatuses = Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value);
-      const allKnownProducts = Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value);
+      const allKnownStatuses  = Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value);
+      const allKnownProducts  = Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value);
+      const allKnownTypes     = Array.from(document.querySelectorAll('#au-type-options input')).map(i => i.dataset.value);
       const statusActive  = statusFilter.size > 0 && statusFilter.size < allKnownStatuses.length;
       const productActive = productFilter.size > 0 && productFilter.size < allKnownProducts.length;
+      const typeActive    = typeFilter.size > 0 && typeFilter.size < allKnownTypes.length;
+
+      // Calculate the minimum quarter based on time range
+      let minQuarterNum = 0;
+      if (timeRange > 0) {
+        const cutoff = new Date();
+        cutoff.setMonth(cutoff.getMonth() - timeRange);
+        const cutoffQ = Math.ceil((cutoff.getMonth() + 1) / 3);
+        minQuarterNum = cutoff.getFullYear() * 4 + cutoffQ;
+      }
 
       let filtered = allUpdates.filter(u => {
-        if (statusActive && !statusFilter.has(u.buckets.status)) return false;
-        if (productActive && !u.buckets.product.some(p => productFilter.has(p))) return false;
+        if (statusActive && !statusFilter.has(u.status)) return false;
+        if (productActive && !productFilter.has(u.product)) return false;
+        if (typeActive && !typeFilter.has(u.releaseType)) return false;
+        if (minQuarterNum > 0) {
+          const qn = quarterToNum(u.releaseDate);
+          if (qn !== null && qn < minQuarterNum) return false;
+        }
         if (q) {
-          const hay = (u.title + ' ' + stripHtml(u.description)).toLowerCase();
+          const hay = (u.title + ' ' + u.product + ' ' + u.releaseDate + ' ' + stripHtml(u.description)).toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
       });
 
-      filtered.sort((a, b) => {
-        const da = new Date(a.pubDate).getTime() || 0;
-        const db = new Date(b.pubDate).getTime() || 0;
-        return sort === 'date-asc' ? da - db : db - da;
-      });
+      if (sort === 'timeline-asc') {
+        filtered.sort((a, b) => a.sortKey - b.sortKey || a.title.localeCompare(b.title));
+      } else if (sort === 'timeline-desc') {
+        filtered.sort((a, b) => b.sortKey - a.sortKey || a.title.localeCompare(b.title));
+      }
 
       currentFiltered = filtered;
 
       document.getElementById('au-result-count').textContent =
         `${filtered.length} of ${allUpdates.length}`;
 
+      const groupByProduct = sort === 'product';
       document.getElementById('au-expand-all-label').style.display = groupByProduct ? 'flex' : 'none';
 
       if (groupByProduct) renderGrouped(filtered);
@@ -874,19 +845,19 @@
     function renderFlat(items) {
       const grid = document.getElementById('au-cards-container');
       grid.classList.remove('is-grouped');
-      if (!items.length) { grid.innerHTML = '<div class="au-empty">No updates match the filter.</div>'; return; }
+      if (!items.length) { grid.innerHTML = '<div class="au-empty">No features match the filter.</div>'; return; }
       grid.innerHTML = items.map(cardHtml).join('');
     }
 
     function renderGrouped(items) {
       const grid = document.getElementById('au-cards-container');
       grid.classList.add('is-grouped');
-      if (!items.length) { grid.innerHTML = '<div class="au-empty">No updates match the filter.</div>'; return; }
+      if (!items.length) { grid.innerHTML = '<div class="au-empty">No features match the filter.</div>'; return; }
 
       const expandAll = !!document.getElementById('au-expand-all').checked;
       const groups = new Map();
       items.forEach(u => {
-        const key = (u.buckets.product[0] || 'Other').trim();
+        const key = (u.product || 'Other').trim();
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(u);
       });
@@ -900,7 +871,7 @@
             <div class="au-product-header" role="button" tabindex="0" aria-expanded="${expandAll ? 'true' : 'false'}" data-act="toggleProductGroup">
               ${chevron}
               <span>${escapeHtml(key)}</span>
-              <span class="au-product-count">${list.length} update${list.length !== 1 ? 's' : ''}</span>
+              <span class="au-product-count">${list.length} feature${list.length !== 1 ? 's' : ''}</span>
             </div>
             <div class="au-product-cards">
               ${list.map(cardHtml).join('')}
@@ -937,30 +908,24 @@
     }
 
     function cardHtml(u) {
-      const sc = statusClass(u.buckets.status);
-      const product = u.buckets.product[0] || '';
-      const release = u.buckets.release[0] || '';
-      const date = formatDate(u.pubDate);
+      const sc = statusClass(u.status);
+      const tc = typeClass(u.releaseType);
       const snippet = stripHtml(u.description).slice(0, 220);
       return `
         <div class="au-card" data-act="openUpdate" data-id="${escapeHtml(u.id)}">
           <div class="au-card-body">
             <div class="au-card-top">
-              <span class="au-card-id">#${escapeHtml(u.id || '')}</span>
-              <span class="au-status-pill ${sc}">${escapeHtml(u.buckets.status || 'Unknown')}</span>
+              <span class="au-status-pill ${sc}">${escapeHtml(u.status || 'Unknown')}</span>
             </div>
-            ${product ? `
-              <div class="au-card-product">
-                ${(window.ProductIcons && window.ProductIcons.getProductIcon(product))
-                  ? window.ProductIcons.productIconImg(product)
-                  : '<span class="au-card-product-dot"></span>'}
-                <span>${escapeHtml(product)}</span>
-              </div>` : ''}
-            <div class="au-card-title">${escapeHtml(u.title || 'Untitled update')}</div>
+            <div class="au-card-product">
+              <span class="au-card-product-dot"></span>
+              <span>${escapeHtml(u.product)}</span>
+            </div>
+            <div class="au-card-title">${escapeHtml(u.title || 'Untitled feature')}</div>
             ${snippet ? `<div class="au-card-snippet">${escapeHtml(snippet)}</div>` : ''}
             <div class="au-card-meta">
-              ${release ? `<span class="au-tag-pill release">${escapeHtml(release)}</span>` : ''}
-              ${date ? `<span>${escapeHtml(date)}</span>` : ''}
+              ${u.releaseType ? `<span class="au-tag-pill ${tc}">${escapeHtml(u.releaseType)}</span>` : ''}
+              ${u.releaseDate ? `<span class="au-tag-pill timeline">${escapeHtml(u.releaseDate)}</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -969,39 +934,37 @@
     function openUpdate(id) {
       const u = allUpdates.find(x => String(x.id) === String(id));
       if (!u) return;
-      document.getElementById('au-modal-title').textContent = u.title || 'Update';
+      document.getElementById('au-modal-title').textContent = u.title || 'Feature';
       const metaParts = [];
-      if (u.buckets.status) metaParts.push(u.buckets.status);
-      if (u.pubDate) metaParts.push(`Published ${formatDate(u.pubDate)}`);
-      if (u.id) metaParts.push(`ID ${u.id}`);
+      if (u.status) metaParts.push(u.status);
+      if (u.product) metaParts.push(u.product);
+      if (u.releaseDate) metaParts.push(u.releaseDate);
       document.getElementById('au-modal-meta').textContent = metaParts.join(' · ');
 
       const body = document.getElementById('au-modal-body');
-      const tagSection = (label, list) => list && list.length
-        ? `
-          <div class="au-modal-section">
-            <div class="au-modal-section-title">${label}</div>
-            <div class="au-tag-list">${list.map(v => `<span class="au-tag-pill">${escapeHtml(v)}</span>`).join('')}</div>
-          </div>` : '';
+      const safeDesc = u.description
+        ? ((window.CPUtil && window.CPUtil.sanitizeHtml) ? window.CPUtil.sanitizeHtml(u.description) : escapeHtml(u.description))
+        : '<em>No description available.</em>';
 
       body.innerHTML = `
         <div class="au-modal-section">
-          <div class="au-modal-section-title">Description</div>
-          <div>${descriptionHtml(u.description)}</div>
+          <div class="au-modal-section-title">Details</div>
+          <dl class="au-detail-list">
+            <dt>Product</dt><dd>${escapeHtml(u.product)}</dd>
+            <dt>Status</dt><dd>${escapeHtml(u.status)}</dd>
+            <dt>Release Type</dt><dd>${escapeHtml(u.releaseType)}</dd>
+            <dt>Timeline</dt><dd>${escapeHtml(u.releaseDate)}</dd>
+            ${u.releaseSemester ? `<dt>Release Wave</dt><dd>${escapeHtml(u.releaseSemester)}</dd>` : ''}
+          </dl>
         </div>
-        ${tagSection('Products', u.buckets.product)}
-        ${tagSection('Release type', u.buckets.release)}
-        ${tagSection('Cloud / audience', u.buckets.cloud)}
-        ${tagSection('Platforms', u.buckets.platform)}
-        ${u.link ? `
-          <div class="au-modal-section">
-            <div class="au-modal-section-title">Reference</div>
-            <p><a href="${escapeHtml(safeUrl(u.link))}" target="_blank" rel="noopener noreferrer">View on Microsoft 365 roadmap →</a></p>
-          </div>` : ''}
+        <div class="au-modal-section">
+          <div class="au-modal-section-title">Description</div>
+          <div>${safeDesc}</div>
+        </div>
       `;
       document.getElementById('au-modal').classList.add('open');
       if (window.CportalAi && window.CportalAi.isEnabled()) {
-        window.CportalAi.attachToModal(body, 'm365', u);
+        window.CportalAi.attachToModal(body, 'fabricroadmap', u);
       }
     }
 
@@ -1020,9 +983,9 @@
     // ════════════════════════════════════════════════
     const EXPORT_MODAL_CONFIG = {
       getAllRows:  () => allUpdates || [],
-      getProducts: (u) => (u && u.buckets && u.buckets.product) || [],
-      getDate:     (u) => { const d = Date.parse(u && u.pubDate || ''); return isNaN(d) ? null : d; },
-      runExport:   (rows, format) => exportM365UpdatesToHtml(rows, format),
+      getProducts: (u) => u && u.product ? [u.product] : [],
+      getDate:     () => null, // Fabric uses quarters, not exact dates
+      runExport:   (rows, format) => exportFabricRoadmapToHtml(rows, format),
     };
     const EXPORT_UNCLASSIFIED = '(Unclassified)';
     function getExportProducts(row) {
@@ -1048,8 +1011,6 @@
           return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}" checked data-act="updateExportCount" data-on="change"> ${safe}</label>`;
         }).join('');
       }
-      document.getElementById('gen-from-date').value = '';
-      document.getElementById('gen-to-date').value = '';
       document.getElementById('gen-product-search').value = '';
       filterExportProductSearch();
       updateExportCount();
@@ -1063,19 +1024,6 @@
       });
       updateExportCount();
     }
-    function clearExportDates() {
-      document.getElementById('gen-from-date').value = '';
-      document.getElementById('gen-to-date').value = '';
-      updateExportCount();
-    }
-    function applyExportPreset(days) {
-      const now = new Date();
-      const from = new Date(now); from.setDate(from.getDate() - days);
-      const to   = new Date(now); to.setDate(to.getDate() + days);
-      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
-      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
-      updateExportCount();
-    }
     function filterExportProductSearch() {
       const q = (document.getElementById('gen-product-search').value || '').toLowerCase().trim();
       document.querySelectorAll('#gen-product-list label').forEach(l => {
@@ -1086,19 +1034,9 @@
       return new Set(Array.from(document.querySelectorAll('#gen-product-list input[type="checkbox"]:checked')).map(cb => cb.value));
     }
     function computeExportRows() {
-      const fromVal = document.getElementById('gen-from-date').value;
-      const toVal   = document.getElementById('gen-to-date').value;
-      const from = fromVal ? new Date(fromVal).getTime() : -Infinity;
-      const to   = toVal ? (new Date(toVal).getTime() + 86399999) : Infinity;
-      const datesActive = !!(fromVal || toVal);
       const selected = getSelectedExportProducts();
       const all = EXPORT_MODAL_CONFIG.getAllRows() || [];
       return all.filter(row => {
-        const ts = EXPORT_MODAL_CONFIG.getDate(row);
-        if (datesActive) {
-          if (ts == null) return false;
-          if (ts < from || ts > to) return false;
-        }
         const prods = getExportProducts(row);
         return prods.some(p => selected.has(p));
       });
@@ -1119,59 +1057,45 @@
     // ════════════════════════════════════════════════
     // EXPORT
     // ════════════════════════════════════════════════
-    function exportM365UpdatesToHtml(customRows, format) {
+    function exportFabricRoadmapToHtml(customRows, format) {
       const rows = (customRows && customRows.length) ? customRows : (currentFiltered || []);
-      if (!rows.length) { alert('No updates to export with current filters.'); return; }
+      if (!rows.length) { alert('No features to export with current filters.'); return; }
       if (!window.ExportFormats || !window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
 
       const btn = document.getElementById('au-export-btn');
       if (btn) { btn.disabled = true; btn.textContent = '…Exporting'; }
 
       const tableRows = rows.map(u => {
-        const status   = u.buckets.status || 'Unknown';
-        const product  = (u.buckets.product || []).join(', ');
-        const release  = (u.buckets.release || []).join(', ');
-        const cloud    = (u.buckets.cloud || []).join(', ');
-        const platform = (u.buckets.platform || []).join(', ');
-        const date     = formatDate(u.pubDate);
-        const summary  = stripHtml(u.description);
-        const linkCell = u.link
-          ? { html: window.OutlookExport.link(safeUrl(u.link), 'View') }
-          : '—';
         return [
-          u.id || '—',
-          product || '—',
+          u.product || '—',
           u.title || '—',
-          status,
-          release || '—',
-          cloud || '—',
-          platform || '—',
-          date || '—',
-          summary || '—',
-          linkCell,
+          u.status || '—',
+          u.releaseType || '—',
+          u.releaseDate || '—',
+          u.releaseSemester || '—',
+          stripHtml(u.description) || '—',
         ];
       });
 
       const now = new Date().toLocaleString();
       window.ExportFormats.download({
-        title:    'Microsoft 365 Roadmap',
-        subtitle: 'Exported ' + now + ' • ' + rows.length + ' update' + (rows.length !== 1 ? 's' : ''),
-        baseFilename: 'm365updates-export-' + new Date().toISOString().slice(0,10),
-        columns:  ['ID', 'Product', 'Title', 'Status', 'Release Type', 'Cloud / Audience',
-                   'Platforms', 'Published', 'Description', 'Link'],
+        title:    'Microsoft Fabric Roadmap',
+        subtitle: 'Exported ' + now + ' • ' + rows.length + ' feature' + (rows.length !== 1 ? 's' : ''),
+        baseFilename: 'fabric-roadmap-export-' + new Date().toISOString().slice(0, 10),
+        columns:  ['Product', 'Feature', 'Status', 'Release Type', 'Timeline', 'Release Wave', 'Description'],
         rows: tableRows,
-        format:   format || 'html',
+        format: format || 'html',
       });
 
       if (btn) { btn.disabled = false; btn.textContent = '⬇ Export'; }
     }
 
-    loadM365Updates();
+    loadFabricRoadmap();
 
     // ── AI insights ──────────────────────────────────────────────────────
     if (window.CportalAi) {
       window.CportalAi.init({
-        source: 'm365',
+        source: 'fabricroadmap',
         panelMountSelector: '#au-cards-container',
         onTopItemClick: (id) => openUpdate(id),
       });
@@ -1196,21 +1120,6 @@
             <label><input type="radio" name="gen-format" value="docx"> Word</label>
           </div>
           <p class="gen-format-note">PDF opens a print dialog (choose "Save as PDF"). Word export opens in Word / LibreOffice.</p>
-        </div>
-        <div class="gen-field">
-          <span class="gen-field-label">Date range (Published)</span>
-          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
-            <button type="button" class="gen-quick" data-act="applyExportPreset7">±7 days</button>
-            <button type="button" class="gen-quick" data-act="applyExportPreset30">±30 days</button>
-            <button type="button" class="gen-quick" data-act="applyExportPreset60">±60 days</button>
-          </div>
-          <div class="gen-range">
-            <input type="date" id="gen-from-date" data-act="updateExportCount" data-on="change" aria-label="From date">
-            <span>to</span>
-            <input type="date" id="gen-to-date" data-act="updateExportCount" data-on="change" aria-label="To date">
-            <button type="button" class="gen-quick" data-act="clearExportDates">Clear</button>
-          </div>
-          <p class="gen-hint">Leave blank for no date limit. Items without a date are excluded when a range is set.</p>
         </div>
         <div class="gen-field">
           <span class="gen-field-label">Products</span>

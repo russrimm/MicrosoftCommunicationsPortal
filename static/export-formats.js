@@ -16,7 +16,7 @@
  *
  * Usage:
  *   window.ExportFormats.download({
- *     title:    'Azure Roadmap',
+ *     title:    'Azure Updates',
  *     subtitle: 'Exported 2026-07-04 • 42 updates',
  *     columns:  ['Product', 'Title', 'Status', ...],
  *     rows:     [ ['Power Apps', 'Improve bulk delete', 'Launched', ...], ... ],

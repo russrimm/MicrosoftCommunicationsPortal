@@ -225,6 +225,26 @@ const M365_UPDATES_PATH = '/releasecommunications/api/v2/m365/rss';
 const AZURE_UPDATES_HOST = 'www.microsoft.com';
 const AZURE_UPDATES_PATH = '/releasecommunications/api/v2/azure/rss';
 
+// Microsoft Fabric Roadmap JSON API
+const FABRIC_ROADMAP_HOST = 'roadmap.fabric.microsoft.com';
+const FABRIC_ROADMAP_PATH = '/fabric-json/';
+const FABRIC_PRODUCTS = [
+  { id: '796a0af7-2dc7-ee11-9079-000d3a3419a8', name: 'Administration, Governance and Security', queryString: 'administration,governanceandsecurity' },
+  { id: '951b64e0-a663-f111-a826-6045bd00f798', name: 'Conversational Analytics', queryString: 'conversationalanalytics' },
+  { id: '0e17459c-141b-f011-998a-00224804b6c3', name: 'Cosmos DB', queryString: 'cosmosdb' },
+  { id: 'a731518f-36ca-ee11-9079-000d3a341a60', name: 'Data Engineering', queryString: 'dataengineering' },
+  { id: 'a821f83f-dbd6-ee11-9079-000d3a310f67', name: 'Data Factory', queryString: 'datafactory' },
+  { id: '0522b590-dcd6-ee11-9079-000d3a310f67', name: 'Data Science', queryString: 'datascience' },
+  { id: 'fa3a73cd-dcd6-ee11-9079-000d3a310f67', name: 'Data Warehouse', queryString: 'datawarehouse' },
+  { id: '94e84e43-aa69-f011-bec2-00224804b6c3', name: 'Fabric Ecosystem', queryString: 'fabricecosystem' },
+  { id: 'c6da6b3b-ded6-ee11-9079-000d3a310f67', name: 'Fabric Developer Experiences', queryString: 'fabricdeveloperexperiences' },
+  { id: 'cef5a30d-562f-f011-8c4d-6045bd096d8f', name: 'IQ', queryString: 'iq' },
+  { id: '338c69fe-dcd6-ee11-9079-000d3a310f67', name: 'OneLake', queryString: 'onelake' },
+  { id: '642a8375-05fc-ee11-a1ff-000d3a341a60', name: 'Power BI', queryString: 'powerbi' },
+  { id: '58cb90aa-4203-ef11-a1fd-000d3a36eea4', name: 'Real-Time Intelligence', queryString: 'real-timeintelligence' },
+  { id: '347da228-ea54-ef11-a317-0022480a694f', name: 'SQL database', queryString: 'sqldatabase' },
+];
+
 // ── AI provider configuration (auto-detect) ─────────────────────────────────
 // Supports any OpenAI-compatible chat-completions endpoint. Detected in order:
 // Azure OpenAI → OpenAI → GitHub Models. First one fully configured wins.
@@ -645,8 +665,299 @@ function fetchServiceHealth(token, done) {
     done);
 }
 
+// Fetch all service health issues (active + resolved + PIRs) from the past 30 days
+function fetchServiceHealthIssues(token, done) {
+  const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
+  const filterValue = `startDateTime gt ${thirtyDaysAgo.toISOString()}`;
+  const query = new URLSearchParams({
+    '$filter': filterValue,
+    '$top': '100',
+    '$expand': 'posts',
+  });
+  cachedFetch('mc:health-issues', 60_000,
+    (cb) => graphGetAllPages(token, `/v1.0/admin/serviceAnnouncement/issues?${query.toString()}`, 10, cb),
+    done);
+}
+
 // (legacy kept for shape compatibility)
 function _fetchMessageCenterMessages_shape() { /* removed: superseded by graphGetAllPages */ }
+
+// ── Azure Resource Health (ARM REST API) ─────────────────────────────────────
+// Uses the Azure Management plane (management.azure.com) to query Resource Health
+// endpoints: Emerging Issues, Events, Availability Statuses, Impacted Resources.
+// Auth reuses the same managed-identity / client-credentials pattern but scoped
+// to the Azure Resource Manager resource (https://management.azure.com).
+const ARM_RESOURCE = 'https://management.azure.com';
+const ARM_API_VERSION = '2025-04-01';
+const AZURE_SUBSCRIPTION_ID = process.env.AZURE_SUBSCRIPTION_ID || '';
+
+// ── Selected subscriptions (in-memory, defaults to env var if set) ──────────
+// Stores the user's subscription selection. Array of { id, displayName } objects.
+let selectedSubscriptions = AZURE_SUBSCRIPTION_ID
+  ? [{ id: AZURE_SUBSCRIPTION_ID, displayName: '' }]
+  : [];
+
+// Helper: get the effective subscription IDs (for API calls that need one).
+function getSelectedSubscriptionIds() {
+  if (selectedSubscriptions.length > 0) return selectedSubscriptions.map(s => s.id);
+  if (AZURE_SUBSCRIPTION_ID) return [AZURE_SUBSCRIPTION_ID];
+  return [];
+}
+
+let armAccessToken      = null;
+let armTokenExpiresAt   = 0;
+let armTokenInflight    = null;
+
+// Acquire an ARM token via managed identity.
+function fetchManagedIdentityArmToken(done) {
+  let u, headers;
+  if (process.env.IDENTITY_ENDPOINT) {
+    u = new URL(process.env.IDENTITY_ENDPOINT);
+    u.searchParams.set('resource', ARM_RESOURCE);
+    u.searchParams.set('api-version', process.env.IDENTITY_API_VERSION || '2019-08-01');
+    if (MI_CLIENT_ID) u.searchParams.set('client_id', MI_CLIENT_ID);
+    headers = { 'X-IDENTITY-HEADER': process.env.IDENTITY_HEADER || '' };
+  } else {
+    u = new URL('http://169.254.169.254/metadata/identity/oauth2/token');
+    u.searchParams.set('resource', ARM_RESOURCE);
+    u.searchParams.set('api-version', '2018-02-01');
+    if (MI_CLIENT_ID) u.searchParams.set('client_id', MI_CLIENT_ID);
+    headers = { 'Metadata': 'true' };
+  }
+  const isHttps = u.protocol === 'https:';
+  const lib = isHttps ? https : http;
+  const options = {
+    hostname: u.hostname,
+    port: u.port || (isHttps ? 443 : 80),
+    path: u.pathname + u.search,
+    method: 'GET',
+    headers,
+  };
+  const req = lib.request(options, (res) => {
+    let body = '';
+    res.on('data', c => { body += c; });
+    res.on('end', () => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return done(new Error(`ARM managed identity token HTTP ${res.statusCode}: ${body.slice(0, 300)}`));
+      }
+      let data;
+      try { data = JSON.parse(body); }
+      catch (e) { return done(new Error(`ARM managed identity token parse error: ${e.message}`)); }
+      if (!data.access_token) {
+        return done(new Error(`ARM managed identity response missing access_token: ${body.slice(0, 200)}`));
+      }
+      let expiresAt;
+      if (data.expires_in) expiresAt = Date.now() + (Number(data.expires_in) - 60) * 1000;
+      else if (data.expires_on) expiresAt = (Number(data.expires_on) - 60) * 1000;
+      else expiresAt = Date.now() + 3600 * 1000;
+      done(null, { token: data.access_token, expiresAt });
+    });
+  });
+  req.on('error', done);
+  req.setTimeout(UPSTREAM_TIMEOUT_MS, () => req.destroy(new Error('ARM managed identity token timeout')));
+  req.end();
+}
+
+// Acquire an ARM token via client-credentials flow.
+function fetchClientSecretArmToken(done) {
+  const postData = new URLSearchParams({
+    client_id: M365_CLIENT_ID,
+    client_secret: M365_CLIENT_SECRET,
+    grant_type: 'client_credentials',
+    scope: `${ARM_RESOURCE}/.default`,
+  }).toString();
+
+  const options = {
+    hostname: 'login.microsoftonline.com',
+    path: `/${M365_TENANT_ID}/oauth2/v2.0/token`,
+    method: 'POST',
+    agent: keepAliveAgent,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(postData),
+    },
+  };
+
+  const req = https.request(options, (res) => {
+    let body = '';
+    res.on('data', chunk => { body += chunk; });
+    res.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        if (data.access_token) {
+          done(null, { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 60) * 1000 });
+        } else {
+          done(new Error(`ARM token error: ${data.error_description || body}`));
+        }
+      } catch (e) {
+        done(new Error(`ARM token parse error: ${e.message}`));
+      }
+    });
+  });
+  req.on('error', done);
+  req.setTimeout(UPSTREAM_TIMEOUT_MS, () => req.destroy(new Error('ARM token request timeout')));
+  req.write(postData);
+  req.end();
+}
+
+// Get (and cache) an OAuth token for Azure Resource Manager.
+function getArmAccessToken(done) {
+  if (armAccessToken && Date.now() < armTokenExpiresAt) {
+    return done(null, armAccessToken);
+  }
+  if (armTokenInflight) {
+    armTokenInflight.push(done);
+    return;
+  }
+  armTokenInflight = [done];
+  const finish = (err, token) => {
+    const waiters = armTokenInflight || [];
+    armTokenInflight = null;
+    for (const cb of waiters) {
+      try { cb(err, token); } catch (e) { console.error('[arm-token] callback error:', e.message); }
+    }
+  };
+
+  if (!M365_AUTH_MODE) {
+    return finish(new Error('Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.'));
+  }
+
+  const onToken = (err, result) => {
+    if (err) return finish(err);
+    armAccessToken = result.token;
+    armTokenExpiresAt = result.expiresAt;
+    finish(null, armAccessToken);
+  };
+
+  if (M365_AUTH_MODE === 'managed-identity') fetchManagedIdentityArmToken(onToken);
+  else fetchClientSecretArmToken(onToken);
+}
+
+// Generic Azure Management GET helper with pagination support.
+function armGet(token, pathOrUrl, done) {
+  let hostname = 'management.azure.com';
+  let reqPath = pathOrUrl;
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    const u = new URL(pathOrUrl);
+    hostname = u.hostname;
+    reqPath = u.pathname + u.search;
+  }
+  if (hostname.toLowerCase() !== 'management.azure.com') {
+    return done(new Error(`Refusing to send ARM token to non-ARM host "${hostname}"`));
+  }
+  const options = {
+    hostname,
+    path: reqPath,
+    method: 'GET',
+    agent: keepAliveAgent,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+    },
+  };
+  const req = https.request(options, (res) => {
+    let body = '';
+    res.on('data', chunk => { body += chunk; });
+    res.on('end', () => {
+      try { done(null, { status: res.statusCode, body: JSON.parse(body) }); }
+      catch (e) { done(new Error(`ARM parse error: ${e.message}`)); }
+    });
+  });
+  req.on('error', done);
+  req.setTimeout(UPSTREAM_TIMEOUT_MS, () => req.destroy(new Error('ARM request timeout')));
+  req.end();
+}
+
+// Fetch all pages from ARM by following nextLink.
+function armGetAllPages(token, firstPath, maxPages, done) {
+  const collected = [];
+  let lastStatus = 200;
+  let pages = 0;
+
+  function step(pathOrUrl) {
+    armGet(token, pathOrUrl, (err, result) => {
+      if (err) return done(err);
+      pages++;
+      const { status, body } = result;
+      lastStatus = status;
+      if (status >= 400 || !body) {
+        return done(null, { status, body: { value: collected, error: body && body.error } });
+      }
+      if (Array.isArray(body.value)) collected.push(...body.value);
+      const next = body.nextLink || body['@odata.nextLink'];
+      if (next && pages < maxPages) {
+        return step(next);
+      }
+      done(null, { status: lastStatus, body: { value: collected } });
+    });
+  }
+
+  step(firstPath);
+}
+
+// ── Resource Health fetch functions ──────────────────────────────────────────
+
+// Emerging Issues — tenant-level, no subscription needed.
+function fetchEmergingIssues(token, done) {
+  const apiPath = `/providers/Microsoft.ResourceHealth/emergingIssues?api-version=${ARM_API_VERSION}`;
+  cachedFetch('arm:emerging-issues', 120_000, (cb) => armGetAllPages(token, apiPath, 5, cb), done);
+}
+
+// Service Health Events — subscription-scoped.
+function fetchResourceHealthEvents(token, subscriptionId, opts, done) {
+  let apiPath = `/subscriptions/${encodeURIComponent(subscriptionId)}/providers/Microsoft.ResourceHealth/events?api-version=${ARM_API_VERSION}`;
+  const params = [];
+  if (opts.filter) params.push(`$filter=${encodeURIComponent(opts.filter)}`);
+  if (opts.queryStartTime) params.push(`queryStartTime=${encodeURIComponent(opts.queryStartTime)}`);
+  if (params.length) apiPath += '&' + params.join('&');
+  const cacheKey = `arm:events:${subscriptionId}:${opts.filter || ''}:${opts.queryStartTime || ''}`;
+  cachedFetch(cacheKey, 120_000, (cb) => armGetAllPages(token, apiPath, 10, cb), done);
+}
+
+// Availability Statuses — subscription-scoped.
+function fetchAvailabilityStatuses(token, subscriptionId, opts, done) {
+  let apiPath = `/subscriptions/${encodeURIComponent(subscriptionId)}/providers/Microsoft.ResourceHealth/availabilityStatuses?api-version=${ARM_API_VERSION}`;
+  const params = [];
+  if (opts.filter) params.push(`$filter=${encodeURIComponent(opts.filter)}`);
+  if (opts.expand) params.push(`$expand=${encodeURIComponent(opts.expand)}`);
+  if (params.length) apiPath += '&' + params.join('&');
+  const cacheKey = `arm:avail:${subscriptionId}:${opts.filter || ''}:${opts.expand || ''}`;
+  cachedFetch(cacheKey, 120_000, (cb) => armGetAllPages(token, apiPath, 10, cb), done);
+}
+
+// Impacted Resources — subscription + event scoped.
+function fetchImpactedResources(token, subscriptionId, eventTrackingId, done) {
+  const apiPath = `/subscriptions/${encodeURIComponent(subscriptionId)}/providers/Microsoft.ResourceHealth/events/${encodeURIComponent(eventTrackingId)}/impactedResources?api-version=${ARM_API_VERSION}`;
+  const cacheKey = `arm:impacted:${subscriptionId}:${eventTrackingId}`;
+  cachedFetch(cacheKey, 120_000, (cb) => armGetAllPages(token, apiPath, 10, cb), done);
+}
+
+// Events for a specific resource.
+function fetchResourceEvents(token, resourceUri, done) {
+  const apiPath = `/${resourceUri.replace(/^\/+/, '')}/providers/Microsoft.ResourceHealth/events?api-version=${ARM_API_VERSION}`;
+  const cacheKey = `arm:resource-events:${resourceUri}`;
+  cachedFetch(cacheKey, 120_000, (cb) => armGetAllPages(token, apiPath, 5, cb), done);
+}
+
+// Availability status for a specific resource.
+function fetchResourceAvailability(token, resourceUri, opts, done) {
+  let apiPath = `/${resourceUri.replace(/^\/+/, '')}/providers/Microsoft.ResourceHealth/availabilityStatuses?api-version=${ARM_API_VERSION}`;
+  const params = [];
+  if (opts.expand) params.push(`$expand=${encodeURIComponent(opts.expand)}`);
+  if (params.length) apiPath += '&' + params.join('&');
+  const cacheKey = `arm:resource-avail:${resourceUri}:${opts.expand || ''}`;
+  cachedFetch(cacheKey, 120_000, (cb) => armGetAllPages(token, apiPath, 5, cb), done);
+}
+
+// Current availability status for a specific resource.
+function fetchResourceCurrentStatus(token, resourceUri, opts, done) {
+  let apiPath = `/${resourceUri.replace(/^\/+/, '')}/providers/Microsoft.ResourceHealth/availabilityStatuses/current?api-version=${ARM_API_VERSION}`;
+  const params = [];
+  if (opts.expand) params.push(`$expand=${encodeURIComponent(opts.expand)}`);
+  if (params.length) apiPath += '&' + params.join('&');
+  const cacheKey = `arm:resource-current:${resourceUri}:${opts.expand || ''}`;
+  cachedFetch(cacheKey, 60_000, (cb) => armGet(token, apiPath, cb), done);
+}
 
 // Translate a Microsoft Graph error object + HTTP status into a diagnostic
 // message. Graph often returns 403 with { code: "UnknownError", message: "" }
@@ -787,6 +1098,38 @@ function fetchAzureUpdates(done) {
   fetchRssFeed(AZURE_UPDATES_HOST, AZURE_UPDATES_PATH, done);
 }
 
+// Fetch a single Fabric product's roadmap items from the Power Pages JSON endpoint.
+function fetchFabricProduct(productId, done) {
+  const pathname = `${FABRIC_ROADMAP_PATH}?productId=${encodeURIComponent(productId)}`;
+  httpsGetFollow(FABRIC_ROADMAP_HOST, pathname, MAX_REDIRECTS, (err, result) => {
+    if (err) return done(err);
+    const { status, body } = result;
+    if (status >= 400) return done(null, { status, items: [] });
+    let parsed;
+    try { parsed = JSON.parse(body); } catch { return done(null, { status, items: [] }); }
+    done(null, { status, items: Array.isArray(parsed.results) ? parsed.results : [] });
+  });
+}
+
+// Fetch all Fabric products in parallel, merge, and cache the combined result.
+function fetchFabricRoadmap(done) {
+  cachedFetch('fabric:roadmap', 5 * 60_000, (cb) => {
+    let pending = FABRIC_PRODUCTS.length;
+    const allItems = [];
+    let hadError = null;
+    FABRIC_PRODUCTS.forEach(product => {
+      fetchFabricProduct(product.id, (err, result) => {
+        if (err) { hadError = err; }
+        else if (result && result.items) { allItems.push(...result.items); }
+        if (--pending === 0) {
+          if (hadError && !allItems.length) return cb(hadError);
+          cb(null, { items: allItems });
+        }
+      });
+    });
+  }, done);
+}
+
 function requestReleasePlans(pathname, redirectsLeft, done) {
   const options = {
     hostname: API_HOST,
@@ -911,6 +1254,17 @@ loadEmptyProducts();
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
 
+  // ── Health check endpoint (no auth, no rate limit) ───────────────────────
+  if (parsed.pathname === '/healthz' || parsed.pathname === '/health') {
+    sendJson(req, res, 200, {
+      status: 'ok',
+      version: require('./package.json').version,
+      uptime: Math.floor(process.uptime()),
+      graph: M365_AUTH_MODE || 'not-configured'
+    });
+    return;
+  }
+
   // ── AI status endpoint (UI uses this to show/hide AI features) ───────────
   if (parsed.pathname === '/api/ai-status') {
     sendJson(req, res, 200, {
@@ -1013,11 +1367,25 @@ const server = http.createServer((req, res) => {
     } else if (source === 'm365') {
       fetchM365Updates((e, r) => finish(e ? [] : (r.items || [])));
     } else if (source === 'messagecenter') {
+      if (!M365_AUTH_MODE) {
+        return sendJson(req, res, 503, {
+          error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+          code: 'AUTH_NOT_CONFIGURED',
+          topItems: []
+        });
+      }
       getM365AccessToken((e, token) => {
         if (e) return sendJson(req, res, 502, { error: e.message, topItems: [] });
         fetchMessageCenterMessages(token, (e2, r) => finish(e2 ? [] : ((r && r.body && r.body.value) || [])));
       });
     } else if (source === 'servicehealth') {
+      if (!M365_AUTH_MODE) {
+        return sendJson(req, res, 503, {
+          error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+          code: 'AUTH_NOT_CONFIGURED',
+          topItems: []
+        });
+      }
       getM365AccessToken((e, token) => {
         if (e) return sendJson(req, res, 502, { error: e.message, topItems: [] });
         fetchServiceHealth(token, (e2, r) => {
@@ -1033,15 +1401,133 @@ const server = http.createServer((req, res) => {
           finish(issues);
         });
       });
+    } else if (source === 'fabricroadmap') {
+      fetchFabricRoadmap((e, r) => {
+        if (e) return finish([]);
+        // Normalize Fabric items so the AI normalizer can find standard fields.
+        const items = (r.items || []).map(it => ({
+          id: it.ReleaseItemID,
+          title: it.FeatureName,
+          description: it.FeatureDescription || '',
+          categories: [it.ProductName, it.ReleaseType, it.ReleaseStatus].filter(Boolean),
+          pubDate: '',
+          link: '',
+        }));
+        finish(items);
+      });
     } else {
-      sendJson(req, res, 400, { error: 'source must be one of: azure, m365, messagecenter, servicehealth' });
+      sendJson(req, res, 400, { error: 'source must be one of: azure, m365, messagecenter, servicehealth, fabricroadmap' });
     }
+    return;
+  }
+
+  // ── Auth check endpoint (for UI to know what's configured) ──────────────
+  if (parsed.pathname === '/api/auth-check') {
+    sendJson(req, res, 200, {
+      graph: {
+        required: true,
+        configured: !!M365_AUTH_MODE,
+        mode: M365_AUTH_MODE || 'none',
+        pages: ['messagecenter', 'servicehealth']
+      },
+      arm: {
+        required: false,
+        configured: !!M365_AUTH_MODE,
+        subscriptionId: AZURE_SUBSCRIPTION_ID ? AZURE_SUBSCRIPTION_ID.slice(0, 8) + '...' : null,
+        selectedSubscriptions: selectedSubscriptions,
+        pages: ['azure-resource-health']
+      },
+      ai: {
+        required: false,
+        configured: !!AI_PROVIDER,
+        provider: AI_PROVIDER ? AI_PROVIDER.name : 'none'
+      }
+    });
+    return;
+  }
+
+  // ── List Azure subscriptions the service principal can access ────────────
+  if (parsed.pathname === '/api/subscriptions') {
+    if (!checkRateLimit(req, res, 30, 60_000)) return;
+    if (!M365_AUTH_MODE) {
+      sendJson(req, res, 503, {
+        error: 'Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+        code: 'AUTH_NOT_CONFIGURED'
+      });
+      return;
+    }
+    getArmAccessToken((err, token) => {
+      if (err) {
+        console.error('[subscriptions] ARM token error:', err.message);
+        return sendJson(req, res, 502, { error: err.message });
+      }
+      const apiPath = '/subscriptions?api-version=2022-12-01';
+      cachedFetch('arm:subscriptions', 300_000, (cb) => armGetAllPages(token, apiPath, 10, cb), (err2, result) => {
+        if (err2) {
+          console.error('[subscriptions] list error:', err2.message);
+          return sendJson(req, res, 502, { error: err2.message });
+        }
+        const { status, body } = result;
+        const subs = ((body && body.value) || []).map(s => ({
+          id: s.subscriptionId,
+          displayName: s.displayName || '',
+          state: s.state || '',
+          tenantId: s.tenantId || '',
+        }));
+        sendJson(req, res, status >= 400 ? status : 200, {
+          value: subs,
+          count: subs.length,
+          selected: selectedSubscriptions,
+          error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+        }, { 'Cache-Control': 'max-age=300' });
+      });
+    });
+    return;
+  }
+
+  // ── Get/set selected subscriptions ──────────────────────────────────────
+  if (parsed.pathname === '/api/subscriptions/selected') {
+    if (!checkRateLimit(req, res, 30, 60_000)) return;
+    // GET — return current selection
+    if (req.method === 'GET') {
+      sendJson(req, res, 200, { selected: selectedSubscriptions });
+      return;
+    }
+    // POST — update selection
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; if (body.length > 16384) req.destroy(); });
+      req.on('end', () => {
+        let data;
+        try { data = JSON.parse(body); }
+        catch (e) { return sendJson(req, res, 400, { error: 'Invalid JSON' }); }
+        if (!Array.isArray(data.selected)) {
+          return sendJson(req, res, 400, { error: 'Body must contain "selected" array of {id, displayName} objects' });
+        }
+        // Validate each entry has at minimum an id string
+        const cleaned = data.selected
+          .filter(s => s && typeof s.id === 'string' && s.id.trim())
+          .map(s => ({ id: s.id.trim(), displayName: String(s.displayName || '') }));
+        selectedSubscriptions = cleaned;
+        console.log(`[subscriptions] Selection updated: ${cleaned.length} subscription(s) — ${cleaned.map(s => s.displayName || s.id.slice(0, 8)).join(', ')}`);
+        sendJson(req, res, 200, { selected: selectedSubscriptions, count: selectedSubscriptions.length });
+      });
+      return;
+    }
+    res.writeHead(405, { Allow: 'GET, POST' }); res.end();
     return;
   }
 
   // ── Message Center API endpoint ──────────────────────────────────────────
   if (parsed.pathname === '/api/messagecenter' || parsed.pathname === '/api/servicemessages' || parsed.pathname === '/servicemessages') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
+    if (!M365_AUTH_MODE) {
+      sendJson(req, res, 503, {
+        error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+        code: 'AUTH_NOT_CONFIGURED'
+      });
+      return;
+    }
     getM365AccessToken((err, token) => {
       if (err) {
         console.error('[messagecenter] token error:', err.message);
@@ -1081,6 +1567,13 @@ const server = http.createServer((req, res) => {
   // ── Service Health API endpoint ───────────────────────────────────────────
   if (parsed.pathname === '/api/servicehealth') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
+    if (!M365_AUTH_MODE) {
+      sendJson(req, res, 503, {
+        error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+        code: 'AUTH_NOT_CONFIGURED'
+      });
+      return;
+    }
     getM365AccessToken((err, token) => {
       if (err) {
         console.error('[servicehealth] token error:', err.message);
@@ -1102,16 +1595,45 @@ const server = http.createServer((req, res) => {
           ? describeGraphError(status, body.error, 'ServiceHealth.Read.All')
           : null;
         if (error) console.error('[servicehealth] graph error:', status, error);
-        res.writeHead(status, {
-          'Content-Type': 'application/json; charset=utf-8',
-          'X-Content-Type-Options': 'nosniff',
-          'Cache-Control': 'max-age=60',
+
+        // Also fetch all issues (including resolved + PIRs) to enrich the response.
+        fetchServiceHealthIssues(token, (err2, issuesResult) => {
+          let allIssues = [];
+          if (!err2 && issuesResult && issuesResult.body && issuesResult.body.value) {
+            allIssues = issuesResult.body.value;
+          }
+
+          // Merge resolved/PIR issues into the services array so the frontend gets everything.
+          const services = body.value || [];
+          const serviceMap = new Map(services.map(s => [s.service || s.id, s]));
+
+          for (const issue of allIssues) {
+            const svcName = issue.service || 'Unknown Service';
+            let svc = serviceMap.get(svcName);
+            if (!svc) {
+              svc = { service: svcName, id: svcName, status: 'serviceOperational', issues: [] };
+              serviceMap.set(svcName, svc);
+              services.push(svc);
+            }
+            if (!svc.issues) svc.issues = [];
+            // Add issue only if not already present (avoid duplicates with healthOverviews)
+            const existingIds = new Set(svc.issues.map(i => i.id));
+            if (!existingIds.has(issue.id)) {
+              svc.issues.push(issue);
+            }
+          }
+
+          res.writeHead(status, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-Content-Type-Options': 'nosniff',
+            'Cache-Control': 'max-age=60',
+          });
+          res.end(JSON.stringify({
+            services,
+            count: services.length,
+            error,
+          }));
         });
-        res.end(JSON.stringify({
-          services: body.value || [],
-          count: (body.value || []).length,
-          error,
-        }));
       });
     });
     return;
@@ -1159,6 +1681,37 @@ const server = http.createServer((req, res) => {
         ...corsHeaders(req),
       });
       res.end(JSON.stringify({ items, count: items.length, error: error || null }));
+    });
+    return;
+  }
+
+  // ── Fabric Roadmap JSON endpoint ──────────────────────────────────────
+  if (parsed.pathname === '/api/fabricroadmap') {
+    if (!checkRateLimit(req, res, 60, 60_000)) return;
+    const productFilter = parsed.searchParams.get('product') || '';
+    fetchFabricRoadmap((err, result) => {
+      if (err) {
+        console.error('[fabricroadmap] fetch error:', err.message);
+        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
+        res.end(JSON.stringify({ items: [], error: err.message }));
+        return;
+      }
+      let items = result.items || [];
+      // Optional product filter (by queryString)
+      if (productFilter) {
+        const product = FABRIC_PRODUCTS.find(p => p.queryString === productFilter);
+        if (product) {
+          items = items.filter(it => it.ProductID === product.id);
+        }
+      }
+      console.log(`[fabricroadmap] ${items.length} items${productFilter ? ` (product=${productFilter})` : ''}`);
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'max-age=300',
+        ...corsHeaders(req),
+      });
+      res.end(JSON.stringify({ items, count: items.length, products: FABRIC_PRODUCTS }));
     });
     return;
   }
@@ -1298,8 +1851,10 @@ const server = http.createServer((req, res) => {
     '/powerplatform': 'index.html',
     '/messagecenter': 'messagecenter.html',
     '/servicehealth': 'servicehealth.html',
+    '/azureservicehealth': 'azureservicehealth.html',
     '/m365updates':   'm365updates.html',
-    '/azureupdates':  'azureupdates.html',
+    '/azureupdates':    'azureupdates.html',
+    '/fabricroadmap':   'fabricroadmap.html',
   };
   const htmlFile = pageMap[parsed.pathname];
   if (htmlFile) {
@@ -1387,6 +1942,248 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Azure Resource Health API endpoints ───────────────────────────────────
+  // All under /api/azure-resource-health/*. Requires M365_AUTH_MODE (same app
+  // registration with Azure RBAC Reader role on the subscription).
+  const ARM_ROUTE_PREFIX = '/api/azure-resource-health/';
+
+  if (parsed.pathname.startsWith(ARM_ROUTE_PREFIX)) {
+    if (!checkRateLimit(req, res, 60, 60_000)) return;
+    const subRoute = parsed.pathname.slice(ARM_ROUTE_PREFIX.length);
+
+    if (!M365_AUTH_MODE) {
+      sendJson(req, res, 503, {
+        error: 'Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env. The app also needs Reader RBAC role on the target subscription.',
+        code: 'AUTH_NOT_CONFIGURED'
+      });
+      return;
+    }
+
+    // ── Emerging Issues (tenant-level — no subscription required) ──────────
+    if (subRoute === 'emerging-issues') {
+      getArmAccessToken((err, token) => {
+        if (err) {
+          console.error('[resource-health] ARM token error:', err.message);
+          return sendJson(req, res, 502, { error: err.message });
+        }
+        fetchEmergingIssues(token, (err2, result) => {
+          if (err2) {
+            console.error('[resource-health] emerging-issues error:', err2.message);
+            return sendJson(req, res, 502, { error: err2.message });
+          }
+          const { status, body } = result;
+          sendJson(req, res, status >= 400 ? status : 200, {
+            value: (body && body.value) || [],
+            count: ((body && body.value) || []).length,
+            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+          }, { 'Cache-Control': 'max-age=120' });
+        });
+      });
+      return;
+    }
+
+    // ── Events (subscription-scoped) ──────────────────────────────────────
+    if (subRoute === 'events') {
+      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds()[0] || '') || AZURE_SUBSCRIPTION_ID;
+      if (!subscriptionId) {
+        return sendJson(req, res, 400, {
+          error: 'subscriptionId query parameter required (or select a subscription in the UI, or set AZURE_SUBSCRIPTION_ID in .env)'
+        });
+      }
+      const filter = parsed.searchParams.get('filter') || '';
+      const queryStartTime = parsed.searchParams.get('queryStartTime') || '';
+      getArmAccessToken((err, token) => {
+        if (err) {
+          console.error('[resource-health] ARM token error:', err.message);
+          return sendJson(req, res, 502, { error: err.message });
+        }
+        fetchResourceHealthEvents(token, subscriptionId, { filter, queryStartTime }, (err2, result) => {
+          if (err2) {
+            console.error('[resource-health] events error:', err2.message);
+            return sendJson(req, res, 502, { error: err2.message });
+          }
+          const { status, body } = result;
+          sendJson(req, res, status >= 400 ? status : 200, {
+            value: (body && body.value) || [],
+            count: ((body && body.value) || []).length,
+            subscriptionId,
+            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+          }, { 'Cache-Control': 'max-age=120' });
+        });
+      });
+      return;
+    }
+
+    // ── Availability Statuses (subscription-scoped) ────────────────────────
+    if (subRoute === 'availability-statuses') {
+      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds()[0] || '') || AZURE_SUBSCRIPTION_ID;
+      if (!subscriptionId) {
+        return sendJson(req, res, 400, {
+          error: 'subscriptionId query parameter required (or select a subscription in the UI, or set AZURE_SUBSCRIPTION_ID in .env)'
+        });
+      }
+      const filter = parsed.searchParams.get('filter') || '';
+      const expand = parsed.searchParams.get('expand') || 'recommendedactions';
+      getArmAccessToken((err, token) => {
+        if (err) {
+          console.error('[resource-health] ARM token error:', err.message);
+          return sendJson(req, res, 502, { error: err.message });
+        }
+        fetchAvailabilityStatuses(token, subscriptionId, { filter, expand }, (err2, result) => {
+          if (err2) {
+            console.error('[resource-health] availability-statuses error:', err2.message);
+            return sendJson(req, res, 502, { error: err2.message });
+          }
+          const { status, body } = result;
+          sendJson(req, res, status >= 400 ? status : 200, {
+            value: (body && body.value) || [],
+            count: ((body && body.value) || []).length,
+            subscriptionId,
+            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+          }, { 'Cache-Control': 'max-age=120' });
+        });
+      });
+      return;
+    }
+
+    // ── Impacted Resources (subscription + eventTrackingId) ────────────────
+    if (subRoute === 'impacted-resources') {
+      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds()[0] || '') || AZURE_SUBSCRIPTION_ID;
+      const eventTrackingId = parsed.searchParams.get('eventTrackingId') || '';
+      if (!subscriptionId) {
+        return sendJson(req, res, 400, {
+          error: 'subscriptionId query parameter required (or select a subscription in the UI, or set AZURE_SUBSCRIPTION_ID in .env)'
+        });
+      }
+      if (!eventTrackingId) {
+        return sendJson(req, res, 400, { error: 'eventTrackingId query parameter required' });
+      }
+      getArmAccessToken((err, token) => {
+        if (err) {
+          console.error('[resource-health] ARM token error:', err.message);
+          return sendJson(req, res, 502, { error: err.message });
+        }
+        fetchImpactedResources(token, subscriptionId, eventTrackingId, (err2, result) => {
+          if (err2) {
+            console.error('[resource-health] impacted-resources error:', err2.message);
+            return sendJson(req, res, 502, { error: err2.message });
+          }
+          const { status, body } = result;
+          sendJson(req, res, status >= 400 ? status : 200, {
+            value: (body && body.value) || [],
+            count: ((body && body.value) || []).length,
+            subscriptionId,
+            eventTrackingId,
+            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+          }, { 'Cache-Control': 'max-age=120' });
+        });
+      });
+      return;
+    }
+
+    // ── Resource-specific events (by resource URI) ─────────────────────────
+    if (subRoute === 'resource-events') {
+      const resourceUri = parsed.searchParams.get('resourceUri') || '';
+      if (!resourceUri) {
+        return sendJson(req, res, 400, {
+          error: 'resourceUri query parameter required (full ARM resource ID, e.g. /subscriptions/.../providers/Microsoft.Compute/virtualMachines/myVm)'
+        });
+      }
+      getArmAccessToken((err, token) => {
+        if (err) {
+          console.error('[resource-health] ARM token error:', err.message);
+          return sendJson(req, res, 502, { error: err.message });
+        }
+        fetchResourceEvents(token, resourceUri, (err2, result) => {
+          if (err2) {
+            console.error('[resource-health] resource-events error:', err2.message);
+            return sendJson(req, res, 502, { error: err2.message });
+          }
+          const { status, body } = result;
+          sendJson(req, res, status >= 400 ? status : 200, {
+            value: (body && body.value) || [],
+            count: ((body && body.value) || []).length,
+            resourceUri,
+            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+          }, { 'Cache-Control': 'max-age=120' });
+        });
+      });
+      return;
+    }
+
+    // ── Resource-specific availability history ─────────────────────────────
+    if (subRoute === 'resource-availability') {
+      const resourceUri = parsed.searchParams.get('resourceUri') || '';
+      if (!resourceUri) {
+        return sendJson(req, res, 400, {
+          error: 'resourceUri query parameter required (full ARM resource ID)'
+        });
+      }
+      const expand = parsed.searchParams.get('expand') || 'recommendedactions';
+      getArmAccessToken((err, token) => {
+        if (err) {
+          console.error('[resource-health] ARM token error:', err.message);
+          return sendJson(req, res, 502, { error: err.message });
+        }
+        fetchResourceAvailability(token, resourceUri, { expand }, (err2, result) => {
+          if (err2) {
+            console.error('[resource-health] resource-availability error:', err2.message);
+            return sendJson(req, res, 502, { error: err2.message });
+          }
+          const { status, body } = result;
+          sendJson(req, res, status >= 400 ? status : 200, {
+            value: (body && body.value) || [],
+            count: ((body && body.value) || []).length,
+            resourceUri,
+            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+          }, { 'Cache-Control': 'max-age=120' });
+        });
+      });
+      return;
+    }
+
+    // ── Resource current status ────────────────────────────────────────────
+    if (subRoute === 'resource-status') {
+      const resourceUri = parsed.searchParams.get('resourceUri') || '';
+      if (!resourceUri) {
+        return sendJson(req, res, 400, {
+          error: 'resourceUri query parameter required (full ARM resource ID)'
+        });
+      }
+      const expand = parsed.searchParams.get('expand') || 'recommendedactions';
+      getArmAccessToken((err, token) => {
+        if (err) {
+          console.error('[resource-health] ARM token error:', err.message);
+          return sendJson(req, res, 502, { error: err.message });
+        }
+        fetchResourceCurrentStatus(token, resourceUri, { expand }, (err2, result) => {
+          if (err2) {
+            console.error('[resource-health] resource-status error:', err2.message);
+            return sendJson(req, res, 502, { error: err2.message });
+          }
+          const { status, body } = result;
+          sendJson(req, res, status >= 400 ? status : 200, body || {}, { 'Cache-Control': 'max-age=60' });
+        });
+      });
+      return;
+    }
+
+    // Unknown sub-route under /api/azure-resource-health/
+    sendJson(req, res, 404, {
+      error: `Unknown resource-health endpoint: ${subRoute}`,
+      available: [
+        'emerging-issues',
+        'events',
+        'availability-statuses',
+        'impacted-resources',
+        'resource-events',
+        'resource-availability',
+        'resource-status'
+      ]
+    });
+    return;
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 
@@ -1422,11 +2219,18 @@ server.listen(PORT, HOST, () => {
   if (M365_AUTH_MODE) {
     console.log(`  → Graph auth: ${M365_AUTH_MODE}${M365_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ' (user-assigned)' : ''}`);
   } else {
-    console.log(`  → Graph auth: disabled (set USE_MANAGED_IDENTITY=true or M365_CLIENT_* in .env)`);
+    console.warn('[startup] \u26a0 Microsoft Graph not configured \u2014 Message Center and Service Health pages will return 503.');
+    console.warn('[startup]   Set USE_MANAGED_IDENTITY=true or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.');
+  }
+  if (AZURE_SUBSCRIPTION_ID) {
+    console.log(`  → Resource Health: subscription ${AZURE_SUBSCRIPTION_ID.slice(0, 8)}...`);
+  } else {
+    console.warn('[startup] ⚠ AZURE_SUBSCRIPTION_ID not set — Resource Health subscription-scoped endpoints require ?subscriptionId= param.');
   }
   if (AI_PROVIDER) {
     console.log(`  → AI: ${AI_PROVIDER.name} (${AI_PROVIDER.model})\n`);
   } else {
-    console.log(`  → AI: disabled (set AZURE_OPENAI_*, OPENAI_API_KEY, or GITHUB_TOKEN in .env to enable)\n`);
+    console.warn('[startup] ⚠ AI provider not configured — AI insights will be unavailable.');
+    console.warn('[startup]   Set AZURE_OPENAI_*, OPENAI_API_KEY, or GITHUB_TOKEN in .env to enable.\n');
   }
 });

@@ -23,7 +23,7 @@
 ## Project Context
 
 - **Owner:** Russ Rimmerman
-- **Project:** Microsoft Communications Portal — single-pane-of-glass web app that aggregates Microsoft update/health streams (Power Platform release plans, M365 Roadmap, Azure Roadmap, M365 Message Center via Graph, M365 Service Health via Graph). Optional Azure Service/Resource Health via Azure Management API. Sample/reference implementation, MIT-licensed.
+- **Project:** Microsoft Communications Portal — single-pane-of-glass web app that aggregates Microsoft update/health streams (Power Platform release plans, M365 Roadmap, Azure Updates, M365 Message Center via Graph, M365 Service Health via Graph). Optional Azure Service/Resource Health via Azure Management API. Sample/reference implementation, MIT-licensed.
 - **Stack:** Node.js (only prod dep is `dotenv`), static HTML/JS frontend (no framework), Playwright for screenshot capture.
 - **Version:** 1.1.0
 - **Runs on:** `http://localhost:3000` via `npm start` or `npm run dev`

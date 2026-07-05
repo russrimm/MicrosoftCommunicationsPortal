@@ -29,7 +29,7 @@ tenant-side incidents in one place.
 |---|---|---|---|
 | Power Platform Release Planner | `/powerplatform` | `index.html` | `releaseplans.microsoft.com` (proxied) |
 | Microsoft 365 Roadmap | `/m365updates` | `m365updates.html` | M365 Roadmap RSS |
-| Azure Roadmap | `/azureupdates` | `azureupdates.html` | Azure Updates RSS |
+| Azure Updates | `/azureupdates` | `azureupdates.html` | Azure Updates RSS |
 | Microsoft 365 Message Center | `/messagecenter` | `messagecenter.html` | Microsoft Graph |
 | Microsoft 365 Service Health | `/servicehealth` | `servicehealth.html` | Microsoft Graph |
 
@@ -59,11 +59,11 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 |---|---|
 | ![Microsoft 365 Roadmap — light](screenshots/m365-roadmap-light.png) | ![Microsoft 365 Roadmap — dark](screenshots/m365-roadmap-dark.png) |
 
-### Azure Roadmap
+### Azure Updates
 
 | Light | Dark |
 |---|---|
-| ![Azure Roadmap — light](screenshots/azure-updates-light.png) | ![Azure Roadmap — dark](screenshots/azure-updates-dark.png) |
+| ![Azure Updates — light](screenshots/azure-updates-light.png) | ![Azure Updates — dark](screenshots/azure-updates-dark.png) |
 
 ### Microsoft 365 Message Center
 
@@ -86,7 +86,7 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 
 2. **Configure Microsoft Graph authentication** (required only for Message Center and Service Health):
 
-   The Power Platform, M365 Roadmap, and Azure Roadmap pages work without credentials —
+   The Power Platform, M365 Roadmap, and Azure Updates pages work without credentials —
    skip this step if you only need those.
 
    **Option A — Managed identity (recommended for Azure deployments)**
@@ -222,7 +222,7 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 ### Content sources
 - **Power Platform Release Planner** — browse release features by product, wave, and date.
 - **Microsoft 365 Roadmap** — current and upcoming M365 features from the official RSS feed.
-- **Azure Roadmap** — Azure product announcements from the official RSS feed.
+- **Azure Updates** — Azure product announcements from the official RSS feed.
 - **Message Center** — tenant-specific Microsoft 365 Message Center announcements,
   filterable by severity and date.
 - **Service Health** — current service incidents and advisories for your tenant.
@@ -334,7 +334,7 @@ The Node server exposes the following local endpoints (all return JSON):
 |---|---|---|---|
 | `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None | 600/min |
 | `GET /api/m365updates` | Microsoft 365 Roadmap RSS, parsed to JSON | None | 60/min |
-| `GET /api/azureupdates` | Azure Roadmap RSS, parsed to JSON | None | 60/min |
+| `GET /api/azureupdates` | Azure Updates RSS, parsed to JSON | None | 60/min |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` | 60/min |
 | `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` | 60/min |
 | `GET /api/ai-status` | Reports whether AI is configured and which provider is active | None | — |
@@ -357,7 +357,7 @@ Static `/public/` icons are sent with a 24-hour `Cache-Control` and an ETag, and
 ```
 index.html                       Power Platform Release Planner UI
 m365updates.html                 M365 Roadmap UI
-azureupdates.html                Azure Roadmap UI
+azureupdates.html                Azure Updates UI
 messagecenter.html               M365 Message Center UI
 servicehealth.html               M365 Service Health UI
 server.js                        Node HTTP server, static file host, API proxy, AI endpoints

@@ -12,7 +12,7 @@
 ## What I Own
 
 - `server.js` — the Node.js proxy server, routing, caching, upstream calls
-- Proxying for `releaseplans.microsoft.com`, M365 Roadmap RSS, Azure Roadmap RSS
+- Proxying for `releaseplans.microsoft.com`, M365 Roadmap RSS, Azure Updates RSS
 - Microsoft Graph calls: `ServiceMessage.Read.All`, `ServiceHealth.Read.All`
 - Optional Azure Management API integration for Service/Resource Health
 - `.env` / `.env.example` conventions, token acquisition & refresh

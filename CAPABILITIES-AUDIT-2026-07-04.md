@@ -19,7 +19,7 @@
 **What's broken or misleading**
 - **README promises features that don't exist**: Canvas App (Code app type) deployment, Azure Management API for Azure Service/Resource Health.
 - **`scripts/capture-screenshots.js` needs Playwright, which is not in `package.json`** — README tells users to run the script but omits the install step. This is the highest-severity concrete bug.
-- **README claims product/service logos "on every card"** — only Power Platform and Service Health render them; M365 Roadmap, Azure Roadmap, and Message Center do not.
+- **README claims product/service logos "on every card"** — only Power Platform and Service Health render them; M365 Roadmap, Azure Updates, and Message Center do not.
 - **Server doesn't fail loudly at boot** when Graph credentials are missing (Parker's charter and general expectations both call for this). Instead, `/api/messagecenter` and `/api/servicehealth` return 502 per request with a generic error — hard to diagnose for a first-time user.
 - **Many capabilities are implemented but undocumented**: `/api/empty-products` admin endpoint (GET/DELETE), CORS on RSS/proxy endpoints, gzip compression, per-endpoint cache TTLs, CSP header set, `PORT` env var, `BASE_URL` env var for the screenshot script, `util.js` in the project structure.
 
@@ -44,7 +44,7 @@
 |---|---|---|---|---|
 | Power Platform Release Planner | `/powerplatform` → `/proxy` | `releaseplans.microsoft.com/releaseplanner-json/` | None | 300 s per product |
 | Microsoft 365 Roadmap | `/m365updates` → `/api/m365updates` | `www.microsoft.com/.../m365/rss` | None | 300 s |
-| Azure Roadmap | `/azureupdates` → `/api/azureupdates` | `www.microsoft.com/.../azure/rss` | None | 300 s |
+| Azure Updates | `/azureupdates` → `/api/azureupdates` | `www.microsoft.com/.../azure/rss` | None | 300 s |
 | M365 Message Center | `/messagecenter` → `/api/messagecenter` | Microsoft Graph `admin/serviceAnnouncement/messages` | Graph client-credentials | 60 s |
 | M365 Service Health | `/servicehealth` → `/api/servicehealth` | Microsoft Graph `admin/serviceAnnouncement/healthOverviews` | Graph client-credentials | 60 s |
 
@@ -73,7 +73,7 @@
 |---|---|---|---|---|---|---|
 | Power Platform | Product / area / wave / GA status / feature type / enabled-for, date range + presets, full-text | GA date / name | Product/area/wave (collapsible) | ⬇ Export + 🛠 Generate Full Export | No | Feature card expand |
 | M365 Roadmap | Status / product (multi-select), full-text | Date | Product (opt-in) | ⬇ + 🛠 | Manual ↻ | — |
-| Azure Roadmap | Status / product (multi-select), full-text | Date, Group by product | Product (opt-in) | ⬇ + 🛠 | Manual ↻ | — |
+| Azure Updates | Status / product (multi-select), full-text | Date, Group by product | Product (opt-in) | ⬇ + 🛠 | Manual ↻ | — |
 | Message Center | Severity / product / date range, full-text | Date, group by product | Product | ⬇ + 🛠 | 60 s (pausable) | Full message detail |
 | Service Health | — | — | Service overview + issues list | (none) | 60 s (pausable) | Issue detail + timeline |
 
@@ -93,9 +93,9 @@
 | D1 | "Something they could run internally as a Canvas App (Code app type)" | README intro | No Canvas packaging, no `.azure/`, no ARM template | Remove from README or move to a clearly labeled "Planned / contributions welcome" section |
 | D2 | "If you wire up the Azure Management API as well, this same portal can surface Azure Service Health and Azure Resource Health events" | README intro | No Azure Management API code, no related env vars | Remove or move to Planned |
 | D3 | "Regenerate with `node scripts/capture-screenshots.js` (Playwright)" | README Screenshots | Playwright is not in `package.json`; script crashes on `require('playwright')` for anyone who ran only `npm install` | Add `playwright` to `devDependencies`, OR document `npm install --save-dev playwright` step |
-| D4 | "Product / service logos on every card" (Features section) | README | Only Power Platform and Service Health render icons on cards; M365 Roadmap / Azure Roadmap / Message Center do not | Update wording: "Product logos on Power Platform and Service Health cards, and in filter sidebars" |
+| D4 | "Product / service logos on every card" (Features section) | README | Only Power Platform and Service Health render icons on cards; M365 Roadmap / Azure Updates / Message Center do not | Update wording: "Product logos on Power Platform and Service Health cards, and in filter sidebars" |
 | D5 | "Generate Full Export … checklist of products / services with select-all, clear, and search" | README Generate Full Export | Select-all and clear exist; **no search field** | Remove "and search", or add a search field to the modal |
-| D6 | "Auto-refresh … Graph-backed pages refresh on an interval; non-Graph pages refresh on demand" | README | Message Center + Service Health: 60 s auto-refresh with pause. M365 + Azure Roadmap: manual ↻ Refresh only. **Power Platform: no refresh button at all** | Add "Power Platform has no refresh button; reload the page to refresh" |
+| D6 | "Auto-refresh … Graph-backed pages refresh on an interval; non-Graph pages refresh on demand" | README | Message Center + Service Health: 60 s auto-refresh with pause. M365 + Azure Updates: manual ↻ Refresh only. **Power Platform: no refresh button at all** | Add "Power Platform has no refresh button; reload the page to refresh" |
 | D7 | Node.js 24+ requirement (mentioned in README) | README | `package.json` has no `engines` field; users on Node 20 can `npm install` with no warning | Add `"engines": { "node": ">=24" }` to `package.json` |
 | D8 | `.env.example` lists three AI provider blocks | `.env.example` | Behavior when none is configured (AI features silently disabled, `/api/summarize` returns 503) is not stated | Add a comment at the top of the AI block: `# Optional. If none are set, AI features are disabled and /api/summarize returns 503.` |
 | D9 | SECURITY.md mentions reverse proxy / TLS | SECURITY.md | Server doesn't do TLS itself; assumes reverse proxy | Say so explicitly: "Terminate TLS at a reverse proxy (nginx, Azure App Service, Front Door)." |
