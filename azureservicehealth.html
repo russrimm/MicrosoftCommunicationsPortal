@@ -246,12 +246,95 @@
     .arh-section {
       margin-top: 0;
     }
-    .arh-sub-badge {
-      font-size: 11px; font-weight: 600;
-      background: var(--cp-accent-soft); color: var(--cp-accent);
-      border-radius: 999px; padding: 2px 10px;
+    /* Subscription filter dropdown */
+    .arh-sub-filter {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .arh-sub-filter-btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 0.875rem;
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 8px;
+      color: var(--cp-text);
+      font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      transition: all 0.15s;
       white-space: nowrap;
     }
+    .arh-sub-filter-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
+    .arh-sub-filter-btn .arh-sub-filter-icon {
+      font-size: 14px; flex-shrink: 0;
+    }
+    .arh-sub-filter-btn .arh-sub-filter-caret {
+      font-size: 10px; transition: transform 0.15s;
+    }
+    .arh-sub-filter.open .arh-sub-filter-caret { transform: rotate(180deg); }
+    .arh-sub-filter-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 18px; height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--cp-accent); color: var(--cp-accent-fg);
+      font-size: 10px; font-weight: 700;
+    }
+    .arh-sub-filter-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      min-width: 320px;
+      max-width: 420px;
+      background: var(--cp-surface);
+      border: 1px solid var(--cp-border);
+      border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.14);
+      z-index: 200;
+      padding: 0.5rem 0;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .arh-sub-filter.open .arh-sub-filter-menu { display: block; }
+    .arh-sub-filter-item {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.5rem 0.875rem;
+      font-size: 12px;
+    }
+    .arh-sub-filter-item-dot {
+      width: 8px; height: 8px; border-radius: 50;
+      background: var(--cp-success); flex-shrink: 0;
+    }
+    .arh-sub-filter-item-name {
+      font-weight: 600; color: var(--cp-text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .arh-sub-filter-item-id {
+      font-size: 11px; color: var(--cp-text-muted);
+      font-family: "Cascadia Code", "Consolas", monospace;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .arh-sub-filter-empty {
+      padding: 0.75rem 1rem;
+      font-size: 12px; color: var(--cp-text-muted);
+      text-align: center;
+    }
+    .arh-sub-filter-change {
+      display: block;
+      padding: 0.5rem 0.875rem;
+      margin-top: 0.25rem;
+      border-top: 1px solid var(--cp-border);
+      font-size: 12px; font-weight: 600;
+      color: var(--cp-accent);
+      cursor: pointer;
+      background: none; border-left: none; border-right: none; border-bottom: none;
+      width: 100%; text-align: left;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+    .arh-sub-filter-change:hover { background: var(--cp-accent-soft); }
     .arh-panel { margin-top: 0.5rem; }
     .arh-list { min-height: 48px; }
     .arh-no-sub {
@@ -380,6 +463,161 @@
     .arh-avail-state-label.Unavailable { color: var(--cp-danger); }
     .arh-avail-state-label.Degraded { color: var(--cp-warning); }
     .arh-avail-state-label.Unknown { color: var(--cp-text-muted); }
+
+    /* ── Status Summary Row ── */
+    .sh-status-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.625rem;
+      flex-shrink: 0;
+    }
+    .sh-stat-card {
+      background: var(--cp-bg-elevated);
+      border: 1px solid var(--cp-border);
+      border-radius: 10px;
+      padding: 0.625rem 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: border-color 0.3s, background 0.3s;
+    }
+    .sh-stat-icon {
+      font-size: 18px;
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px;
+      flex-shrink: 0;
+      background: var(--cp-surface-soft);
+      transition: background 0.3s;
+    }
+    .sh-stat-body { min-width: 0; }
+    .sh-stat-value {
+      font-size: 20px; font-weight: 800; line-height: 1.1;
+      color: var(--cp-text); transition: color 0.3s;
+    }
+    .sh-stat-label {
+      font-size: 10px; color: var(--cp-text-muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.4;
+    }
+    .sh-stat-card.sh-stat-ok {
+      border-color: rgba(22,163,74,0.25);
+      background: rgba(22,163,74,0.04);
+    }
+    .sh-stat-card.sh-stat-ok .sh-stat-icon { background: rgba(22,163,74,0.12); }
+    .sh-stat-card.sh-stat-ok .sh-stat-value { color: var(--cp-success); }
+    .sh-stat-card.sh-stat-warn {
+      border-color: rgba(220,38,38,0.25);
+      background: rgba(220,38,38,0.04);
+    }
+    .sh-stat-card.sh-stat-warn .sh-stat-icon { background: rgba(220,38,38,0.12); }
+    .sh-stat-card.sh-stat-warn .sh-stat-value { color: var(--cp-danger); }
+    html[data-theme="dark"] .sh-stat-card.sh-stat-ok {
+      background: rgba(74,222,128,0.06);
+      border-color: rgba(74,222,128,0.2);
+    }
+    html[data-theme="dark"] .sh-stat-card.sh-stat-warn {
+      background: rgba(248,113,113,0.08);
+      border-color: rgba(248,113,113,0.2);
+    }
+
+    /* ── Dashboard Grid Layout ── */
+    .arh-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      flex: 1;
+      min-height: 0;
+    }
+    .sh-dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.8fr 1fr;
+      gap: 0.75rem;
+      flex: 1;
+      min-height: 0;
+    }
+    .sh-dashboard-main {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .sh-dashboard-sidebar {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .sh-dashboard-main > .sh-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .sh-dashboard-sidebar > .sh-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .sh-dashboard-sidebar > .sh-panel:last-child {
+      flex: 1;
+    }
+    .sh-dashboard-grid .arh-panel { margin-top: 0; }
+    .sh-dashboard-grid .arh-list {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .sh-dashboard-grid .sh-panel {
+      border-radius: 10px;
+      padding: 0.625rem 0.875rem;
+    }
+    .sh-dashboard-grid .sh-panel-head {
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--cp-border);
+    }
+
+    /* ── Event card left-border severity indicators ── */
+    .sh-dashboard-grid .arh-event-card {
+      border-left: 3px solid var(--cp-border);
+      padding-left: calc(1rem - 3px);
+    }
+    .arh-event-card:has(.arh-status-dot.Active) {
+      border-left-color: var(--cp-danger);
+    }
+    .arh-event-card:has(.arh-status-dot.Resolved) {
+      border-left-color: var(--cp-success);
+    }
+    .arh-event-card:has(.arh-event-type.PlannedMaintenance) {
+      border-left-color: #3b82f6;
+    }
+    .arh-event-card:has(.arh-event-type.HealthAdvisory) {
+      border-left-color: var(--cp-warning);
+    }
+    .arh-event-card:has(.arh-event-type.SecurityAdvisory) {
+      border-left-color: var(--cp-purple);
+    }
+
+    /* ── Compact availability rows ── */
+    .sh-dashboard-grid .arh-avail-card {
+      padding: 0.3rem 0.75rem;
+      gap: 0.5rem;
+    }
+    .sh-dashboard-grid .arh-avail-status {
+      width: 8px; height: 8px;
+    }
+    .sh-dashboard-grid .arh-avail-name { font-size: 11.5px; }
+    .sh-dashboard-grid .arh-avail-detail { font-size: 10px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .sh-dashboard-grid { grid-template-columns: 1fr; }
+      .sh-dashboard-sidebar > .sh-panel:last-child { flex: none; }
+      .sh-dashboard-main > .sh-panel { flex: none; }
+      .sh-dashboard-grid .arh-list { max-height: 400px; }
+    }
+    @media (max-width: 540px) {
+      .sh-status-row { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -446,68 +684,107 @@
         <div class="sh-hero-title">Azure Service Health</div>
         <div class="sh-hero-sub">Real-time monitoring of Azure resource health, emerging issues, and service events</div>
       </div>
-      <span class="sh-live">Live Monitoring</span>
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <div class="arh-sub-filter" id="arh-sub-filter">
+          <button class="arh-sub-filter-btn" id="arh-sub-filter-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="arh-sub-filter-icon" aria-hidden="true">🔑</span>
+            <span id="arh-sub-filter-label">Subscriptions</span>
+            <span class="arh-sub-filter-count" id="arh-sub-filter-count" style="display:none">0</span>
+            <span class="arh-sub-filter-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="arh-sub-filter-menu" id="arh-sub-filter-menu" role="menu"></div>
+        </div>
+        <span class="sh-live">Live Monitoring</span>
+      </div>
     </div>
 
-    <!-- Azure Resource Health panels -->
+    <!-- Status Summary + Dashboard Grid -->
     <div class="arh-section" id="arh-section">
-      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
-        <span class="arh-sub-badge" id="arh-sub-badge" style="display:none"></span>
+
+      <!-- Status Summary Row -->
+      <div class="sh-status-row">
+        <div class="sh-stat-card" id="sh-stat-emerging-card">
+          <div class="sh-stat-icon" aria-hidden="true">🔥</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-emerging-val">—</div>
+            <div class="sh-stat-label">Emerging Issues</div>
+          </div>
+        </div>
+        <div class="sh-stat-card" id="sh-stat-events-card">
+          <div class="sh-stat-icon" aria-hidden="true">⚡</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-events-val">—</div>
+            <div class="sh-stat-label">Service Events</div>
+          </div>
+        </div>
+        <div class="sh-stat-card" id="sh-stat-avail-card">
+          <div class="sh-stat-icon" aria-hidden="true">💚</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-avail-val">—</div>
+            <div class="sh-stat-label">Resources Healthy</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Emerging Issues (tenant-level — always loads) -->
-      <section class="sh-panel arh-panel">
-        <div class="sh-panel-head">
-          <div class="sh-panel-title">
-            <span class="sh-panel-title-icon" aria-hidden="true">🔥</span>
-            <span>Emerging Issues</span>
-            <span class="sh-panel-title-count" id="arh-emerging-count" style="display:none">0</span>
-          </div>
-          <button class="export-btn" id="arh-emerging-refresh" type="button" aria-label="Refresh emerging issues"><span aria-hidden="true">↻</span></button>
+      <!-- Dashboard Grid -->
+      <div class="sh-dashboard-grid">
+        <!-- Main Column: Service Health Events -->
+        <div class="sh-dashboard-main">
+          <section class="sh-panel arh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span class="sh-panel-title-icon" aria-hidden="true">⚡</span>
+                <span>Service Health Events</span>
+                <span class="sh-panel-title-count" id="arh-events-count" style="display:none">0</span>
+              </div>
+              <button class="export-btn" id="arh-events-refresh" type="button" aria-label="Refresh events"><span aria-hidden="true">↻</span></button>
+            </div>
+            <div class="arh-list" id="arh-events-list">
+              <div class="arh-no-sub" id="arh-events-nosub">Select a subscription above to view events.</div>
+            </div>
+          </section>
         </div>
-        <div class="arh-list" id="arh-emerging-list">
-          <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
-        </div>
-      </section>
 
-      <!-- Service Health Events (subscription-scoped) -->
-      <section class="sh-panel arh-panel">
-        <div class="sh-panel-head">
-          <div class="sh-panel-title">
-            <span class="sh-panel-title-icon" aria-hidden="true">⚡</span>
-            <span>Service Health Events</span>
-            <span class="sh-panel-title-count" id="arh-events-count" style="display:none">0</span>
-          </div>
-          <button class="export-btn" id="arh-events-refresh" type="button" aria-label="Refresh events"><span aria-hidden="true">↻</span></button>
-        </div>
-        <div class="arh-list" id="arh-events-list">
-          <div class="arh-no-sub" id="arh-events-nosub">Select a subscription above to view events.</div>
-        </div>
-      </section>
+        <!-- Sidebar: Emerging Issues + Resource Availability -->
+        <div class="sh-dashboard-sidebar">
+          <section class="sh-panel arh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span class="sh-panel-title-icon" aria-hidden="true">🔥</span>
+                <span>Emerging Issues</span>
+                <span class="sh-panel-title-count" id="arh-emerging-count" style="display:none">0</span>
+              </div>
+              <button class="export-btn" id="arh-emerging-refresh" type="button" aria-label="Refresh emerging issues"><span aria-hidden="true">↻</span></button>
+            </div>
+            <div class="arh-list" id="arh-emerging-list">
+              <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
+            </div>
+          </section>
 
-      <!-- Availability Statuses (subscription-scoped) -->
-      <section class="sh-panel arh-panel">
-        <div class="sh-panel-head">
-          <div class="sh-panel-title">
-            <span class="sh-panel-title-icon" aria-hidden="true">💚</span>
-            <span>Resource Availability</span>
-            <span class="sh-panel-title-count" id="arh-avail-count" style="display:none">0</span>
-          </div>
-          <div style="display:flex;gap:0.4rem;align-items:center;">
-            <select class="arh-filter-select" id="arh-avail-filter" aria-label="Filter availability">
-              <option value="">All</option>
-              <option value="Unavailable">Unavailable</option>
-              <option value="Degraded">Degraded</option>
-              <option value="Available">Available</option>
-              <option value="Unknown">Unknown</option>
-            </select>
-            <button class="export-btn" id="arh-avail-refresh" type="button" aria-label="Refresh availability"><span aria-hidden="true">↻</span></button>
-          </div>
+          <section class="sh-panel arh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span class="sh-panel-title-icon" aria-hidden="true">💚</span>
+                <span>Resource Availability</span>
+                <span class="sh-panel-title-count" id="arh-avail-count" style="display:none">0</span>
+              </div>
+              <div style="display:flex;gap:0.4rem;align-items:center;">
+                <select class="arh-filter-select" id="arh-avail-filter" aria-label="Filter availability">
+                  <option value="">All</option>
+                  <option value="Unavailable">Unavailable</option>
+                  <option value="Degraded">Degraded</option>
+                  <option value="Available">Available</option>
+                  <option value="Unknown">Unknown</option>
+                </select>
+                <button class="export-btn" id="arh-avail-refresh" type="button" aria-label="Refresh availability"><span aria-hidden="true">↻</span></button>
+              </div>
+            </div>
+            <div class="arh-list" id="arh-avail-list">
+              <div class="arh-no-sub" id="arh-avail-nosub">Select a subscription above to view resource availability.</div>
+            </div>
+          </section>
         </div>
-        <div class="arh-list" id="arh-avail-list">
-          <div class="arh-no-sub" id="arh-avail-nosub">Select a subscription above to view resource availability.</div>
-        </div>
-      </section>
+      </div>
     </div>
   </div>
 
@@ -537,13 +814,50 @@
       }
 
       function updateSubBadge() {
-        const badge = document.getElementById('arh-sub-badge');
-        const subId = getSubId();
-        if (subId) {
-          badge.textContent = subId.length > 16 ? subId.slice(0, 8) + '…' : subId;
-          badge.style.display = '';
+        var selected = [];
+        if (window.SubscriptionPicker) {
+          selected = SubscriptionPicker.getSelected();
+        }
+        if (!selected || selected.length === 0) {
+          try {
+            var cached = localStorage.getItem('azure-selected-subscriptions');
+            if (cached) selected = JSON.parse(cached) || [];
+          } catch (e) { selected = []; }
+        }
+        var countEl = document.getElementById('arh-sub-filter-count');
+        var menuEl = document.getElementById('arh-sub-filter-menu');
+        var labelEl = document.getElementById('arh-sub-filter-label');
+        if (selected.length > 0) {
+          countEl.textContent = selected.length;
+          countEl.style.display = '';
+          labelEl.textContent = selected.length === 1
+            ? (selected[0].displayName || 'Subscription')
+            : 'Subscriptions';
+          var html = '';
+          for (var i = 0; i < selected.length; i++) {
+            var s = selected[i];
+            html += '<div class="arh-sub-filter-item">';
+            html += '<div class="arh-sub-filter-item-dot"></div>';
+            html += '<div style="min-width:0;flex:1;">';
+            html += '<div class="arh-sub-filter-item-name">' + escapeHtml(s.displayName || 'Unnamed') + '</div>';
+            html += '<div class="arh-sub-filter-item-id">' + escapeHtml(s.id) + '</div>';
+            html += '</div></div>';
+          }
+          html += '<button class="arh-sub-filter-change" type="button">Change subscriptions…</button>';
+          menuEl.innerHTML = html;
+          menuEl.querySelector('.arh-sub-filter-change').addEventListener('click', function() {
+            document.getElementById('arh-sub-filter').classList.remove('open');
+            if (window.SubscriptionPicker) SubscriptionPicker.open();
+          });
         } else {
-          badge.style.display = 'none';
+          countEl.style.display = 'none';
+          labelEl.textContent = 'Subscriptions';
+          menuEl.innerHTML = '<div class="arh-sub-filter-empty">No subscriptions selected</div>'
+            + '<button class="arh-sub-filter-change" type="button">Select subscriptions…</button>';
+          menuEl.querySelector('.arh-sub-filter-change').addEventListener('click', function() {
+            document.getElementById('arh-sub-filter').classList.remove('open');
+            if (window.SubscriptionPicker) SubscriptionPicker.open();
+          });
         }
       }
 
@@ -683,7 +997,9 @@
             html += '<div class="arh-event-header">';
             html += '<span class="arh-status-dot ' + escapeHtml(status) + '" title="' + escapeHtml(status) + '"></span>';
             html += '<div class="arh-event-title">' + escapeHtml(p.title || ev.name || 'Untitled') + '</div>';
-            html += '<span class="arh-event-type ' + escapeHtml(eventType) + '">' + escapeHtml(eventType) + '</span>';
+            if (eventType !== 'ServiceIssue') {
+              html += '<span class="arh-event-type ' + escapeHtml(eventType) + '">' + escapeHtml(eventType) + '</span>';
+            }
             html += '</div>';
             html += '<div class="arh-event-meta">';
             if (status) html += '<span>' + escapeHtml(status) + '</span>';
@@ -819,12 +1135,89 @@
         loadAll();
       });
 
+      // Wire subscription filter dropdown toggle
+      (function() {
+        var filterBtn = document.getElementById('arh-sub-filter-btn');
+        var filterEl = document.getElementById('arh-sub-filter');
+        filterBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var isOpen = filterEl.classList.toggle('open');
+          filterBtn.setAttribute('aria-expanded', isOpen);
+        });
+        document.addEventListener('click', function(e) {
+          if (!filterEl.contains(e.target)) {
+            filterEl.classList.remove('open');
+            filterBtn.setAttribute('aria-expanded', 'false');
+          }
+        });
+      })();
+
       // Initial load
       loadAll();
     })();
 
     // ── Event listeners ──────────────────────────────────────────────────────
     document.getElementById('theme-btn').addEventListener('click', toggleTheme);
+  </script>
+
+  <script>
+    // ── Stat card sync (mirrors counts from panel headers to KPI tiles) ──
+    (function initStatCards() {
+      function sync() {
+        // Emerging issues
+        var emCount = document.getElementById('arh-emerging-count');
+        var emStat = document.getElementById('sh-stat-emerging-val');
+        var emCard = document.getElementById('sh-stat-emerging-card');
+        if (emCount && emStat && emCard) {
+          var n = parseInt(emCount.textContent) || 0;
+          var vis = emCount.style.display !== 'none';
+          emStat.textContent = vis ? n : '0';
+          emCard.classList.toggle('sh-stat-ok', !vis || n === 0);
+          emCard.classList.toggle('sh-stat-warn', vis && n > 0);
+        }
+        // Service events
+        var evCount = document.getElementById('arh-events-count');
+        var evStat = document.getElementById('sh-stat-events-val');
+        var evCard = document.getElementById('sh-stat-events-card');
+        if (evCount && evStat && evCard) {
+          var n2 = parseInt(evCount.textContent) || 0;
+          var vis2 = evCount.style.display !== 'none';
+          evStat.textContent = vis2 ? n2 : '0';
+          evCard.classList.toggle('sh-stat-ok', !vis2 || n2 === 0);
+          evCard.classList.toggle('sh-stat-warn', vis2 && n2 > 0);
+        }
+        // Resource availability (healthy / total from cached data)
+        var avStat = document.getElementById('sh-stat-avail-val');
+        var avCard = document.getElementById('sh-stat-avail-card');
+        if (avStat && avCard) {
+          var data = window._arhAvailData || [];
+          if (data.length === 0) {
+            avStat.textContent = '\u2014';
+            avCard.className = 'sh-stat-card';
+          } else {
+            var healthy = 0;
+            for (var i = 0; i < data.length; i++) {
+              if ((data[i].properties || {}).availabilityState === 'Available') healthy++;
+            }
+            avStat.textContent = healthy + ' / ' + data.length;
+            var allOk = healthy === data.length;
+            avCard.classList.toggle('sh-stat-ok', allOk);
+            avCard.classList.toggle('sh-stat-warn', !allOk);
+          }
+        }
+      }
+      // Observe count elements for changes
+      ['arh-emerging-count', 'arh-events-count', 'arh-avail-count'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) new MutationObserver(sync).observe(el, { childList: true, attributes: true, attributeFilter: ['style'] });
+      });
+      // Observe list containers for innerHTML swaps
+      ['arh-emerging-list', 'arh-events-list', 'arh-avail-list'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) new MutationObserver(sync).observe(el, { childList: true });
+      });
+      setTimeout(sync, 200);
+    })();
   </script>
 
   <script src="/static/product-icons.js" defer></script>

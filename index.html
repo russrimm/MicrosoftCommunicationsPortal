@@ -21,6 +21,7 @@
       --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
       --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
       --cp-warning: #f59e0b; --cp-link: #0078d4;
+      --cp-purple: #7c3aed;
       --cp-highlight: rgba(177,31,75,0.12);
     }
     html[data-theme="dark"] {
@@ -31,12 +32,11 @@
       --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
       --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
       --cp-warning: #fbbf24; --cp-link: #4da6ff;
+      --cp-purple: #c4b5fd;
       --cp-highlight: rgba(253,142,161,0.12);
     }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* Screen-reader-only text (visually hidden but accessible) */
     .sr-only {
       position: absolute !important;
       width: 1px; height: 1px;
@@ -44,36 +44,26 @@
       overflow: hidden; clip: rect(0,0,0,0);
       white-space: nowrap; border: 0;
     }
-
-    /* Visible focus indicator for keyboard navigation */
     a:focus-visible, button:focus-visible, input:focus-visible,
     select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
       outline: 2px solid var(--cp-accent);
       outline-offset: 2px;
     }
-
     body {
       font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-      background: var(--cp-bg);
-      color: var(--cp-text);
-      min-height: 100vh;
+      font-size: 14px; line-height: 1.5;
+      background: var(--cp-bg); color: var(--cp-text);
+      min-height: 100vh; display: flex; flex-direction: column;
     }
-
-    /* ── Header ── */
+    /* Header */
     .header {
       position: sticky; top: 0; z-index: 100;
-      background: var(--cp-surface);
-      border-bottom: 1px solid var(--cp-border);
-      padding: 0 1.25rem;
-      display: flex; align-items: center; gap: 0.875rem;
-      height: 56px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      background: var(--cp-surface); border-bottom: 1px solid var(--cp-border);
+      padding: 0 1.25rem; display: flex; align-items: center; gap: 0.875rem;
+      height: 56px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0;
     }
     .header-logo {
-      width: 32px; height: 32px;
-      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
     .header-logo svg { display: block; width: 28px; height: 28px; }
@@ -128,361 +118,250 @@
       border-bottom-color: var(--cp-accent);
       background: transparent;
     }
-
-    /* ── Nav dropdown ── */
-    .nav-dropdown {
-      position: relative;
-      display: inline-flex;
-      align-items: stretch;
-    }
-    .nav-dropdown-toggle { font-family: inherit; gap: 0.3rem; }
-    .nav-dropdown-caret {
-      font-size: 10px;
-      transition: transform 0.15s;
-    }
-    .nav-dropdown.open .nav-dropdown-caret { transform: rotate(180deg); }
+    .nav-dropdown { position: relative; display: inline-flex; align-items: stretch; }
+    .nav-dropdown-toggle { gap: 0.35rem; }
+    .nav-dropdown-caret { font-size: 9px; }
     .nav-dropdown-menu {
-      display: none;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      min-width: 220px;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.5rem;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-      z-index: 200;
-      padding: 0.35rem 0;
-      margin-top: 1px;
+      display: none; position: absolute; top: 100%; left: 0;
+      background: var(--cp-surface); border: 1px solid var(--cp-border);
+      border-radius: 0.375rem; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      min-width: 180px; z-index: 50; padding: 0.25rem;
     }
     .nav-dropdown.open .nav-dropdown-menu { display: block; }
     .nav-dropdown-item {
-      display: block;
-      padding: 0.5rem 1rem;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--cp-text);
-      text-decoration: none;
-      transition: background 0.15s, color 0.15s;
+      display: block; padding: 0.4rem 0.75rem; border-radius: 0.25rem;
+      color: var(--cp-text); text-decoration: none; font-size: 13px; font-weight: 500;
     }
-    .nav-dropdown-item:hover {
-      background: var(--cp-surface-soft);
-      color: var(--cp-accent);
-    }
+    .nav-dropdown-item:hover { background: var(--cp-surface-soft); color: var(--cp-accent); }
     .nav-dropdown-item.active {
-      color: var(--cp-accent);
-      font-weight: 600;
-      background: var(--cp-accent-soft);
+      color: var(--cp-accent); font-weight: 600; background: var(--cp-accent-soft);
     }
     .theme-btn {
-      margin-left: auto;
-      background: var(--cp-surface-soft);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.625rem;
-      padding: 0.3rem 0.75rem;
-      cursor: pointer; font-size: 12px;
-      color: var(--cp-text-muted); font-family: inherit;
-      transition: all 0.15s;
+      margin-left: auto; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
+      border-radius: 0.625rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 12px;
+      color: var(--cp-text-muted); font-family: inherit; transition: all 0.15s;
     }
     .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
 
-    /* ── Layout ── */
-    .app-layout { display: flex; height: calc(100vh - 104px); overflow: hidden; }
+    /* Layout */
+    .page-content {
+      flex: 1; display: flex; flex-direction: column;
+      padding: 1.125rem; overflow: hidden;
+      height: calc(100vh - 104px);
+    }
 
-    /* ── Sidebar ── */
-    .sidebar {
-      width: 272px; flex-shrink: 0;
-      background: var(--cp-bg-elevated);
-      border-right: 1px solid var(--cp-border);
-      overflow-y: auto;
-      padding: 0.875rem;
-    }
-    .sidebar::-webkit-scrollbar { width: 4px; }
-    .sidebar::-webkit-scrollbar-track { background: transparent; }
-    .sidebar::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
-
-    .filter-sec { margin-bottom: 1rem; }
-    .filter-title {
-      font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.08em;
-      color: var(--cp-text-muted);
-      margin-bottom: 0.4rem;
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .filter-clear { background: none; border: none; cursor: pointer; color: var(--cp-accent); font-size: 10px; padding: 0; font-weight: 600; }
-    .filter-clear:hover { text-decoration: underline; }
-    .sep { height: 1px; background: var(--cp-border); margin: 0.625rem 0; }
-
-    .search-input {
-      width: 100%; padding: 0.45rem 0.7rem;
-      border: 1px solid var(--cp-border);
-      border-radius: 0.625rem;
-      background: var(--cp-surface); color: var(--cp-text);
-      font-size: 13px; font-family: inherit; outline: none;
-      transition: border-color 0.15s;
-    }
-    .search-input:focus { border-color: var(--cp-accent); }
-    .search-input::placeholder { color: var(--cp-text-muted); }
-
-    .cb-list {
-      display: flex; flex-direction: column; gap: 0.3rem;
-      max-height: 180px; overflow-y: auto;
-    }
-    .cb-list::-webkit-scrollbar { width: 4px; }
-    .cb-list::-webkit-scrollbar-track { background: transparent; }
-    .cb-list::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
-    .cb-item {
-      display: flex; align-items: center; gap: 0.4rem;
-      cursor: pointer; padding: 0.15rem 0;
-    }
-    .cb-item input[type="checkbox"] { accent-color: var(--cp-accent); width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
-    .cb-lbl { font-size: 12px; color: var(--cp-text); cursor: pointer; flex: 1; line-height: 1.3; }
-    .cb-count {
-      font-size: 10px; color: var(--cp-text-muted);
-      background: var(--cp-surface-soft);
-      border-radius: 999px; padding: 0 0.4rem;
-      flex-shrink: 0; min-width: 22px; text-align: center;
-    }
-    .cb-grp-hdr {
-      font-size: 9px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--cp-text-muted);
-      padding: 0.35rem 0 0.15rem 0;
-    }
-    .cb-grp-hdr:first-child { padding-top: 0; }
-    .cb-grp-toggle {
-      display: flex; align-items: center; gap: 0.35rem;
-      width: 100%; background: none; border: 0;
-      font: inherit; color: var(--cp-text-muted);
-      font-size: 9px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.08em; text-align: left;
-      padding: 0.35rem 0 0.15rem 0; cursor: pointer;
-      -webkit-user-select: none; user-select: none;
-    }
-    .cb-grp-toggle:first-child { padding-top: 0; }
-    .cb-grp-toggle:hover { color: var(--cp-text); }
-    .cb-grp-caret {
-      display: inline-block; width: 9px; font-size: 10px;
-      transition: transform 0.15s ease;
-      transform: rotate(-90deg);
-    }
-    .cb-grp-toggle[aria-expanded="true"] .cb-grp-caret { transform: rotate(0deg); }
-    .cb-grp-name { flex: 1; }
-    .cb-grp-badge {
-      font-size: 10px; font-weight: 500; text-transform: none;
-      letter-spacing: normal; color: var(--cp-text-muted);
-      background: var(--cp-surface-soft);
-      border-radius: 999px; padding: 1px 0.5rem;
-    }
-    .cb-grp-body[hidden] { display: none; }
-
-    /* Toggle switch */
-    .toggle-row { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
-    .toggle-input { opacity: 0; width: 0; height: 0; position: absolute; }
-    .toggle-visual {
-      position: relative; width: 34px; height: 18px;
-      background: var(--cp-border);
-      border-radius: 9px; cursor: pointer;
-      flex-shrink: 0; transition: background 0.2s;
-    }
-    .toggle-visual::after {
-      content: ''; position: absolute;
-      width: 12px; height: 12px;
-      background: white; border-radius: 50%;
-      top: 3px; left: 3px;
-      transition: left 0.2s;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-    }
-    .toggle-input:checked + .toggle-visual { background: var(--cp-accent); }
-    .toggle-input:checked + .toggle-visual::after { left: 19px; }
-
-    /* Clear all */
-    .clear-all-btn {
-      width: 100%; padding: 0.45rem;
-      background: var(--cp-accent-soft);
-      border: 1px solid var(--cp-accent);
-      border-radius: 0.625rem;
-      color: var(--cp-accent); font-size: 12px; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: all 0.15s;
-      margin-bottom: 0.75rem;
-    }
-    .clear-all-btn:hover { background: var(--cp-accent); color: var(--cp-accent-fg); }
-
-    .custom-load-btn {
-      width: 100%; padding: 0.4rem;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.625rem;
-      color: var(--cp-text-soft); font-size: 12px;
-      cursor: pointer; font-family: inherit; transition: all 0.15s;
-      margin-top: 0.4rem;
-    }
-    .custom-load-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
-
-    /* ── Main Content ── */
-    .content { flex: 1; overflow-y: auto; padding: 1.125rem; }
-    .content::-webkit-scrollbar { width: 6px; }
-    .content::-webkit-scrollbar-track { background: transparent; }
-    .content::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
-
-    .toolbar {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 0.875rem; gap: 1rem;
-    }
-    .feat-count { font-size: 13px; color: var(--cp-text-muted); }
-    .feat-count strong { color: var(--cp-text); font-weight: 600; }
-
-    /* Message Center */
-    .mc-container { display: none; }
-    .mc-container.active { display: flex; flex-direction: column; height: 100%; }
-    .mc-search-bar {
-      margin-bottom: 0.625rem;
-    }
-    .mc-search-input {
+    /* Search + filters */
+    .au-search-bar { margin-bottom: 0.625rem; }
+    .au-search-input {
       width: 100%; padding: 0.5rem 0.875rem;
-      border: 1px solid var(--cp-border);
-      border-radius: 0.625rem;
+      border: 1px solid var(--cp-border); border-radius: 0.625rem;
       background: var(--cp-surface); color: var(--cp-text);
       font-size: 13px; font-family: inherit; outline: none;
       transition: border-color 0.15s;
-      box-sizing: border-box;
     }
-    .mc-search-input:focus { border-color: var(--cp-accent); }
-    .mc-search-input::placeholder { color: var(--cp-text-muted); }
-    .mc-filters {
+    .au-search-input:focus { border-color: var(--cp-accent); }
+    .au-search-input::placeholder { color: var(--cp-text-muted); }
+    .au-filters {
       display: flex; gap: 1rem; margin-bottom: 1rem;
       flex-wrap: wrap; align-items: center;
     }
-    .mc-filter-group {
-      display: flex; align-items: center; gap: 0.5rem;
-    }
-    .mc-filter-label { font-size: 12px; color: var(--cp-text-muted); font-weight: 600; }
-    .mc-filter-input, .mc-filter-select {
+    .au-filter-group { display: flex; align-items: center; gap: 0.5rem; }
+    .au-filter-label { font-size: 12px; color: var(--cp-text-muted); font-weight: 600; }
+    .au-filter-select {
       padding: 0.4rem 0.6rem;
-      border: 1px solid var(--cp-border);
-      border-radius: 0.375rem;
-      background: var(--cp-surface);
-      color: var(--cp-text);
-      font-size: 12px; font-family: inherit;
-      outline: none;
+      border: 1px solid var(--cp-border); border-radius: 0.375rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 12px; font-family: inherit; outline: none;
       transition: border-color 0.15s;
     }
-    .mc-filter-input:focus, .mc-filter-select:focus { border-color: var(--cp-accent); }
-    .mc-messages {
-      flex: 1; overflow-y: auto;
-      display: grid; gap: 0.875rem;
+    .au-filter-select:focus { border-color: var(--cp-accent); }
+
+    /* Multi-select */
+    .au-multi { position: relative; min-width: 160px; }
+    .au-multi-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--cp-border); border-radius: 0.375rem;
+      background: var(--cp-surface); color: var(--cp-text);
+      font-size: 12px; font-family: inherit; cursor: pointer;
+      width: 100%; text-align: left;
     }
-    .mc-messages::-webkit-scrollbar { width: 6px; }
-    .mc-messages::-webkit-scrollbar-track { background: transparent; }
-    .mc-messages::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
-    .mc-message {
-      padding: 1rem;
+    .au-multi-toggle:hover { border-color: var(--cp-border-strong); }
+    .au-multi.open .au-multi-toggle { border-color: var(--cp-accent); }
+    .au-multi-toggle .au-multi-caret { font-size: 9px; color: var(--cp-text-muted); }
+    .au-multi-panel {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      max-height: 320px; overflow-y: auto;
+      background: var(--cp-surface); border: 1px solid var(--cp-border);
+      border-radius: 0.375rem; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      z-index: 50; padding: 0.25rem;
+      min-width: 220px;
+    }
+    .au-multi.open .au-multi-panel { display: block; }
+    .au-multi-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.5rem; border-radius: 0.25rem;
+      font-size: 12px; color: var(--cp-text); cursor: pointer; user-select: none;
+    }
+    .au-multi-option:hover { background: var(--cp-surface-soft); }
+    .au-multi-option input { margin: 0; cursor: pointer; }
+    .au-multi-actions {
+      display: flex; gap: 0.4rem; padding: 0.25rem 0.5rem 0.5rem;
+      border-bottom: 1px solid var(--cp-border); margin-bottom: 0.25rem;
+    }
+    .au-multi-actions button {
+      flex: 1; font-size: 11px; font-family: inherit;
+      padding: 0.3rem 0.4rem; border-radius: 0.25rem;
+      border: 1px solid var(--cp-border); background: var(--cp-surface);
+      color: var(--cp-text-soft); cursor: pointer;
+    }
+    .au-multi-actions button:hover { background: var(--cp-surface-soft); color: var(--cp-text); }
+    .au-multi-grp-hdr {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--cp-text-muted);
+      padding: 0.4rem 0.5rem 0.15rem;
+    }
+
+    /* Card grid */
+    .au-cards {
+      flex: 1; overflow-y: auto; align-content: start;
+      display: grid; gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+    .au-cards.is-grouped { grid-template-columns: 1fr; gap: 0.5rem; }
+    .au-cards::-webkit-scrollbar { width: 6px; }
+    .au-cards::-webkit-scrollbar-track { background: transparent; }
+    .au-cards::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+
+    .au-card {
       background: var(--cp-surface);
       border: 1px solid var(--cp-border);
       border-radius: 0.625rem;
-      border-left: 4px solid var(--cp-accent);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .mc-message.critical { border-left-color: var(--cp-danger); }
-    .mc-message.high { border-left-color: var(--cp-warning); }
-    .mc-message.normal { border-left-color: var(--cp-success); }
-    .mc-message-header {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      gap: 1rem; margin-bottom: 0.5rem;
+    .au-card:hover { border-color: var(--cp-accent); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+    .au-card-body {
+      padding: 0.75rem 0.875rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      flex: 1;
     }
-    .mc-message-title { font-size: 14px; font-weight: 600; color: var(--cp-text); }
-    .mc-message-badge {
-      font-size: 10px; font-weight: 600; text-transform: uppercase;
-      padding: 0.2rem 0.5rem; border-radius: 0.25rem;
-      background: var(--cp-accent-soft); color: var(--cp-accent);
+    .au-card-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem;
     }
-    .mc-message.critical .mc-message-badge { background: rgba(220,38,38,0.15); color: var(--cp-danger); }
-    .mc-message.high .mc-message-badge { background: rgba(245,158,11,0.15); color: var(--cp-warning); }
-    .mc-message.normal .mc-message-badge { background: rgba(22,163,74,0.15); color: var(--cp-success); }
-    .mc-message-meta {
-      font-size: 11px; color: var(--cp-text-muted); margin-bottom: 0.5rem;
+    .au-status-pill {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      padding: 0.15rem 0.5rem; border-radius: 999px;
+      letter-spacing: 0.04em; flex-shrink: 0; white-space: nowrap;
+      border: 1px solid;
     }
-    .mc-message-description { font-size: 13px; color: var(--cp-text-soft); line-height: 1.4; }
-    .mc-empty {
-      text-align: center; padding: 2rem; color: var(--cp-text-muted);
+    .au-status-pill.shipped  { background: rgba(22,163,74,0.12); color: var(--cp-success); border-color: rgba(22,163,74,0.3); }
+    .au-status-pill.planned  { background: rgba(245,158,11,0.12); color: var(--cp-warning); border-color: rgba(245,158,11,0.3); }
+    .au-status-pill.na       { background: var(--cp-surface-soft); color: var(--cp-text-muted); border-color: var(--cp-border); }
+
+    .au-card-product {
+      display: flex; align-items: center; gap: 0.35rem;
+      font-size: 12px; color: var(--cp-text-soft);
+      min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .mc-loading {
-      text-align: center; padding: 2rem;
+    .au-card-product-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--cp-accent); flex-shrink: 0;
+    }
+    .au-card-title {
+      font-size: 13px; font-weight: 600; color: var(--cp-text);
+      line-height: 1.4;
+    }
+    .au-card-title:hover { color: var(--cp-accent); }
+    .au-card-snippet {
+      font-size: 12px; color: var(--cp-text-muted);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .au-card-meta {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
+      font-size: 11px; color: var(--cp-text-muted);
+      margin-top: auto;
+    }
+    .au-tag-pill {
+      font-size: 10px; font-weight: 600;
+      padding: 0.1rem 0.5rem; border-radius: 999px;
+      border: 1px solid var(--cp-border);
+      background: var(--cp-surface-soft);
+      color: var(--cp-text-soft);
+      white-space: nowrap;
+    }
+    .au-tag-pill.wave     { color: var(--cp-link); border-color: rgba(0,120,212,0.4); background: rgba(0,120,212,0.08); }
+    .au-tag-pill.new-feat { color: var(--cp-link); border-color: rgba(0,120,212,0.4); background: rgba(0,120,212,0.08); }
+    .au-tag-pill.enh      { color: var(--cp-text-soft); border-color: var(--cp-border); background: var(--cp-surface-soft); }
+    .au-tag-pill.shipped  { color: var(--cp-success); border-color: rgba(22,163,74,0.4); background: rgba(22,163,74,0.08); }
+    .au-tag-pill.planned  { color: var(--cp-warning); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.08); }
+    .au-tag-pill.ai       { color: var(--cp-accent); border-color: rgba(177,31,75,0.4); background: var(--cp-accent-soft); }
+    .au-tag-pill.date     { color: var(--cp-text-soft); }
+
+    /* Group view */
+    .au-product-group { display: flex; flex-direction: column; gap: 0.5rem; }
+    .au-product-group + .au-product-group { margin-top: 0.75rem; }
+    .au-product-header {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 0.5rem; margin: 0;
+      font-size: 12px; font-weight: 700; color: var(--cp-text);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--cp-border);
+      position: sticky; top: 0;
+      background: var(--cp-bg);
+      z-index: 1;
+      cursor: pointer;
+      user-select: none;
+    }
+    .au-product-header:hover { color: var(--cp-accent); }
+    .au-product-header:focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 2px; }
+    .au-product-chevron {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px;
+      transition: transform 0.15s ease;
+      color: var(--cp-text-muted);
+      flex-shrink: 0;
+    }
+    .au-product-group.is-collapsed .au-product-chevron { transform: rotate(-90deg); }
+    .au-product-group.is-collapsed .au-product-cards { display: none; }
+    .au-product-cards {
+      display: grid; gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+    .au-product-count {
+      font-size: 11px; font-weight: 500; color: var(--cp-text-muted);
+      text-transform: none; letter-spacing: 0;
+    }
+
+    .au-empty { text-align: center; padding: 2rem; color: var(--cp-text-muted); grid-column: 1 / -1; }
+    .au-loading {
+      text-align: center; padding: 2rem; grid-column: 1 / -1;
       display: flex; align-items: center; justify-content: center; gap: 0.75rem;
       color: var(--cp-accent);
     }
-
-    /* ── Service Health ── */
-    .sh-container { display: none; flex-direction: column; height: 100%; }
-    .sh-container.active { display: flex; }
-    .sh-toolbar {
-      display: flex; align-items: center; gap: 1rem;
-      margin-bottom: 1rem; flex-wrap: wrap;
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid var(--cp-accent-soft); border-top-color: var(--cp-accent);
+      border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0;
     }
-    .sh-summary {
-      display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;
-      flex: 1;
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .export-btn {
+      padding: 0.3rem 0.75rem; background: var(--cp-accent);
+      border: 1px solid var(--cp-accent); border-radius: 0.5rem;
+      color: var(--cp-accent-fg); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
     }
-    .sh-summary-chip {
-      display: flex; align-items: center; gap: 0.4rem;
-      font-size: 12px; font-weight: 600;
-      padding: 0.3rem 0.75rem;
-      border-radius: 999px;
-      border: 1px solid var(--cp-border);
-    }
-    .sh-summary-chip.healthy { background: rgba(22,163,74,0.1); color: var(--cp-success); border-color: var(--cp-success); }
-    .sh-summary-chip.degraded { background: rgba(245,158,11,0.12); color: var(--cp-warning); border-color: var(--cp-warning); }
-    .sh-summary-chip.incident { background: rgba(220,38,38,0.1); color: var(--cp-danger); border-color: var(--cp-danger); }
-    #sh-content {
-      flex: 1; overflow-y: auto;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 0.875rem;
-      align-content: start;
-    }
-    #sh-content::-webkit-scrollbar { width: 6px; }
-    #sh-content::-webkit-scrollbar-track { background: transparent; }
-    #sh-content::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
-    .sh-service-card {
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.75rem;
-      overflow: hidden;
-    }
-    .sh-service-header {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.875rem 1rem;
-      border-bottom: 1px solid var(--cp-border);
-    }
-    .sh-status-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%; flex-shrink: 0;
-    }
-    .sh-status-dot.operational { background: var(--cp-success); }
-    .sh-status-dot.degraded, .sh-status-dot.serviceDegradation { background: var(--cp-warning); }
-    .sh-status-dot.incident, .sh-status-dot.serviceInterruption { background: var(--cp-danger); }
-    .sh-status-dot.investigating, .sh-status-dot.restoringService { background: #a78bfa; }
-    .sh-status-dot.unknown { background: var(--cp-border); }
-    .sh-service-name { font-size: 13px; font-weight: 600; color: var(--cp-text); flex: 1; }
-    .sh-status-label {
-      font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.05em;
-      padding: 0.2rem 0.5rem; border-radius: 0.25rem;
-    }
-    .sh-status-label.operational { background: rgba(22,163,74,0.1); color: var(--cp-success); }
-    .sh-status-label.degraded, .sh-status-label.serviceDegradation { background: rgba(245,158,11,0.12); color: var(--cp-warning); }
-    .sh-status-label.incident, .sh-status-label.serviceInterruption { background: rgba(220,38,38,0.1); color: var(--cp-danger); }
-    .sh-status-label.investigating, .sh-status-label.restoringService { background: rgba(167,139,250,0.15); color: #7c3aed; }
-    .sh-status-label.unknown { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
-    .sh-issues {
-      padding: 0.625rem 1rem;
-    }
-    .sh-issue {
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--cp-border);
-      font-size: 12px;
-    }
-    .sh-issue:last-child { border-bottom: none; }
-    .sh-issue-title { font-weight: 600; color: var(--cp-text); margin-bottom: 0.2rem; }
-    .sh-issue-meta { color: var(--cp-text-muted); font-size: 11px; }
+    .export-btn:hover { background: var(--cp-accent-hover); border-color: var(--cp-accent-hover); }
+    .export-btn:disabled { opacity: 0.5; cursor: default; }
 
     /* Loading banner */
     .loading-banner {
@@ -493,236 +372,60 @@
       border-radius: 0.625rem;
       margin-bottom: 0.875rem;
       font-size: 13px; color: var(--cp-accent);
+      flex-shrink: 0;
     }
     .loading-banner.hidden { display: none; }
-    .spinner {
-      width: 15px; height: 15px;
-      border: 2px solid var(--cp-accent-soft);
-      border-top-color: var(--cp-accent);
-      border-radius: 50%;
-      animation: spin 0.75s linear infinite;
-      flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Product group */
-    .product-group { margin-bottom: 2.25rem; }
-    .product-header {
-      display: flex; align-items: center; gap: 0.75rem;
-      margin-bottom: 1rem; cursor: pointer;
-      padding-bottom: 0.5rem;
-      border-bottom: 2px solid var(--cp-accent);
-      user-select: none;
+    /* Modal */
+    .au-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: none; align-items: center; justify-content: center;
+      z-index: 200; padding: 1.5rem;
     }
-    .product-header:hover .product-name { color: var(--cp-accent); }
-    .product-name { font-size: 17px; font-weight: 700; color: var(--cp-text); transition: color 0.15s; }
-    .product-feat-count { margin-left: auto; font-size: 12px; color: var(--cp-text-muted); }
-    .product-chevron { font-size: 11px; color: var(--cp-text-muted); transition: transform 0.2s; }
-    .product-chevron.collapsed { transform: rotate(-90deg); }
-
-    .area-group { margin-bottom: 1.375rem; }
-    .area-header {
-      font-size: 12px; font-weight: 600;
-      color: var(--cp-text-soft);
-      margin-bottom: 0.625rem; padding-bottom: 0.3rem;
-      border-bottom: 1px solid var(--cp-border);
-      display: flex; align-items: center; gap: 0.4rem;
+    .au-modal-overlay.open { display: flex; }
+    .au-modal {
+      background: var(--cp-surface); border: 1px solid var(--cp-border);
+      border-radius: 0.75rem; max-width: 900px; width: 100%;
+      max-height: 90vh; display: flex; flex-direction: column;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.3);
     }
-    .area-count { font-weight: 400; color: var(--cp-text-muted); font-size: 11px; }
-
-    /* Features grid */
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-      gap: 0.625rem;
+    .au-modal-header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--cp-border);
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 1rem; flex-shrink: 0;
     }
-
-    /* Feature card */
-    .feature-card {
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 0 2px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.12);
-      transition: box-shadow 0.15s, border-color 0.15s;
-      display: flex;
-      flex-direction: column;
-      height: 100%;
+    .au-modal-title { font-size: 16px; font-weight: 600; color: var(--cp-text); line-height: 1.4; }
+    .au-modal-meta { font-size: 12px; color: var(--cp-text-muted); margin-top: 0.25rem; }
+    .au-modal-close {
+      background: transparent; border: none; cursor: pointer;
+      font-size: 22px; line-height: 1; color: var(--cp-text-muted);
+      padding: 0 0.25rem; flex-shrink: 0;
     }
-    .feature-card:hover {
-      box-shadow: 0 2px 8px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08);
-      border-color: var(--cp-border-strong);
+    .au-modal-close:hover { color: var(--cp-text); }
+    .au-modal-body {
+      padding: 1rem 1.25rem; overflow-y: auto; flex: 1;
+      font-size: 13px; line-height: 1.55; color: var(--cp-text);
     }
-    .card-top { padding: 0.75rem 0.875rem; flex: 1 1 auto; }
-    .card-details { flex: 0 0 auto; }
-    .expand-btn { margin-top: auto; }
-    .card-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.4rem; }
-    .b-product .product-icon {
-      width: 14px; height: 14px;
-      object-fit: contain;
-      margin-right: 0.25rem;
-      flex-shrink: 0;
-    }
-    .badge {
-      display: inline-flex; align-items: center;
-      padding: 0.1rem 0.45rem;
-      border-radius: 999px;
-      font-size: 10.5px; font-weight: 600;
-      white-space: nowrap; line-height: 1.5;
-    }
-    .b-shipped  { background: rgba(22,163,74,0.1);   color: var(--cp-success); }
-    .b-planned  { background: rgba(245,158,11,0.12); color: var(--cp-warning); }
-    .b-na       { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
-    .b-ai       { background: var(--cp-highlight);   color: var(--cp-accent); }
-    .b-new      { background: rgba(0,120,212,0.08);  color: var(--cp-link); }
-    .b-enh      { background: var(--cp-surface-soft); color: var(--cp-text-soft); }
-    .b-wave     { background: var(--cp-surface-soft); color: var(--cp-text-soft); }
-    .b-product  { background: var(--cp-accent-soft);  color: var(--cp-accent); }
-    .b-area     { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
-
-    .card-name {
-      font-size: 13.5px; font-weight: 600;
-      color: var(--cp-text); line-height: 1.4;
-      margin-bottom: 0.4rem;
-    }
-    .card-meta {
-      display: flex; flex-wrap: wrap; gap: 0.5rem 0.875rem;
-      font-size: 11.5px; color: var(--cp-text-muted);
-    }
-    .meta-item { display: flex; align-items: baseline; gap: 0.2rem; }
-    .meta-lbl { font-weight: 600; }
-    .s-shipped { color: var(--cp-success); font-weight: 600; }
-    .s-planned { color: var(--cp-warning); font-weight: 600; }
-    .s-na      { color: var(--cp-text-muted); }
-
-    /* Expand button */
-    .expand-btn {
-      width: 100%;
-      display: flex; align-items: center; justify-content: center; gap: 0.25rem;
-      padding: 0.4rem 0.875rem;
-      background: var(--cp-surface-soft);
-      border: none; border-top: 1px solid var(--cp-border);
-      cursor: pointer; font-size: 11.5px; color: var(--cp-text-muted);
-      font-family: inherit; transition: all 0.15s;
-    }
-    .expand-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); }
-    .expand-chevron { font-size: 9px; transition: transform 0.2s; }
-    .expand-btn.open .expand-chevron { transform: rotate(180deg); }
-
-    /* Details pane */
-    .card-details {
-      padding: 0.875rem;
-      border-top: 1px solid var(--cp-border);
-      background: var(--cp-bg-elevated);
-      font-size: 13px; line-height: 1.65;
-      display: none;
-    }
-    .card-details.visible { display: block; }
-    .detail-sec { margin-bottom: 0.75rem; }
-    .detail-sec:last-child { margin-bottom: 0; }
-    .detail-title {
-      font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.07em;
-      color: var(--cp-text-muted);
-      margin-bottom: 0.35rem;
-    }
-    .detail-body { color: var(--cp-text); }
-    .detail-body p  { margin-bottom: 0.4rem; }
-    .detail-body ul, .detail-body ol { padding-left: 1.2rem; margin-bottom: 0.4rem; }
-    .detail-body li { margin-bottom: 0.2rem; }
-    .detail-body h1,.detail-body h2,.detail-body h3,.detail-body h4 {
-      font-size: 12.5px; font-weight: 700; margin: 0.6rem 0 0.25rem;
-    }
-    .detail-body a { color: var(--cp-link); text-decoration: none; }
-    .detail-body a:hover { text-decoration: underline; }
-    .detail-body img { max-width: 100%; border-radius: 8px; margin: 0.4rem 0; }
-    .detail-body strong { font-weight: 600; }
-
-    .docs-link {
-      display: inline-flex; align-items: center; gap: 0.3rem;
-      color: var(--cp-link); font-size: 12px;
-      text-decoration: none;
-      padding: 0.3rem 0.6rem;
-      border: 1px solid currentColor;
-      border-radius: 0.4rem;
-      margin-top: 0.5rem; transition: all 0.15s;
-    }
-    .docs-link:hover { background: rgba(0,120,212,0.08); }
-
-    /* Empty state */
-    .empty-state {
-      text-align: center; padding: 4rem 2rem; color: var(--cp-text-muted);
-    }
-    .empty-icon { font-size: 2.75rem; margin-bottom: 0.875rem; opacity: 0.45; }
-    .empty-ttl  { font-size: 17px; font-weight: 600; color: var(--cp-text); margin-bottom: 0.4rem; }
-    .empty-sub  { font-size: 13px; }
-
-    /* Date range filter */
-    .date-range-row {
-      display: flex; gap: 0.4rem; align-items: center;
-      margin-bottom: 0.4rem;
-    }
-    .date-label { font-size: 11px; color: var(--cp-text-muted); min-width: 22px; }
-    .date-input {
-      flex: 1; padding: 0.35rem 0.5rem;
-      border: 1px solid var(--cp-border);
-      border-radius: 0.5rem;
-      background: var(--cp-surface); color: var(--cp-text);
-      font-size: 11.5px; font-family: inherit; outline: none;
-      transition: border-color 0.15s;
-    }
-    .date-input:focus { border-color: var(--cp-accent); }
-    .date-presets {
-      display: flex; flex-wrap: wrap; gap: 0.3rem;
+    .au-modal-body::-webkit-scrollbar { width: 6px; }
+    .au-modal-body::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .au-modal-section { margin-bottom: 1.25rem; }
+    .au-modal-section:last-child { margin-bottom: 0; }
+    .au-modal-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--cp-text-muted);
       margin-bottom: 0.5rem;
     }
-    .preset-btn {
-      padding: 0.2rem 0.55rem;
-      border: 1px solid var(--cp-border);
-      border-radius: 999px;
-      background: var(--cp-surface);
-      color: var(--cp-text-soft); font-size: 11px; cursor: pointer;
-      font-family: inherit; transition: all 0.15s; white-space: nowrap;
-    }
-    .preset-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); background: var(--cp-accent-soft); }
-    .preset-btn.active { border-color: var(--cp-accent); color: var(--cp-accent-fg); background: var(--cp-accent); }
-    .select-all-btn {
-      background: none; border: none; cursor: pointer;
-      color: var(--cp-accent); font-size: 10px; padding: 0; font-weight: 600;
-    }
-    .select-all-btn:hover { text-decoration: underline; }
-    .filter-title-actions { display: flex; gap: 0.4rem; }
+    .au-modal-body p { margin: 0 0 0.75rem; }
+    .au-modal-body p:last-child { margin-bottom: 0; }
+    .au-modal-body a { color: var(--cp-link); text-decoration: none; }
+    .au-modal-body a:hover { text-decoration: underline; }
+    .au-modal-body ul, .au-modal-body ol { margin: 0 0 0.75rem 1.25rem; }
+    .au-modal-body img { max-width: 100%; border-radius: 8px; margin: 0.4rem 0; }
+    .au-detail-list { display: grid; grid-template-columns: 160px 1fr; gap: 0.4rem 1rem; font-size: 12.5px; }
+    .au-detail-list dt { font-weight: 600; color: var(--cp-text-muted); }
+    .au-detail-list dd { color: var(--cp-text); margin: 0; word-break: break-word; }
 
-    /* Sort select */
-    .sort-select {
-      padding: 0.3rem 0.6rem;
-      border: 1px solid var(--cp-border);
-      border-radius: 0.5rem;
-      background: var(--cp-surface); color: var(--cp-text);
-      font-size: 12px; font-family: inherit; cursor: pointer; outline: none;
-    }
-    .sort-select:focus { border-color: var(--cp-accent); }
-    .export-btn {
-      padding: 0.3rem 0.75rem;
-      background: var(--cp-accent);
-      border: 1px solid var(--cp-accent);
-      border-radius: 0.5rem;
-      color: var(--cp-accent-fg); font-size: 12px; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: all 0.15s;
-      white-space: nowrap;
-    }
-    .export-btn:hover { background: var(--cp-accent-hover); border-color: var(--cp-accent-hover); }
-    .export-btn:disabled { opacity: 0.5; cursor: default; }
-
-    /* ── Responsive ── */
-    @media (max-width: 768px) {
-      .app-layout { flex-direction: column; height: auto; overflow: visible; }
-      .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--cp-border); }
-      .content { overflow-y: visible; }
-      .features-grid { grid-template-columns: 1fr; }
-    }
-
-    /* ── Generate Export modal ── */
+    /* Generate Export modal */
     .gen-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
     .gen-modal[hidden] { display: none; }
     .gen-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
@@ -781,7 +484,6 @@
   </style>
 </head>
 <body>
-  <!-- Header -->
   <header class="header">
     <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
     <div>
@@ -838,148 +540,171 @@
     })();
   </script>
 
-  <div class="app-layout">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <button class="clear-all-btn" data-act="clearAll">↺ Clear All Filters</button>
-
-      <div class="filter-sec">
-        <div class="filter-title">Search</div>
-        <label for="search-input" class="sr-only">Search features, products, areas</label>
-        <input type="text" class="search-input" id="search-input"
-               placeholder="Search features, products, areas…"
-               aria-label="Search features, products, areas"
-               data-act="handleSearch" data-on="input">
-      </div>
-
-      <div class="sep"></div>
-
-      <div class="filter-sec">
-        <div class="filter-title">Date Range (GA / Preview) <button class="filter-clear" data-act="clearDateRange">Clear</button></div>
-        <div class="date-presets">
-          <button class="preset-btn" id="preset-7" data-act="applyPreset" data-days="7">±7 days</button>
-          <button class="preset-btn" id="preset-30" data-act="applyPreset" data-days="30">±30 days</button>
-          <button class="preset-btn" id="preset-60" data-act="applyPreset" data-days="60">±60 days</button>
-          <button class="preset-btn" id="preset-wave" data-act="applyCurrentWave">Current Wave</button>
-        </div>
-        <div class="date-range-row">
-          <label class="date-label" for="date-from">From</label>
-          <input type="date" class="date-input" id="date-from" title="Filter from date" data-act="handleDateChange" data-on="change">
-        </div>
-        <div class="date-range-row">
-          <label class="date-label" for="date-to">To</label>
-          <input type="date" class="date-input" id="date-to" title="Filter to date" data-act="handleDateChange" data-on="change">
+  <div class="page-content">
+    <h1 class="page-heading">Power Platform Roadmap</h1>
+    <div class="au-search-bar">
+      <label for="au-search" class="sr-only">Search features by name, product, or area</label>
+      <input type="text" class="au-search-input" id="au-search"
+             placeholder="Search features by name, product, or area…"
+             aria-label="Search features by name, product, or area" data-act="debouncedSearch" data-on="input">
+    </div>
+    <div class="au-filters">
+      <div class="au-filter-group">
+        <label class="au-filter-label" id="au-product-filter-label">Product:</label>
+        <div class="au-multi" id="au-product-multi">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-product-filter-label au-product-label" data-act="toggleMenu" data-menu="au-product-multi">
+            <span id="au-product-label">All Products</span>
+            <span class="au-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="au-multi-panel" id="au-product-panel">
+            <div class="au-multi-actions">
+              <button type="button" data-act="setAllOptions" data-kind="product" data-checked="1">Select all</button>
+              <button type="button" data-act="setAllOptions" data-kind="product" data-checked="0">Clear</button>
+            </div>
+            <div id="au-product-options"></div>
+          </div>
         </div>
       </div>
-
-      <div class="sep"></div>
-
-      <div class="filter-sec">
-        <div class="filter-title">Product <span class="filter-title-actions"><button class="select-all-btn" data-act="selectAllProducts">All</button><button class="filter-clear" data-act="clearKey" data-key="products">Clear</button></span></div>
-        <div class="cb-list" id="f-products"></div>
+      <div class="au-filter-group">
+        <label class="au-filter-label" id="au-area-filter-label">Area:</label>
+        <div class="au-multi" id="au-area-multi">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-area-filter-label au-area-label" data-act="toggleMenu" data-menu="au-area-multi">
+            <span id="au-area-label">All Areas</span>
+            <span class="au-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="au-multi-panel" id="au-area-panel">
+            <div class="au-multi-actions">
+              <button type="button" data-act="setAllOptions" data-kind="area" data-checked="1">Select all</button>
+              <button type="button" data-act="setAllOptions" data-kind="area" data-checked="0">Clear</button>
+            </div>
+            <div id="au-area-options"></div>
+          </div>
+        </div>
       </div>
-
-      <div class="sep"></div>
-
-      <div class="filter-sec">
-        <div class="filter-title">Product Area <button class="filter-clear" data-act="clearKey" data-key="areas">Clear</button></div>
-        <div class="cb-list" id="f-areas"></div>
+      <div class="au-filter-group">
+        <label class="au-filter-label" id="au-status-filter-label">Status:</label>
+        <div class="au-multi" id="au-status-multi">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-status-filter-label au-status-label" data-act="toggleMenu" data-menu="au-status-multi">
+            <span id="au-status-label">All Statuses</span>
+            <span class="au-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="au-multi-panel" id="au-status-panel">
+            <div class="au-multi-actions">
+              <button type="button" data-act="setAllOptions" data-kind="status" data-checked="1">Select all</button>
+              <button type="button" data-act="setAllOptions" data-kind="status" data-checked="0">Clear</button>
+            </div>
+            <div id="au-status-options"></div>
+          </div>
+        </div>
       </div>
-
-      <div class="sep"></div>
-
-      <div class="filter-sec">
-        <div class="filter-title">Release Wave (GA) <button class="filter-clear" data-act="clearKey" data-key="waves">Clear</button></div>
-        <div class="cb-list" id="f-waves"></div>
+      <div class="au-filter-group">
+        <label class="au-filter-label" id="au-wave-filter-label">Wave:</label>
+        <div class="au-multi" id="au-wave-multi">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-wave-filter-label au-wave-label" data-act="toggleMenu" data-menu="au-wave-multi">
+            <span id="au-wave-label">All Waves</span>
+            <span class="au-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="au-multi-panel" id="au-wave-panel">
+            <div class="au-multi-actions">
+              <button type="button" data-act="setAllOptions" data-kind="wave" data-checked="1">Select all</button>
+              <button type="button" data-act="setAllOptions" data-kind="wave" data-checked="0">Clear</button>
+            </div>
+            <div id="au-wave-options"></div>
+          </div>
+        </div>
       </div>
-
-      <div class="sep"></div>
-
-      <div class="filter-sec">
-        <div class="filter-title">GA Status <button class="filter-clear" data-act="clearKey" data-key="gaStatus">Clear</button></div>
-        <div class="cb-list" id="f-ga-status"></div>
+      <div class="au-filter-group">
+        <label class="au-filter-label" id="au-type-filter-label">Type:</label>
+        <div class="au-multi" id="au-type-multi">
+          <button type="button" class="au-multi-toggle" aria-haspopup="true" aria-expanded="false" aria-labelledby="au-type-filter-label au-type-label" data-act="toggleMenu" data-menu="au-type-multi">
+            <span id="au-type-label">All Types</span>
+            <span class="au-multi-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="au-multi-panel" id="au-type-panel">
+            <div class="au-multi-actions">
+              <button type="button" data-act="setAllOptions" data-kind="type" data-checked="1">Select all</button>
+              <button type="button" data-act="setAllOptions" data-kind="type" data-checked="0">Clear</button>
+            </div>
+            <div id="au-type-options"></div>
+          </div>
+        </div>
       </div>
-
-      <div class="sep"></div>
-
-      <div class="filter-sec">
-        <div class="filter-title">Feature Type <button class="filter-clear" data-act="clearKey" data-key="featureType">Clear</button></div>
-        <div class="cb-list" id="f-type"></div>
+      <div class="au-filter-group">
+        <label class="au-filter-label" for="au-timerange">Date:</label>
+        <select class="au-filter-select" id="au-timerange" data-act="handleDateChange" data-on="change">
+          <option value="0" selected>All time</option>
+          <option value="7">±7 days</option>
+          <option value="30">±30 days</option>
+          <option value="60">±60 days</option>
+          <option value="wave">Current Wave</option>
+        </select>
       </div>
-
-      <div class="sep"></div>
-
-      <div class="filter-sec">
-        <div class="filter-title">Enabled For <button class="filter-clear" data-act="clearKey" data-key="enabledFor">Clear</button></div>
-        <div class="cb-list" id="f-enabled"></div>
-      </div>
-
-      <div class="sep"></div>
-
-      <div class="filter-sec">
-        <div class="filter-title">AI Features Only</div>
-        <label class="toggle-row">
-          <input type="checkbox" class="toggle-input" id="ai-toggle" data-act="handleAi" data-on="change">
-          <span class="toggle-visual"></span>
-          <span class="cb-lbl">AI Contribution features only</span>
+      <div class="au-filter-group">
+        <label class="au-filter-label" for="au-sort">Sort:</label>
+        <select class="au-filter-select" id="au-sort" data-act="filterAndRender" data-on="change">
+          <option value="date">GA Date (newest)</option>
+          <option value="product">Group by Product</option>
+          <option value="wave">Release Wave</option>
+          <option value="name">Feature Name</option>
+        </select>
+        <label class="au-filter-label" for="au-expand-all" id="au-expand-all-label" style="display:none;align-items:center;gap:0.4rem;cursor:pointer">
+          <input type="checkbox" id="au-expand-all" data-act="toggleExpandAll" data-on="change">
+          Expand all
         </label>
       </div>
-
-      <div class="sep" hidden></div>
-
-      <div class="filter-sec" hidden>
-        <div class="filter-title">Load Products <span class="filter-title-actions"><button class="select-all-btn" data-act="selectAllPickerProducts" data-state="1">All</button><button class="filter-clear" data-act="selectAllPickerProducts" data-state="0">None</button></span></div>
-        <div class="cb-list" id="product-picker" style="max-height:300px"></div>
-        <button class="custom-load-btn" data-act="loadSelectedProducts" style="margin-top:0.5rem">Load Selected →</button>
+      <div class="au-filter-group">
+        <label class="au-filter-label" for="au-ai-toggle" style="display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+          <input type="checkbox" id="au-ai-toggle" data-act="handleAiToggle" data-on="change">
+          AI only
+        </label>
       </div>
-    </aside>
-
-    <!-- Main -->
-    <main class="content">
-      <h1 class="page-heading">Power Platform Roadmap</h1>
-      <div class="toolbar">
-        <div class="feat-count" id="feat-count">Loading…</div>
-        <div style="display:flex;gap:0.5rem;align-items:center">
-          <label for="sort-select" class="sr-only">Sort or group order</label>
-          <select class="sort-select" id="sort-select" data-act="renderFeatures" data-on="change" aria-label="Sort or group order">
-            <option value="date">Sort by GA Date (newest first)</option>
-            <option value="product">Group by Product</option>
-            <option value="wave">Sort by Release Wave</option>
-            <option value="name">Sort by Feature Name</option>
-          </select>
-          <button class="export-btn" id="export-btn" type="button" data-act="openExportModal">⬇ Export</button>
-        </div>
+      <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
+        <span id="au-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
+        <button class="export-btn" id="export-btn" type="button" data-act="openExportModal">⬇ Export</button>
+        <button class="export-btn" data-act="reloadAll">↻ Refresh</button>
       </div>
+    </div>
 
-      <div class="loading-banner" id="loading-banner" role="status" aria-live="polite">
+    <div class="loading-banner hidden" id="loading-banner" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <span id="loading-text">Loading Power Platform release data…</span>
+    </div>
+
+    <div class="au-cards" id="au-cards-container">
+      <div class="au-loading" role="status" aria-live="polite">
         <div class="spinner" aria-hidden="true"></div>
-        <span id="loading-text">Loading Power Platform release data…</span>
+        <span>Loading Power Platform release data…</span>
       </div>
+    </div>
+  </div>
 
-      <div id="features-container"></div>
-    </main>
+  <div class="au-modal-overlay" id="au-modal" data-act="handleModalBackdrop">
+    <div class="au-modal" role="dialog" aria-modal="true" aria-labelledby="au-modal-title">
+      <div class="au-modal-header">
+        <div>
+          <div class="au-modal-title" id="au-modal-title"></div>
+          <div class="au-modal-meta" id="au-modal-meta"></div>
+        </div>
+        <button class="au-modal-close" data-act="closeFeature" aria-label="Close">×</button>
+      </div>
+      <div class="au-modal-body" id="au-modal-body"></div>
+    </div>
   </div>
 
   <script>
-    // Register delegated actions (data-act) that need arguments from data-* attrs.
-    // Argument-less handlers resolve automatically to same-named global functions.
+    // Register delegated actions
     if (window.CPActions) window.CPActions.register({
-      handleSearch:            (e, el) => handleSearch(el.value),
-      applyPreset:             (e, el) => applyPreset(Number(el.dataset.days)),
-      applyExportPreset:       (e, el) => applyExportPreset(Number(el.dataset.days)),
-      clearKey:                (e, el) => clearKey(el.dataset.key),
-      handleAi:                (e, el) => handleAi(el.checked),
-      selectAllPickerProducts: (e, el) => selectAllPickerProducts(el.dataset.state === '1'),
+      toggleMenu:              (e, el) => toggleMenu(el.dataset.menu),
+      setAllOptions:           (e, el) => setAllOptions(el.dataset.kind, el.dataset.checked === '1'),
+      toggleProductGroup:      (e, el) => toggleProductGroup(el),
+      openFeature:             (e, el) => openFeature(el.dataset.id),
       selectAllExportProducts: (e, el) => selectAllExportProducts(el.dataset.state === '1'),
-      toggle:                  (e, el) => toggle(el.dataset.key, el.dataset.val, el.checked),
-      toggleProductGroup:      (e, el) => toggleProductGroup(el.dataset.cat),
-      togglePickerProduct:     (e, el) => togglePickerProduct(el.dataset.pid, el.checked),
+      applyExportPreset:       (e, el) => applyExportPreset(Number(el.dataset.days)),
     });
 
     // ════════════════════════════════════════════════
     // CONFIG
     // ════════════════════════════════════════════════
-    // Filter category labels (keep this order — drives section order in UI)
     const CATEGORY_ORDER = ['Power Platform', 'Dynamics 365', 'Role-based Copilots', 'Other'];
 
     const PRODUCTS = [
@@ -1010,8 +735,6 @@
     ];
     const KNOWN_IDS = PRODUCTS.map(p => p.id);
 
-    // Permanently excluded products (IDs and name patterns). These are skipped
-    // both during probe-discovery and when categorizing existing features.
     const EXCLUDED_IDS = new Set([
       'eb2f17ac-715d-e911-a968-000d3a4e32b5', // AI Builder
     ]);
@@ -1021,9 +744,6 @@
       return EXCLUDED_IDS.has(f.ProductId) || EXCLUDED_NAME_RE.test(f.Product || '');
     }
 
-    // Lookup: product name → category. Built from PRODUCTS and refined from
-    // ProductHierarchyPath as features arrive (so probed/discovered products
-    // also slot into the right section).
     const categoryByProductName = new Map(PRODUCTS.map(p => [p.name, p.category]));
 
     function categoryFromHierarchy(path) {
@@ -1035,16 +755,20 @@
       return 'Other';
     }
 
-    // Probe all 0xE0–0xFF variants (excluding known)
+    function categoryForProductName(name, hierarchy) {
+      if (categoryByProductName.has(name)) return categoryByProductName.get(name);
+      const cat = categoryFromHierarchy(hierarchy);
+      categoryByProductName.set(name, cat);
+      return cat;
+    }
+
+    // Probe IDs for discovery
     const PROBE_IDS = [];
     for (let i = 0xe0; i <= 0xff; i++) {
       const id = `${i.toString(16)}2f17ac-715d-e911-a968-000d3a4e32b5`;
       if (!KNOWN_IDS.includes(id)) PROBE_IDS.push(id);
     }
 
-    // Probe cache: discovery is expensive (~32 upstream calls that almost always
-    // return 0 results), so we only probe once per day and remember the outcome
-    // in localStorage. Cache shape: { ts: epoch_ms, products: [{id,name,category}] }
     const PROBE_CACHE_KEY = 'releasePlanner.probeCache.v1';
     const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -1065,8 +789,6 @@
       } catch { /* quota or disabled — ignore */ }
     }
 
-    // Apply cached discoveries to PRODUCTS before initial load so they're
-    // fetched alongside the known set instead of via a probe sweep.
     function applyCachedProbeDiscoveries() {
       const cache = readProbeCache();
       if (!cache || !Array.isArray(cache.products)) return false;
@@ -1081,52 +803,33 @@
       return true;
     }
 
-    // Use local proxy when served via server.js to bypass CORS restrictions.
-    // Direct browser calls to releaseplans.microsoft.com are blocked by CORS,
-    // so we only use the direct URL as a last-ditch fallback.
     const IS_LOCAL_SERVER = window.location.protocol === 'http:' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const API = IS_LOCAL_SERVER
       ? '/proxy?langCode=en-US&productId='
       : 'https://releaseplans.microsoft.com/releaseplanner-json/?langCode=en-US&productId=';
 
-    // Debug logging
-    console.log('[ReleasePlanner] URL:', window.location.href);
-    console.log('[ReleasePlanner] IS_LOCAL_SERVER:', IS_LOCAL_SERVER);
-    console.log('[ReleasePlanner] API base:', API);
-
-    // Track fetch outcomes for diagnostics
     const fetchStats = { ok: 0, empty: 0, failed: 0, lastError: null };
 
     // ════════════════════════════════════════════════
     // STATE
     // ════════════════════════════════════════════════
     let allFeatures = [];
-    let featureStore = {}; // id → feature object for lazy detail render
-    const selectedProductIds = new Set(PRODUCTS.map(p => p.id)); // products selected in pick list
+    let currentFiltered = [];
+    const selectedProductIds = new Set(PRODUCTS.map(p => p.id));
     let defaultProductFilterApplied = false;
-    // Product filter category groups: collapsed by default; user-toggled state
-    // persists across re-renders of buildFilterPanel.
-    const expandedProductGroups = new Set();
 
-    const filters = {
-      search: '',
-      products:    new Set(),
-      areas:       new Set(),
-      waves:       new Set(),
-      gaStatus:    new Set(),
-      featureType: new Set(),
-      enabledFor:  new Set(),
-      aiOnly: false,
-      dateFrom: null,
-      dateTo:   null,
-    };
+    // Multi-select filter sets
+    const productFilter = new Set();
+    const areaFilter    = new Set();
+    const statusFilter  = new Set();
+    const waveFilter    = new Set();
+    const typeFilter    = new Set();
+    let aiOnly = false;
 
     // ════════════════════════════════════════════════
     // API
     // ════════════════════════════════════════════════
-    // Decode HTML entities in API response strings (e.g. &#39; → ', &amp; → &).
-    // The Release Planner API often returns entity-encoded text in plain-text fields.
     function decodeEntities(s) {
       if (!s || typeof s !== 'string') return s;
       return s
@@ -1138,13 +841,10 @@
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>');
     }
-    // Decode double-encoded entities in HTML content fields so DOMParser
-    // can handle them (e.g. &amp;#39; → &#39; which DOMParser decodes to ').
     function decodeDoubleEncoded(s) {
       if (!s || typeof s !== 'string') return s;
       return s.replace(/&amp;(#\d+;|#x[0-9a-fA-F]+;|[a-zA-Z]+;)/g, '&$1');
     }
-    // Normalize a feature object's text fields after fetching from the API.
     function normalizeFeature(f) {
       if (f.FeatureName)  f.FeatureName  = decodeEntities(f.FeatureName);
       if (f.Product)      f.Product      = decodeEntities(f.Product);
@@ -1157,11 +857,8 @@
     }
 
     async function fetchProduct(id) {
-      // Smart fallback: always try local proxy first (works from any deployment),
-      // then fall back to direct URL if proxy is unreachable.
       const proxyUrl = '/proxy?langCode=en-US&productId=' + id;
       const directUrl = 'https://releaseplans.microsoft.com/releaseplanner-json/?langCode=en-US&productId=' + id;
-      
       const tryUrl = async (url, fallback) => {
         try {
           const ctrl = new AbortController();
@@ -1171,7 +868,6 @@
           if (!res.ok) {
             fetchStats.failed++;
             fetchStats.lastError = `HTTP ${res.status} for ${id}`;
-            console.warn('[ReleasePlanner] fetch failed', url, res.status);
             if (fallback) return tryUrl(fallback, null);
             return [];
           }
@@ -1179,17 +875,14 @@
           const results = Array.isArray(data.results) ? data.results : [];
           results.forEach(normalizeFeature);
           if (results.length) fetchStats.ok++; else fetchStats.empty++;
-          console.log('[ReleasePlanner] fetch ok', id, results.length, 'results from', url.split('?')[0]);
           return results;
         } catch (err) {
           fetchStats.failed++;
           fetchStats.lastError = err && err.message ? err.message : String(err);
-          console.warn('[ReleasePlanner] fetch error', url, err);
           if (fallback) return tryUrl(fallback, null);
           return [];
         }
       };
-      
       return tryUrl(proxyUrl, directUrl);
     }
 
@@ -1207,7 +900,8 @@
       const ids = [...selectedProductIds];
       if (!ids.length) {
         allFeatures = [];
-        refresh();
+        rebuildFilters();
+        filterAndRender();
         setLoading(false);
         return;
       }
@@ -1216,21 +910,12 @@
       const known = await Promise.all(ids.map(fetchProduct));
       allFeatures = dedup(known.flat().filter(f => f.FeatureName && !isExcludedFeature(f)));
       applyDefaultProductFilter();
-      refresh();
+      rebuildFilters();
+      filterAndRender();
 
-      // If everything failed/empty, surface the most likely cause instead of
-      // continuing to probe (which will also fail).
       if (!allFeatures.length) {
         if (fetchStats.failed > 0) {
-          const msg = `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed.\n\n` +
-            `Last error: ${fetchStats.lastError || 'unknown'}\n\n` +
-            `Diagnostics:\n` +
-            `  • Server: ${window.location.href}\n` +
-            `  • IS_LOCAL_SERVER: ${IS_LOCAL_SERVER}\n` +
-            `  • Proxy URL: /proxy?langCode=en-US&productId=<id>\n` +
-            `  • Check browser DevTools → Network tab to see which requests failed.\n` +
-            `  • Check server console: npm start`;
-          setLoading(true, msg);
+          setLoading(true, `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed. Last error: ${fetchStats.lastError || 'unknown'}`);
         } else if (!IS_LOCAL_SERVER) {
           setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3000');
         } else {
@@ -1239,8 +924,6 @@
         return;
       }
 
-      // Skip probe sweep if we have a fresh cache from a previous run.
-      // Cached discoveries were already applied to PRODUCTS at init.
       if (readProbeCache()) {
         setLoading(false);
         return;
@@ -1251,7 +934,6 @@
       const probeFeats = probes.flat().filter(f => f.FeatureName && !isExcludedFeature(f));
       const cachedProducts = [];
       if (probeFeats.length > 0) {
-        // Add any newly discovered products to the picker (auto-selected)
         const byProduct = {};
         for (const f of probeFeats) {
           if (!f.ProductId || !f.Product) continue;
@@ -1268,19 +950,16 @@
             selectedProductIds.add(id);
           }
         }
-        const discovered = Object.values(byProduct).map(v => v.name);
         allFeatures = dedup([...allFeatures, ...probeFeats]);
-        if (discovered.length) {
-          setLoading(true, `Found: ${discovered.join(', ')}. Updating…`);
-          await new Promise(r => setTimeout(r, 400));
-        }
-        buildProductPicker();
-        refresh();
+        rebuildFilters();
+        filterAndRender();
       }
-      // Always record that we probed, even when no new products turned up,
-      // so we don't hammer the upstream again for the next 24 hours.
       writeProbeCache(cachedProducts);
       setLoading(false);
+    }
+
+    function reloadAll() {
+      loadAll();
     }
 
     // ════════════════════════════════════════════════
@@ -1302,33 +981,7 @@
       return isNaN(d.getTime()) ? null : d;
     }
 
-    function matchesFilters(f) {
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const haystack = [f.FeatureName, f.Product, f.ProductArea, f.BusinessValue].join(' ').toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      if (filters.products.size    && !filters.products.has(f.Product)) return false;
-      if (filters.areas.size       && !filters.areas.has(f.ProductArea)) return false;
-      if (filters.waves.size       && !filters.waves.has(getWave(f))) return false;
-      if (filters.gaStatus.size    && !filters.gaStatus.has(f.GAStatus)) return false;
-      if (filters.featureType.size && !filters.featureType.has(f.FeatureType)) return false;
-      if (filters.enabledFor.size  && !filters.enabledFor.has(normalizeEnabledFor(f.EnabledFor))) return false;
-      if (filters.aiOnly && f.AiContribution !== 'true') return false;
-      if (filters.dateFrom || filters.dateTo) {
-        const d = parseDateField(f.GADate) || parseDateField(f.PublicPreviewDate) || parseDateField(f.EarlyAccessDate);
-        if (!d) return false;
-        if (filters.dateFrom && d < filters.dateFrom) return false;
-        if (filters.dateTo   && d > filters.dateTo)   return false;
-      }
-      return true;
-    }
-
-    function getFiltered() { return allFeatures.filter(matchesFilters); }
-
-    // Initial view: everything under Power Platform (and other non-Dynamics 365
-    // categories) is checked; Dynamics 365 products are unchecked. Runs once,
-    // after features first load, so user changes are never overwritten.
+    // Apply default: Power Platform products pre-selected, Dynamics 365 unchecked
     function applyDefaultProductFilter() {
       if (defaultProductFilterApplied) return;
       const names = new Set();
@@ -1340,57 +993,133 @@
       }
       if (!names.size) return;
       for (const n of names) {
-        if (categoryForProductName(n, hierByName[n]) !== 'Dynamics 365') filters.products.add(n);
+        if (categoryForProductName(n, hierByName[n]) !== 'Dynamics 365') productFilter.add(n);
       }
       defaultProductFilterApplied = true;
     }
 
-    // ════════════════════════════════════════════════
-    // FILTER PANEL
-    // ════════════════════════════════════════════════
-    function buildFilterPanel() {
-      const filtered = getFiltered();
-
-      buildProductFilterGroup(allFeatures, filtered);
-      const areaBase = filters.products.size ? allFeatures.filter(f => filters.products.has(f.Product)) : allFeatures;
-      buildGroup('f-areas',     'areas',       areaBase,    f => f.ProductArea,                filtered);
-      buildGroup('f-waves',     'waves',       allFeatures, f => getWave(f),                   filtered, sortWaves);
-      buildGroup('f-ga-status', 'gaStatus',    allFeatures, f => f.GAStatus,                   filtered, sortStatus);
-      buildGroup('f-type',      'featureType', allFeatures, f => f.FeatureType,                filtered);
-      buildGroup('f-enabled',   'enabledFor',  allFeatures, f => normalizeEnabledFor(f.EnabledFor), filtered);
+    function getDateFilter() {
+      const val = document.getElementById('au-timerange').value;
+      if (val === '0') return { from: null, to: null };
+      if (val === 'wave') {
+        const today = new Date();
+        const waves = [...new Set(allFeatures.map(f => getWave(f)).filter(Boolean))];
+        let bestWave = null, bestScore = -1;
+        for (const w of waves) {
+          const m = w.match(/(\d{4}) release wave (\d)/i);
+          if (!m) continue;
+          const [, yr, wn] = m;
+          const wStart = new Date(+yr, +wn === 1 ? 0 : 6, 1);
+          const wEnd   = new Date(+yr, +wn === 1 ? 5 : 11, 31, 23, 59, 59);
+          if (today >= wStart && today <= wEnd) { bestWave = w; break; }
+          if (wEnd <= today) {
+            const score = +yr * 10 + +wn;
+            if (score > bestScore) { bestScore = score; bestWave = w; }
+          }
+        }
+        if (!bestWave && waves.length) bestWave = sortWaves([...waves])[0];
+        if (!bestWave) return { from: null, to: null };
+        const m = bestWave.match(/(\d{4}) release wave (\d)/i);
+        if (!m) return { from: null, to: null };
+        const [, yr, wn] = m;
+        return {
+          from: new Date(+yr, +wn === 1 ? 0 : 6, 1),
+          to:   new Date(+yr, +wn === 1 ? 5 : 11, 31, 23, 59, 59)
+        };
+      }
+      const days = parseInt(val) || 0;
+      if (days <= 0) return { from: null, to: null };
+      const now = new Date();
+      const from = new Date(now); from.setDate(from.getDate() - days);
+      const to   = new Date(now); to.setDate(to.getDate() + days);
+      return { from, to };
     }
 
-    // Returns the category for a product NAME, falling back to ProductHierarchyPath
-    // captured from the latest feature record.
-    function categoryForProductName(name, hierarchy) {
-      if (categoryByProductName.has(name)) return categoryByProductName.get(name);
-      const cat = categoryFromHierarchy(hierarchy);
-      categoryByProductName.set(name, cat);
-      return cat;
+    function matchesFilters(f) {
+      const q = (document.getElementById('au-search').value || '').toLowerCase().trim();
+      if (q) {
+        const haystack = [f.FeatureName, f.Product, f.ProductArea, f.BusinessValue].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+
+      const allProducts = getAllKnownValues('product');
+      const productActive = productFilter.size > 0 && productFilter.size < allProducts.length;
+      if (productActive && !productFilter.has(f.Product)) return false;
+
+      const allAreas = getAllKnownValues('area');
+      const areaActive = areaFilter.size > 0 && areaFilter.size < allAreas.length;
+      if (areaActive && !areaFilter.has(f.ProductArea)) return false;
+
+      const allStatuses = getAllKnownValues('status');
+      const statusActive = statusFilter.size > 0 && statusFilter.size < allStatuses.length;
+      if (statusActive && !statusFilter.has(f.GAStatus)) return false;
+
+      const allWaves = getAllKnownValues('wave');
+      const waveActive = waveFilter.size > 0 && waveFilter.size < allWaves.length;
+      if (waveActive && !waveFilter.has(getWave(f))) return false;
+
+      const allTypes = getAllKnownValues('type');
+      const typeActive = typeFilter.size > 0 && typeFilter.size < allTypes.length;
+      if (typeActive && !typeFilter.has(f.FeatureType)) return false;
+
+      if (aiOnly && f.AiContribution !== 'true') return false;
+
+      const { from, to } = getDateFilter();
+      if (from || to) {
+        const d = parseDateField(f.GADate) || parseDateField(f.PublicPreviewDate) || parseDateField(f.EarlyAccessDate);
+        if (!d) return false;
+        if (from && d < from) return false;
+        if (to   && d > to)   return false;
+      }
+      return true;
     }
 
-    // Specialized renderer for the Product filter — groups checkboxes under
-    // category headers (Power Platform, Dynamics 365, …) so users can scan by
-    // product family.
-    function buildProductFilterGroup(source, filtered) {
-      const el = document.getElementById('f-products');
-      if (!el) return;
+    function getFiltered() { return allFeatures.filter(matchesFilters); }
 
-      const allCounts = {}, filtCounts = {}, hierByName = {};
-      for (const f of source) {
-        const v = f.Product;
-        if (!v) continue;
-        allCounts[v] = (allCounts[v] || 0) + 1;
-        if (!hierByName[v] && f.ProductHierarchyPath) hierByName[v] = f.ProductHierarchyPath;
-      }
-      for (const f of filtered) {
-        const v = f.Product;
-        if (v) filtCounts[v] = (filtCounts[v] || 0) + 1;
-      }
+    function getAllKnownValues(kind) {
+      const containerId = `au-${kind}-options`;
+      return Array.from(document.querySelectorAll(`#${containerId} input`)).map(i => i.dataset.value);
+    }
 
-      const names = Object.keys(allCounts).filter(v => v && v.trim());
+    // ════════════════════════════════════════════════
+    // MULTI-SELECT FILTERS
+    // ════════════════════════════════════════════════
+    function rebuildFilters() {
+      const products = new Set();
+      const areas    = new Set();
+      const statuses = new Set();
+      const waves    = new Set();
+      const types    = new Set();
+      const hierByName = {};
+      allFeatures.forEach(f => {
+        if (f.Product)     { products.add(f.Product); if (!hierByName[f.Product] && f.ProductHierarchyPath) hierByName[f.Product] = f.ProductHierarchyPath; }
+        if (f.ProductArea) areas.add(f.ProductArea);
+        if (f.GAStatus)    statuses.add(f.GAStatus);
+        const w = getWave(f);
+        if (w) waves.add(w);
+        if (f.FeatureType) types.add(f.FeatureType);
+      });
+
+      // Product: grouped by category
+      renderProductMultiOptions([...products].sort(), hierByName);
+
+      renderMultiOptions('au-area-options',   [...areas].sort(), areaFilter, 'area');
+      renderMultiOptions('au-status-options', sortStatuses([...statuses]), statusFilter, 'status');
+      renderMultiOptions('au-wave-options',   sortWaves([...waves]), waveFilter, 'wave');
+      renderMultiOptions('au-type-options',   [...types].sort(), typeFilter, 'type');
+
+      updateMultiLabel('product', [...products], 'Products');
+      updateMultiLabel('area', [...areas], 'Areas');
+      updateMultiLabel('status', [...statuses], 'Statuses');
+      updateMultiLabel('wave', [...waves], 'Waves');
+      updateMultiLabel('type', [...types], 'Types');
+    }
+
+    function renderProductMultiOptions(allNames, hierByName) {
+      const el = document.getElementById('au-product-options');
+      // Group by category
       const groups = {};
-      for (const n of names) {
+      for (const n of allNames) {
         const cat = categoryForProductName(n, hierByName[n]);
         (groups[cat] = groups[cat] || []).push(n);
       }
@@ -1398,66 +1127,116 @@
         ...CATEGORY_ORDER.filter(c => groups[c]),
         ...Object.keys(groups).filter(c => !CATEGORY_ORDER.includes(c)).sort(),
       ];
-
       el.innerHTML = cats.map(cat => {
-        const list = groups[cat].sort();
-        const items = list.map(v => `
-          <label class="cb-item">
-            <input type="checkbox" value="${xa(v)}"
-                   ${filters.products.has(v) ? 'checked' : ''}
-                   data-act="toggle" data-key="products" data-val="${xa(v)}" data-on="change">
-            <span class="cb-lbl">${xh(v)}</span>
-            <span class="cb-count">${filtCounts[v] || 0}</span>
-          </label>
-        `).join('');
-        // Groups with 2+ products get a collapsible header; single-item groups
-        // stay as a plain static header. Collapsed by default.
-        if (list.length < 2) {
-          return `<div class="cb-grp-hdr">${xh(cat)}</div>${items}`;
-        }
-        const selectedCount = list.reduce((n, v) => n + (filters.products.has(v) ? 1 : 0), 0);
-        const expanded = expandedProductGroups.has(cat);
-        return `<button type="button" class="cb-grp-toggle" aria-expanded="${expanded}" data-act="toggleProductGroup" data-cat="${xa(cat)}">
-          <span class="cb-grp-caret" aria-hidden="true">▾</span>
-          <span class="cb-grp-name">${xh(cat)}</span>
-          <span class="cb-grp-badge">${selectedCount} of ${list.length} selected</span>
-        </button><div class="cb-grp-body"${expanded ? '' : ' hidden'}>${items}</div>`;
+        const items = groups[cat].sort().map(v => `
+          <label class="au-multi-option">
+            <input type="checkbox" data-kind="product" data-value="${xh(v)}"
+                   ${productFilter.has(v) ? 'checked' : ''}
+                   data-act="onMultiChange" data-on="change">
+            <span>${xh(v)}</span>
+          </label>`).join('');
+        return `<div class="au-multi-grp-hdr">${xh(cat)}</div>${items}`;
       }).join('');
     }
 
-    function toggleProductGroup(cat) {
-      if (expandedProductGroups.has(cat)) expandedProductGroups.delete(cat);
-      else expandedProductGroups.add(cat);
-      buildFilterPanel();
+    function renderMultiOptions(containerId, values, selectedSet, kind) {
+      const c = document.getElementById(containerId);
+      c.innerHTML = values.map(v => `
+        <label class="au-multi-option">
+          <input type="checkbox" data-kind="${kind}" data-value="${xh(v)}"
+                 ${selectedSet.has(v) ? 'checked' : ''}
+                 data-act="onMultiChange" data-on="change">
+          <span>${xh(v)}</span>
+        </label>`).join('');
     }
 
-    function buildGroup(elId, key, source, getter, filtered, sortFn) {
-      const el = document.getElementById(elId);
-
-      const allCounts = {}, filtCounts = {};
-      for (const f of source) {
-        const v = getter(f);
-        if (v) allCounts[v] = (allCounts[v] || 0) + 1;
-      }
-      for (const f of filtered) {
-        const v = getter(f);
-        if (v) filtCounts[v] = (filtCounts[v] || 0) + 1;
-      }
-
-      let vals = Object.keys(allCounts).filter(v => v && v.trim());
-      vals = sortFn ? sortFn(vals) : vals.sort();
-
-      el.innerHTML = vals.map(v => `
-        <label class="cb-item">
-          <input type="checkbox" value="${xa(v)}"
-                 ${filters[key].has(v) ? 'checked' : ''}
-                 data-act="toggle" data-key="${key}" data-val="${xa(v)}" data-on="change">
-          <span class="cb-lbl">${xh(v)}</span>
-          <span class="cb-count">${filtCounts[v] || 0}</span>
-        </label>
-      `).join('');
+    function onMultiChange(ev) {
+      const kind = ev.target.dataset.kind;
+      const value = ev.target.dataset.value;
+      const set = getFilterSet(kind);
+      if (ev.target.checked) set.add(value); else set.delete(value);
+      const allKnown = getAllKnownValues(kind);
+      const label = { product: 'Products', area: 'Areas', status: 'Statuses', wave: 'Waves', type: 'Types' }[kind] || kind;
+      updateMultiLabel(kind, allKnown, label);
+      filterAndRender();
     }
 
+    function setAllOptions(kind, checked) {
+      const set = getFilterSet(kind);
+      const containerId = `au-${kind}-options`;
+      const inputs = document.querySelectorAll(`#${containerId} input`);
+      inputs.forEach(i => {
+        i.checked = checked;
+        if (checked) set.add(i.dataset.value); else set.delete(i.dataset.value);
+      });
+      const allKnown = Array.from(inputs).map(i => i.dataset.value);
+      const label = { product: 'Products', area: 'Areas', status: 'Statuses', wave: 'Waves', type: 'Types' }[kind] || kind;
+      updateMultiLabel(kind, allKnown, label);
+      filterAndRender();
+    }
+
+    function getFilterSet(kind) {
+      switch(kind) {
+        case 'product': return productFilter;
+        case 'area':    return areaFilter;
+        case 'status':  return statusFilter;
+        case 'wave':    return waveFilter;
+        case 'type':    return typeFilter;
+        default:        return new Set();
+      }
+    }
+
+    function updateMultiLabel(kind, allValues, plural) {
+      const labelEl = document.getElementById(`au-${kind}-label`);
+      if (!labelEl) return;
+      const set = getFilterSet(kind);
+      const total = allValues.length;
+      const sel = [...set].filter(v => allValues.includes(v));
+      if (sel.length === 0 || sel.length === total) labelEl.textContent = `All ${plural}`;
+      else if (sel.length === 1) labelEl.textContent = sel[0];
+      else labelEl.textContent = `${sel.length} ${plural}`;
+    }
+
+    function toggleMenu(id) {
+      document.querySelectorAll('.au-multi.open').forEach(el => {
+        if (el.id !== id) {
+          el.classList.remove('open');
+          const t = el.querySelector('.au-multi-toggle');
+          if (t) t.setAttribute('aria-expanded', 'false');
+        }
+      });
+      const wrap = document.getElementById(id);
+      const isOpen = wrap.classList.toggle('open');
+      const toggle = wrap.querySelector('.au-multi-toggle');
+      if (toggle) toggle.setAttribute('aria-expanded', String(isOpen));
+    }
+    document.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('.au-multi')) return;
+      document.querySelectorAll('.au-multi.open').forEach(el => {
+        el.classList.remove('open');
+        const t = el.querySelector('.au-multi-toggle');
+        if (t) t.setAttribute('aria-expanded', 'false');
+      });
+    });
+
+    function handleAiToggle(ev) {
+      aiOnly = !!ev.target.checked;
+      filterAndRender();
+    }
+
+    function handleDateChange() {
+      filterAndRender();
+    }
+
+    let __searchTimer = null;
+    function debouncedSearch() {
+      clearTimeout(__searchTimer);
+      __searchTimer = setTimeout(filterAndRender, 150);
+    }
+
+    // ════════════════════════════════════════════════
+    // SORT HELPERS
+    // ════════════════════════════════════════════════
     function sortWaves(waves) {
       return waves.sort((a, b) => {
         if (!a) return 1; if (!b) return -1;
@@ -1469,350 +1248,12 @@
       });
     }
 
-    function sortStatus(statuses) {
+    function sortStatuses(statuses) {
       const order = ['Shipped', 'Planned', 'N/A'];
       return statuses.sort((a, b) => {
         const ia = order.indexOf(a); const ib = order.indexOf(b);
         return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
       });
-    }
-
-    // ════════════════════════════════════════════════
-    // FILTER HANDLERS
-    // ════════════════════════════════════════════════
-    function toggle(key, value, checked) {
-      if (checked) filters[key].add(value); else filters[key].delete(value);
-      buildFilterPanel(); renderFeatures();
-    }
-    // Debounce search input — avoid full filter+render per keystroke.
-    let __searchTimer = null;
-    function handleSearch(val) {
-      filters.search = val;
-      clearTimeout(__searchTimer);
-      __searchTimer = setTimeout(() => { buildFilterPanel(); renderFeatures(); }, 150);
-    }
-    function handleAi(checked) { filters.aiOnly = checked; buildFilterPanel(); renderFeatures(); }
-    function clearKey(key) { filters[key].clear(); buildFilterPanel(); renderFeatures(); }
-    function fmtDate(d) {
-      return d.toISOString().slice(0, 10);
-    }
-
-    function applyPreset(days) {
-      const now = new Date();
-      const from = new Date(now); from.setDate(from.getDate() - days);
-      const to   = new Date(now); to.setDate(to.getDate() + days);
-      filters.dateFrom = from; filters.dateTo = to;
-      document.getElementById('date-from').value = fmtDate(from);
-      document.getElementById('date-to').value   = fmtDate(to);
-      updatePresetButtons(days);
-      buildFilterPanel(); renderFeatures();
-    }
-
-    function applyCurrentWave() {
-      const today = new Date();
-      const waves = [...new Set(allFeatures.map(f => getWave(f)).filter(Boolean))];
-      let bestWave = null, bestScore = -1;
-      for (const w of waves) {
-        const m = w.match(/(\d{4}) release wave (\d)/i);
-        if (!m) continue;
-        const [, yr, wn] = m;
-        const wStart = new Date(+yr, +wn === 1 ? 0 : 6, 1);
-        const wEnd   = new Date(+yr, +wn === 1 ? 5 : 11, 31, 23, 59, 59);
-        if (today >= wStart && today <= wEnd) { bestWave = w; break; }
-        if (wEnd <= today) {
-          const score = +yr * 10 + +wn;
-          if (score > bestScore) { bestScore = score; bestWave = w; }
-        }
-      }
-      if (!bestWave && waves.length) bestWave = sortWaves([...waves])[0];
-      if (!bestWave) return;
-      const m = bestWave.match(/(\d{4}) release wave (\d)/i);
-      if (!m) return;
-      const [, yr, wn] = m;
-      const wStart = new Date(+yr, +wn === 1 ? 0 : 6, 1);
-      const wEnd   = new Date(+yr, +wn === 1 ? 5 : 11, 31, 23, 59, 59);
-      filters.dateFrom = wStart; filters.dateTo = wEnd;
-      document.getElementById('date-from').value = fmtDate(wStart);
-      document.getElementById('date-to').value   = fmtDate(wEnd);
-      updatePresetButtons('wave');
-      buildFilterPanel(); renderFeatures();
-    }
-
-    function handleDateChange() {
-      const fv = document.getElementById('date-from').value;
-      const tv = document.getElementById('date-to').value;
-      filters.dateFrom = fv ? new Date(fv + 'T00:00:00') : null;
-      filters.dateTo   = tv ? new Date(tv + 'T23:59:59') : null;
-      updatePresetButtons(null);
-      buildFilterPanel(); renderFeatures();
-    }
-
-    function clearDateRange() {
-      filters.dateFrom = null; filters.dateTo = null;
-      document.getElementById('date-from').value = '';
-      document.getElementById('date-to').value   = '';
-      updatePresetButtons(null);
-      buildFilterPanel(); renderFeatures();
-    }
-
-    function updatePresetButtons(active) {
-      document.getElementById('preset-7').classList.toggle('active', active === 7);
-      document.getElementById('preset-30').classList.toggle('active', active === 30);
-      document.getElementById('preset-60').classList.toggle('active', active === 60);
-      document.getElementById('preset-wave').classList.toggle('active', active === 'wave');
-    }
-
-    function selectAllProducts() {
-      const products = [...new Set(allFeatures.map(f => f.Product).filter(Boolean))];
-      products.forEach(p => filters.products.add(p));
-      buildFilterPanel(); renderFeatures();
-    }
-
-    function clearAll() {
-      Object.keys(filters).forEach(k => {
-        if (filters[k] instanceof Set) filters[k].clear(); else filters[k] = false;
-      });
-      filters.search = ''; filters.dateFrom = null; filters.dateTo = null;
-      document.getElementById('search-input').value = '';
-      document.getElementById('ai-toggle').checked = false;
-      document.getElementById('date-from').value = '';
-      document.getElementById('date-to').value   = '';
-      updatePresetButtons(null);
-      buildFilterPanel(); renderFeatures();
-    }
-
-    // ════════════════════════════════════════════════
-    // RENDERING
-    // ════════════════════════════════════════════════
-    function refresh() {
-      buildFilterPanel();
-      renderFeatures();
-    }
-
-    function renderFeatures() {
-      featureStore = {};
-      const filtered = getFiltered();
-      const sort = document.getElementById('sort-select').value;
-      const container = document.getElementById('features-container');
-
-      document.getElementById('feat-count').innerHTML =
-        `Showing <strong>${filtered.length}</strong> of <strong>${allFeatures.length}</strong> features`;
-
-      if (!filtered.length) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">🔍</div>
-            <div class="empty-ttl">No features match your filters</div>
-            <div class="empty-sub">Try adjusting or clearing your filters</div>
-          </div>`;
-        return;
-      }
-
-      let html = '';
-
-      // Show/hide the "Expand all" checkbox based on whether we're grouping
-      const expandLabel = document.getElementById('expand-all-label');
-      if (expandLabel) expandLabel.style.display = (sort === 'product') ? 'inline-flex' : 'none';
-
-      if (sort === 'product') {
-        // Group by Product → Area
-        const expandAll = !!(document.getElementById('expand-all') && document.getElementById('expand-all').checked);
-        const byProduct = {};
-        for (const f of filtered) {
-          const p = f.Product || 'Unknown'; const a = f.ProductArea || 'General';
-          if (!byProduct[p]) byProduct[p] = {};
-          if (!byProduct[p][a]) byProduct[p][a] = [];
-          byProduct[p][a].push(f);
-        }
-        html = Object.entries(byProduct).sort(([a],[b]) => a.localeCompare(b))
-          .map(([prod, areas]) => renderProductGroup(prod, areas, expandAll)).join('');
-      } else {
-        let sorted = [...filtered];
-        if (sort === 'name') {
-          sorted.sort((a,b) => (a.FeatureName||'').localeCompare(b.FeatureName||''));
-        } else if (sort === 'wave') {
-          sorted.sort((a,b) => {
-            const wa = sortableWave(getWave(a)), wb = sortableWave(getWave(b));
-            return wb - wa;
-          });
-        } else if (sort === 'date') {
-          sorted.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
-        }
-        html = `
-          <div class="features-grid">
-            ${sorted.map(f => renderCard(f)).join('')}
-          </div>`;
-      }
-
-      container.innerHTML = html;
-
-      // Attach expand handlers
-      container.querySelectorAll('.expand-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const card = btn.closest('.feature-card');
-          const details = card.querySelector('.card-details');
-          const fid = card.dataset.fid;
-          if (!details.dataset.rendered && fid && featureStore[fid]) {
-            details.innerHTML = buildDetails(featureStore[fid]);
-            details.dataset.rendered = '1';
-          }
-          const open = details.classList.toggle('visible');
-          btn.classList.toggle('open', open);
-          btn.setAttribute('aria-expanded', String(open));
-          btn.querySelector('.expand-lbl').textContent = open ? 'Show less' : 'Show more';
-        });
-      });
-
-      // Attach product collapse handlers
-      container.querySelectorAll('.product-header').forEach(h => {
-        const toggle = () => {
-          const body = h.closest('.product-group').querySelector('.product-body');
-          const chev = h.querySelector('.product-chevron');
-          const col = body.style.display === 'none';
-          body.style.display = col ? '' : 'none';
-          chev.classList.toggle('collapsed', !col);
-          h.setAttribute('aria-expanded', String(col));
-          syncExpandAllCheckbox();
-        };
-        h.addEventListener('click', toggle);
-        h.addEventListener('keydown', (ev) => {
-          if (ev.key === 'Enter' || ev.key === ' ') {
-            ev.preventDefault();
-            toggle();
-          }
-        });
-      });
-
-      syncExpandAllCheckbox();
-    }
-
-    function renderProductGroup(product, areas, expanded) {
-      const total = Object.values(areas).reduce((s, a) => s + a.length, 0);
-      const areasHtml = Object.entries(areas).sort(([a],[b]) => a.localeCompare(b))
-        .map(([area, feats]) => {
-          const sortedFeats = [...feats].sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
-          return `
-          <div class="area-group">
-            <div class="area-header">${xh(area)} <span class="area-count">(${feats.length})</span></div>
-            <div class="features-grid">${sortedFeats.map(f => renderCard(f)).join('')}</div>
-          </div>
-        `;
-        }).join('');
-      const bodyStyle = expanded ? '' : ' style="display:none"';
-      const chevClass = expanded ? 'product-chevron' : 'product-chevron collapsed';
-      const ariaExp = expanded ? 'true' : 'false';
-      return `
-        <div class="product-group">
-          <div class="product-header" role="button" tabindex="0" aria-expanded="${ariaExp}" aria-label="Toggle ${xa(product)} group">
-            <span class="product-name">${xh(product)}</span>
-            <span class="product-feat-count">${total} feature${total !== 1 ? 's' : ''}</span>
-            <span class="${chevClass}" aria-hidden="true">▼</span>
-          </div>
-          <div class="product-body"${bodyStyle}>${areasHtml}</div>
-        </div>`;
-    }
-
-    function toggleExpandAll() {
-      const cb = document.getElementById('expand-all');
-      if (!cb) return;
-      const expand = !!cb.checked;
-      document.querySelectorAll('#features-container .product-group').forEach(g => {
-        const body = g.querySelector('.product-body');
-        const chev = g.querySelector('.product-chevron');
-        const header = g.querySelector('.product-header');
-        if (body) body.style.display = expand ? '' : 'none';
-        if (chev) chev.classList.toggle('collapsed', !expand);
-        if (header) header.setAttribute('aria-expanded', String(expand));
-      });
-    }
-
-    function syncExpandAllCheckbox() {
-      const cb = document.getElementById('expand-all');
-      if (!cb) return;
-      const groups = document.querySelectorAll('#features-container .product-group');
-      if (!groups.length) { cb.checked = false; cb.indeterminate = false; return; }
-      let expanded = 0;
-      groups.forEach(g => {
-        const body = g.querySelector('.product-body');
-        if (body && body.style.display !== 'none') expanded++;
-      });
-      cb.checked = expanded === groups.length;
-      cb.indeterminate = expanded > 0 && expanded < groups.length;
-    }
-
-    function renderCard(f) {
-      const fid = 'f' + Math.random().toString(36).slice(2, 10);
-      featureStore[fid] = f;
-
-      const wave = getWave(f);
-      const waveBadge = wave ? `<span class="badge b-wave">${xh(wave)}</span>` : '';
-      const typeBadge = f.FeatureType === 'New Feature'
-        ? `<span class="badge b-new">New</span>`
-        : f.FeatureType ? `<span class="badge b-enh">Enhancement</span>` : '';
-      const productBadge = f.Product
-        ? `<span class="badge b-product" title="${xh(f.Product)}">${window.ProductIcons ? window.ProductIcons.productIconImg(f.Product) : ''}${xh(f.Product)}</span>`
-        : '';
-      const areaBadge = f.ProductArea
-        ? `<span class="badge b-area" title="${xh(f.ProductArea)}">${xh(f.ProductArea)}</span>`
-        : '';
-
-      const meta = [];
-      const gaDisp = displayDate(f.GADateValue, f.GADate);
-      const ppDisp = displayDate(f.PPDateValue, f.PublicPreviewDate);
-      if (gaDisp) meta.push(`<span class="meta-item"><span class="meta-lbl">GA:</span> ${xh(gaDisp)} <span class="${sc(f.GAStatus)}">(${xh(f.GAStatus||'')})</span></span>`);
-      if (ppDisp) meta.push(`<span class="meta-item"><span class="meta-lbl">PP:</span> ${xh(ppDisp)} <span class="${sc(f.PPStatus)}">(${xh(f.PPStatus||'')})</span></span>`);
-      if (f.EnabledFor)       meta.push(`<span class="meta-item">${xh(normalizeEnabledFor(f.EnabledFor))}</span>`);
-
-      const hasDetails = f.BusinessValue || f.FeatureDetails;
-
-      return `
-        <div class="feature-card" data-fid="${fid}">
-          <div class="card-top">
-            <div class="card-badges">${productBadge}${areaBadge}${typeBadge}${waveBadge}</div>
-            <div class="card-name">${xh(f.FeatureName || 'Unnamed Feature')}</div>
-            ${meta.length ? `<div class="card-meta">${meta.join('')}</div>` : ''}
-          </div>
-          ${hasDetails ? `
-            <button class="expand-btn" type="button" aria-expanded="false" aria-controls="details-${fid}">
-              <span class="expand-lbl">Show more</span>
-              <span class="expand-chevron" aria-hidden="true">▼</span>
-            </button>
-            <div class="card-details" id="details-${fid}"></div>
-          ` : ''}
-        </div>`;
-    }
-
-    function buildDetails(f) {
-      const bv = f.BusinessValue ? sanitize(f.BusinessValue) : '';
-      const fd = f.FeatureDetails ? sanitize(f.FeatureDetails) : '';
-      const docs = f.DocsUrl
-        ? `<a href="${xa(safeUrl(f.DocsUrl))}" target="_blank" rel="noopener" class="docs-link">📄 Documentation</a>`
-        : '';
-      const blog = f.BlogURL
-        ? `<a href="${xa(safeUrl(f.BlogURL))}" target="_blank" rel="noopener" class="docs-link" style="margin-left:0.4rem">📝 Blog Post</a>`
-        : '';
-      return `
-        ${bv ? `<div class="detail-sec"><div class="detail-title">Business Value</div><div class="detail-body">${bv}</div></div>` : ''}
-        ${fd ? `<div class="detail-sec"><div class="detail-title">Feature Details</div><div class="detail-body">${fd}</div></div>` : ''}
-        ${(docs || blog) ? `<div>${docs}${blog}</div>` : ''}
-      `;
-    }
-
-    // ════════════════════════════════════════════════
-    // UTILITIES
-    // ════════════════════════════════════════════════
-    function sc(status) {
-      return status === 'Shipped' ? 's-shipped' : status === 'Planned' ? 's-planned' : 's-na';
-    }
-
-    // Prefer the API's pre-formatted display value (e.g. "May 2026" for month-only,
-    // "Apr 2, 2026" for full dates). Treat "-" and empty strings as "no value".
-    function displayDate(friendly, raw) {
-      const f = (friendly || '').trim();
-      if (f && f !== '-') return f;
-      const r = (raw || '').trim();
-      if (!r || r === '-') return '';
-      return r;
     }
 
     function sortableWave(wave) {
@@ -1826,89 +1267,220 @@
       try { return new Date(date).getTime() || 0; } catch { return 0; }
     }
 
-    function setLoading(active, text) {
-      const el = document.getElementById('loading-banner');
-      if (active) {
-        el.classList.remove('hidden');
-        document.getElementById('loading-text').textContent = text || 'Loading…';
-      } else {
-        el.classList.add('hidden');
+    // ════════════════════════════════════════════════
+    // RENDERING
+    // ════════════════════════════════════════════════
+    function filterAndRender() {
+      const filtered = getFiltered();
+      const sort = document.getElementById('au-sort').value;
+
+      currentFiltered = filtered;
+
+      document.getElementById('au-result-count').textContent =
+        `${filtered.length} of ${allFeatures.length}`;
+
+      const groupByProduct = sort === 'product';
+      document.getElementById('au-expand-all-label').style.display = groupByProduct ? 'flex' : 'none';
+
+      // Sort
+      let sorted = [...filtered];
+      if (sort === 'name') {
+        sorted.sort((a,b) => (a.FeatureName||'').localeCompare(b.FeatureName||''));
+      } else if (sort === 'wave') {
+        sorted.sort((a,b) => sortableWave(getWave(b)) - sortableWave(getWave(a)));
+      } else if (sort === 'date') {
+        sorted.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
       }
+
+      if (groupByProduct) renderGrouped(sorted);
+      else renderFlat(sorted);
     }
 
-    // toggleTheme() is provided by /static/util.js.
+    function renderFlat(items) {
+      const grid = document.getElementById('au-cards-container');
+      grid.classList.remove('is-grouped');
+      if (!items.length) { grid.innerHTML = '<div class="au-empty">No features match the current filters.</div>'; return; }
+      grid.innerHTML = items.map(cardHtml).join('');
+    }
 
-    // ════════════════════════════════════════════════
-    // PRODUCT PICKER
-    // ════════════════════════════════════════════════
-    function buildProductPicker() {
-      const el = document.getElementById('product-picker');
-      if (!el) return;
-      // Group by category, then sort each group by name.
-      const groups = {};
-      for (const p of PRODUCTS) {
-        const cat = p.category || 'Other';
-        (groups[cat] = groups[cat] || []).push(p);
-      }
-      const cats = [
-        ...CATEGORY_ORDER.filter(c => groups[c]),
-        ...Object.keys(groups).filter(c => !CATEGORY_ORDER.includes(c)).sort(),
-      ];
-      el.innerHTML = cats.map(cat => {
-        const items = groups[cat].sort((a, b) => a.name.localeCompare(b.name)).map(p => `
-          <label class="cb-item">
-            <input type="checkbox" value="${xa(p.id)}"
-                   ${selectedProductIds.has(p.id) ? 'checked' : ''}
-                   data-act="togglePickerProduct" data-pid="${xa(p.id)}" data-on="change">
-            <span class="cb-lbl">${xh(p.name)}</span>
-          </label>
-        `).join('');
-        return `<div class="cb-grp-hdr">${xh(cat)}</div>${items}`;
+    function renderGrouped(items) {
+      const grid = document.getElementById('au-cards-container');
+      grid.classList.add('is-grouped');
+      if (!items.length) { grid.innerHTML = '<div class="au-empty">No features match the current filters.</div>'; return; }
+
+      const expandAll = !!document.getElementById('au-expand-all').checked;
+      const groups = new Map();
+      items.forEach(f => {
+        const key = (f.Product || 'Other').trim();
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(f);
+      });
+      const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+      const chevron = '<svg class="au-product-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      grid.innerHTML = sortedKeys.map(key => {
+        const list = groups.get(key);
+        list.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
+        const collapsedClass = expandAll ? '' : ' is-collapsed';
+        return `
+          <div class="au-product-group${collapsedClass}">
+            <div class="au-product-header" role="button" tabindex="0" aria-expanded="${expandAll ? 'true' : 'false'}" data-act="toggleProductGroup">
+              ${chevron}
+              <span>${xh(key)}</span>
+              <span class="au-product-count">${list.length} feature${list.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="au-product-cards">
+              ${list.map(cardHtml).join('')}
+            </div>
+          </div>`;
       }).join('');
     }
 
-    function togglePickerProduct(id, checked) {
-      if (checked) selectedProductIds.add(id); else selectedProductIds.delete(id);
+    function toggleProductGroup(header) {
+      const group = header.closest('.au-product-group');
+      if (!group) return;
+      const collapsed = group.classList.toggle('is-collapsed');
+      header.setAttribute('aria-expanded', String(!collapsed));
+      syncExpandAllCheckbox();
     }
 
-    function selectAllPickerProducts(select) {
-      if (select) PRODUCTS.forEach(p => selectedProductIds.add(p.id));
-      else selectedProductIds.clear();
-      buildProductPicker();
+    function toggleExpandAll() {
+      const expand = !!document.getElementById('au-expand-all').checked;
+      document.querySelectorAll('.au-product-group').forEach(g => {
+        g.classList.toggle('is-collapsed', !expand);
+        const h = g.querySelector('.au-product-header');
+        if (h) h.setAttribute('aria-expanded', String(expand));
+      });
     }
 
-    async function loadSelectedProducts() {
-      const ids = [...selectedProductIds];
-      if (!ids.length) {
-        allFeatures = [];
-        refresh();
-        return;
+    function syncExpandAllCheckbox() {
+      const cb = document.getElementById('au-expand-all');
+      const groups = document.querySelectorAll('.au-product-group');
+      if (!groups.length) { cb.checked = false; cb.indeterminate = false; return; }
+      let expanded = 0;
+      groups.forEach(g => { if (!g.classList.contains('is-collapsed')) expanded++; });
+      cb.checked = expanded === groups.length;
+      cb.indeterminate = expanded > 0 && expanded < groups.length;
+    }
+
+    function statusClass(s) {
+      if (!s) return 'na';
+      const sl = s.toLowerCase();
+      if (sl === 'shipped') return 'shipped';
+      if (sl === 'planned') return 'planned';
+      return 'na';
+    }
+
+    function displayDate(friendly, raw) {
+      const f = (friendly || '').trim();
+      if (f && f !== '-') return f;
+      const r = (raw || '').trim();
+      if (!r || r === '-') return '';
+      return r;
+    }
+
+    function cardHtml(f) {
+      const fid = f.ReleasePlanID || f.SnapshotId || (f.FeatureName + '|' + f.ProductId);
+      const sc = statusClass(f.GAStatus);
+      const gaDate = displayDate(f.GADateValue, f.GADate);
+      const wave = getWave(f);
+      const snippet = stripHtml(f.BusinessValue || '').slice(0, 200);
+
+      const metaParts = [];
+      if (f.FeatureType === 'New Feature') metaParts.push('<span class="au-tag-pill new-feat">New</span>');
+      else if (f.FeatureType) metaParts.push(`<span class="au-tag-pill enh">${xh(f.FeatureType)}</span>`);
+      if (wave) metaParts.push(`<span class="au-tag-pill wave">${xh(wave)}</span>`);
+      if (gaDate) metaParts.push(`<span class="au-tag-pill date">GA: ${xh(gaDate)}</span>`);
+      if (f.AiContribution === 'true') metaParts.push('<span class="au-tag-pill ai">AI</span>');
+
+      return `
+        <div class="au-card" data-act="openFeature" data-id="${xa(fid)}">
+          <div class="au-card-body">
+            <div class="au-card-top">
+              <span class="au-status-pill ${sc}">${xh(f.GAStatus || 'N/A')}</span>
+            </div>
+            <div class="au-card-product">
+              <span class="au-card-product-dot"></span>
+              <span>${xh(f.Product || '')}</span>
+            </div>
+            <div class="au-card-title">${xh(f.FeatureName || 'Untitled feature')}</div>
+            ${snippet ? `<div class="au-card-snippet">${xh(snippet)}</div>` : ''}
+            <div class="au-card-meta">${metaParts.join('')}</div>
+          </div>
+        </div>`;
+    }
+
+    // ════════════════════════════════════════════════
+    // FEATURE DETAIL MODAL
+    // ════════════════════════════════════════════════
+    function openFeature(id) {
+      const f = allFeatures.find(x => {
+        const fid = x.ReleasePlanID || x.SnapshotId || (x.FeatureName + '|' + x.ProductId);
+        return String(fid) === String(id);
+      });
+      if (!f) return;
+
+      document.getElementById('au-modal-title').textContent = f.FeatureName || 'Feature';
+      const metaParts = [];
+      if (f.GAStatus) metaParts.push(f.GAStatus);
+      if (f.Product)  metaParts.push(f.Product);
+      if (f.ProductArea) metaParts.push(f.ProductArea);
+      document.getElementById('au-modal-meta').textContent = metaParts.join(' · ');
+
+      const body = document.getElementById('au-modal-body');
+      const gaDate = displayDate(f.GADateValue, f.GADate);
+      const ppDate = displayDate(f.PPDateValue, f.PublicPreviewDate);
+      const bv = f.BusinessValue ? sanitize(f.BusinessValue) : '';
+      const fd = f.FeatureDetails ? sanitize(f.FeatureDetails) : '';
+      const docsUrl = f.DocsUrl ? safeUrl(f.DocsUrl) : '';
+      const blogUrl = f.BlogURL ? safeUrl(f.BlogURL) : '';
+
+      body.innerHTML = `
+        <div class="au-modal-section">
+          <div class="au-modal-section-title">Details</div>
+          <dl class="au-detail-list">
+            <dt>Product</dt><dd>${xh(f.Product || '—')}</dd>
+            <dt>Product Area</dt><dd>${xh(f.ProductArea || '—')}</dd>
+            <dt>Feature Type</dt><dd>${xh(f.FeatureType || '—')}</dd>
+            <dt>Release Wave</dt><dd>${xh(getWave(f) || '—')}</dd>
+            ${gaDate ? `<dt>GA Date</dt><dd>${xh(gaDate)} (${xh(f.GAStatus || '—')})</dd>` : ''}
+            ${ppDate ? `<dt>Public Preview</dt><dd>${xh(ppDate)} (${xh(f.PPStatus || '—')})</dd>` : ''}
+            <dt>Enabled For</dt><dd>${xh(normalizeEnabledFor(f.EnabledFor))}</dd>
+            ${f.AiContribution === 'true' ? '<dt>AI</dt><dd>AI Contribution feature</dd>' : ''}
+          </dl>
+        </div>
+        ${bv ? `<div class="au-modal-section"><div class="au-modal-section-title">Business Value</div><div>${bv}</div></div>` : ''}
+        ${fd ? `<div class="au-modal-section"><div class="au-modal-section-title">Feature Details</div><div>${fd}</div></div>` : ''}
+        ${(docsUrl && docsUrl !== '#') || (blogUrl && blogUrl !== '#') ? `<div class="au-modal-section">
+          ${(docsUrl && docsUrl !== '#') ? `<a href="${xa(docsUrl)}" target="_blank" rel="noopener" style="color:var(--cp-link);font-size:12px;margin-right:1rem">📄 Documentation</a>` : ''}
+          ${(blogUrl && blogUrl !== '#') ? `<a href="${xa(blogUrl)}" target="_blank" rel="noopener" style="color:var(--cp-link);font-size:12px">📝 Blog Post</a>` : ''}
+        </div>` : ''}
+      `;
+      document.getElementById('au-modal').classList.add('open');
+      if (window.CportalAi && window.CportalAi.isEnabled()) {
+        window.CportalAi.attachToModal(body, 'powerplatform', f);
       }
-      fetchStats.ok = 0; fetchStats.empty = 0; fetchStats.failed = 0; fetchStats.lastError = null;
-      setLoading(true, `Loading ${ids.length} selected product${ids.length !== 1 ? 's' : ''}…`);
-      const results = await Promise.all(ids.map(fetchProduct));
-      allFeatures = dedup(results.flat().filter(f => f.FeatureName && !isExcludedFeature(f)));
-      refresh();
-      if (!allFeatures.length) {
-        if (!IS_LOCAL_SERVER) {
-          setLoading(true, '⚠️ No data returned. Browsers block direct calls to releaseplans.microsoft.com (CORS). Run `node server.js` and open http://localhost:3000');
-        } else if (fetchStats.failed > 0) {
-          setLoading(true, `⚠️ ${fetchStats.failed} request${fetchStats.failed !== 1 ? 's' : ''} failed. Last error: ${fetchStats.lastError || 'unknown'}`);
-        } else {
-          setLoading(true, '⚠️ Proxy returned empty results. Check server.js console.');
-        }
-      } else {
-        setLoading(false);
-      }
     }
 
-    // Sanitize HTML from API (make links open in new tab, pass through safe tags)
-    // Sanitize HTML from external APIs via DOMParser — removes dangerous tags, event
-    // handlers, and non-http(s) URL schemes, then opens all links in a new tab.
-    // SVG is removed entirely: it can embed <script> and arbitrary event handlers,
-    // making safe allow-listing impractical for untrusted external content.
+    function closeFeature() {
+      document.getElementById('au-modal').classList.remove('open');
+    }
+    function handleModalBackdrop(ev) {
+      if (ev.target.id === 'au-modal') closeFeature();
+    }
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') closeFeature();
+    });
+
+    // ════════════════════════════════════════════════
+    // UTILITIES
+    // ════════════════════════════════════════════════
+    function stripHtml(html) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html || '';
+      return (tmp.textContent || tmp.innerText || '').trim();
+    }
+
     function sanitize(html) {
-      // Delegates to the shared hardened allow-list sanitizer in /static/util.js.
       return (window.CPUtil && window.CPUtil.sanitizeHtml) ? window.CPUtil.sanitizeHtml(html) : '';
     }
 
@@ -1918,14 +1490,22 @@
     function xa(s) {
       return String(s || '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
-    // Allow only http(s), mailto, and tel URL schemes in href attributes.
-    // Protocol-relative URLs (//...) are also blocked to prevent scheme inheritance.
     function safeUrl(s) {
       if (!s) return '#';
       const trimmed = String(s).trim();
       if (trimmed.startsWith('//')) return '#';
       if (/^(?!https?:|mailto:|tel:)[a-z][a-z0-9+.-]*:/i.test(trimmed)) return '#';
       return trimmed;
+    }
+
+    function setLoading(active, text) {
+      const el = document.getElementById('loading-banner');
+      if (active) {
+        el.classList.remove('hidden');
+        document.getElementById('loading-text').textContent = text || 'Loading…';
+      } else {
+        el.classList.add('hidden');
+      }
     }
 
     // ════════════════════════════════════════════════
@@ -1951,23 +1531,13 @@
       const rows = EXPORT_MODAL_CONFIG.getAllRows() || [];
       if (!rows.length) { alert('Data is still loading. Please try again in a moment.'); return; }
       const set = new Set();
-      let hasUnclassified = false;
-      rows.forEach(r => {
-        const ps = getExportProducts(r);
-        ps.forEach(p => set.add(p));
-        if (ps.length === 1 && ps[0] === EXPORT_UNCLASSIFIED) hasUnclassified = true;
-      });
-      // Determine which products are pre-selected by mirroring the left-pane
-      // Product filter (source of truth = actual checked state of #f-products).
-      // If none are checked there, fall back to "all pre-selected".
+      rows.forEach(r => getExportProducts(r).forEach(p => set.add(p)));
       const leftChecked = new Set(
-        Array.from(document.querySelectorAll('#f-products input[type="checkbox"]:checked'))
-          .map(cb => String(cb.value || '').trim())
+        Array.from(document.querySelectorAll('#au-product-options input[type="checkbox"]:checked'))
+          .map(cb => String(cb.dataset.value || '').trim())
       );
       const mirrorLeft = leftChecked.size > 0;
       const isPreSelected = (p) => mirrorLeft ? leftChecked.has(p) : true;
-      // Sort: pre-selected first (alpha), then unselected (alpha), with
-      // (Unclassified) always pinned to the very bottom.
       const products = Array.from(set).sort((a, b) => {
         if (a === EXPORT_UNCLASSIFIED) return 1;
         if (b === EXPORT_UNCLASSIFIED) return -1;
@@ -2057,24 +1627,20 @@
     // EXPORT
     // ════════════════════════════════════════════════
     function exportToHtml(customRows, format) {
-      const filtered = (customRows && customRows.length) ? customRows : getFiltered();
+      const filtered = (customRows && customRows.length) ? customRows : (currentFiltered || []);
       if (!filtered.length) { alert('No features to export with current filters.'); return; }
       if (!window.ExportFormats || !window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
 
       const btn = document.getElementById('export-btn');
       btn.disabled = true; btn.textContent = '…Exporting';
 
-      const stripHtml = s => String(s || '').replace(/<[^>]+>/g,' ').replace(/\s{2,}/g,' ').trim();
-
-      // Sort same as current view for consistent output
-      const sort = document.getElementById('sort-select').value;
+      const sort = document.getElementById('au-sort').value;
       let rows = [...filtered];
       if (sort === 'name')  rows.sort((a,b) => (a.FeatureName||'').localeCompare(b.FeatureName||''));
       else if (sort === 'wave') rows.sort((a,b) => sortableWave(getWave(b)) - sortableWave(getWave(a)));
       else if (sort === 'date') rows.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
       else rows.sort((a,b) => (a.Product||'').localeCompare(b.Product||'') || (a.ProductArea||'').localeCompare(b.ProductArea||''));
 
-      // Deduplicate export rows by feature name + product (safety net)
       const exportSeen = new Set();
       rows = rows.filter(f => {
         const k = f.ReleasePlanID || f.SnapshotId || (f.FeatureName + '|' + f.ProductId);
@@ -2083,7 +1649,7 @@
       });
 
       const tableRows = rows.map(f => {
-        const gaDate = displayDate(f.GADateValue, f.GADate)            || '—';
+        const gaDate = displayDate(f.GADateValue, f.GADate) || '—';
         const ppDate = displayDate(f.PPDateValue, f.PublicPreviewDate) || '—';
         const safeDocsUrl = f.DocsUrl ? safeUrl(f.DocsUrl) : '';
         const docs = (safeDocsUrl && safeDocsUrl !== '#')
@@ -2124,12 +1690,17 @@
     document.getElementById('theme-btn').textContent = curTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
 
     applyCachedProbeDiscoveries();
-    buildProductPicker();
     loadAll();
+
+    // ── AI insights ──────────────────────────────────────────────────────
+    if (window.CportalAi) {
+      window.CportalAi.init({
+        source: 'powerplatform',
+        panelMountSelector: '#au-cards-container',
+        onTopItemClick: (id) => openFeature(id),
+      });
+    }
   </script>
-  <script src="/static/product-icons.js" defer></script>
-  <script src="/static/outlook-export.js" defer></script>
-  <script src="/static/export-formats.js" defer></script>
 
   <!-- Generate Export modal -->
   <div class="gen-modal" id="gen-modal" hidden>
@@ -2182,6 +1753,11 @@
       </footer>
     </div>
   </div>
+
+  <script src="/static/product-icons.js" defer></script>
+  <script src="/static/outlook-export.js" defer></script>
+  <script src="/static/export-formats.js" defer></script>
+  <script src="/static/ai-insights.js" defer></script>
   <script src="/static/subscription-picker.js" defer></script>
 </body>
 </html>

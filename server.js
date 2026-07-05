@@ -646,8 +646,8 @@ function graphGetAllPages(token, firstPath, maxPages, done) {
 
 // Fetch Message Center messages from Microsoft Graph (all pages, last 30 days)
 function fetchMessageCenterMessages(token, done) {
-  const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
-  const filterValue = `startDateTime gt ${thirtyDaysAgo.toISOString()}`;
+  const sixtyDaysAgo = new Date(Date.now() - (60 * 24 * 60 * 60 * 1000));
+  const filterValue = `startDateTime gt ${sixtyDaysAgo.toISOString()}`;
   const query = new URLSearchParams({
     '$filter': filterValue,
     '$top': '999',

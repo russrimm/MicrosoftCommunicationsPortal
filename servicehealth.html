@@ -159,49 +159,59 @@
     /* Page — fills viewport so only the issues list scrolls */
     .page-content {
       flex: 1; min-height: 0;
-      padding: 0.875rem 1.125rem 1.125rem;
+      padding: 0.625rem 1.125rem 1.125rem;
       overflow: hidden;
-      display: flex; flex-direction: column; gap: 0.75rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
     }
 
-    /* Hero band — slim */
+    /* Hero band — integrated into heading bar */
     .sh-hero {
-      background: linear-gradient(135deg, var(--cp-bg-elevated), var(--cp-surface));
-      border: 1px solid var(--cp-border);
-      border-radius: 12px;
-      padding: 0.75rem 1.125rem;
       display: flex; align-items: center; justify-content: space-between;
-      gap: 1rem; flex-wrap: wrap;
+      gap: 0.75rem; flex-wrap: wrap;
       flex-shrink: 0;
+      padding: 0 0 0.4rem;
+      border-bottom: 1px solid var(--cp-border);
     }
-    .sh-hero-title { font-size: 16px; font-weight: 700; color: var(--cp-text); margin-bottom: 0.1rem; line-height: 1.2; }
-    .sh-hero-sub   { font-size: 12px; color: var(--cp-text-muted); }
+    .sh-hero-left {
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .sh-hero-title {
+      font-size: 18px; font-weight: 700; color: var(--cp-text); line-height: 1.2;
+      display: flex; align-items: center; gap: 0.625rem;
+    }
+    .sh-hero-title::before {
+      content: ""; display: inline-block;
+      width: 4px; height: 20px;
+      background: var(--cp-accent);
+      border-radius: 2px;
+    }
+    .sh-hero-sub   { display: none; }
     .sh-live {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.45rem 0.875rem;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.25rem 0.625rem;
       background: rgba(22,163,74,0.12);
       border: 1px solid rgba(22,163,74,0.3);
       border-radius: 999px;
       color: var(--cp-success);
-      font-size: 12px; font-weight: 600;
+      font-size: 11px; font-weight: 600;
       flex-shrink: 0;
     }
     .sh-live::before {
-      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
       background: var(--cp-success);
       box-shadow: 0 0 0 0 rgba(22,163,74,0.4);
       animation: livepulse 2s ease-in-out infinite;
     }
     @keyframes livepulse {
       0%   { box-shadow: 0 0 0 0 rgba(22,163,74,0.55); }
-      70%  { box-shadow: 0 0 0 8px rgba(22,163,74,0); }
+      70%  { box-shadow: 0 0 0 6px rgba(22,163,74,0); }
       100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
     }
 
     /* Layout grid — single screen */
     .sh-page-stack {
       flex: 1; min-height: 0;
-      display: flex; flex-direction: column; gap: 0.75rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
     }
     .sh-top-row {
       display: grid;
@@ -223,8 +233,8 @@
     .sh-panel {
       background: var(--cp-bg-elevated);
       border: 1px solid var(--cp-border);
-      border-radius: 12px;
-      padding: 0.875rem 1rem;
+      border-radius: 10px;
+      padding: 0.625rem 0.875rem;
       min-width: 0;
     }
     .sh-panel-flex {
@@ -233,7 +243,7 @@
     }
     .sh-panel-head {
       display: flex; align-items: center; justify-content: space-between;
-      gap: 0.75rem; margin-bottom: 0.875rem;
+      gap: 0.75rem; margin-bottom: 0.5rem;
     }
     .sh-panel-title {
       font-size: 11px; font-weight: 700; text-transform: uppercase;
@@ -280,7 +290,7 @@
     }
     .sh-donut-wrap {
       position: relative; flex-shrink: 0;
-      width: 110px; height: 110px;
+      width: 80px; height: 80px;
     }
     .sh-donut-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
     .sh-donut-center {
@@ -288,7 +298,7 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       pointer-events: none;
     }
-    .sh-donut-num { font-size: 26px; font-weight: 700; color: var(--cp-text); line-height: 1; }
+    .sh-donut-num { font-size: 20px; font-weight: 700; color: var(--cp-text); line-height: 1; }
     .sh-donut-label { font-size: 10px; color: var(--cp-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
     .sh-legend { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 0; }
     .sh-legend-row {
@@ -376,7 +386,7 @@
       color: #fff;
     }
     .sh-trend-svg {
-      width: 100%; height: 140px; display: block; overflow: visible;
+      width: 100%; height: 90px; display: block; overflow: visible;
     }
     .sh-trend-legend {
       display: flex; flex-wrap: wrap; gap: 0.75rem;
@@ -478,6 +488,154 @@
       color: var(--cp-text-muted);
     }
     .sh-issue-time { font-variant-numeric: tabular-nums; }
+
+    /* ── Azure Resource Health section ── */
+    .arh-section {
+      margin-top: 0.5rem;
+    }
+    .arh-section-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.75rem 0 0.5rem;
+      border-top: 2px solid var(--cp-border);
+    }
+    .arh-section-heading {
+      font-size: 15px; font-weight: 700; color: var(--cp-text);
+      margin: 0;
+    }
+    .arh-sub-badge {
+      font-size: 11px; font-weight: 600;
+      background: var(--cp-accent-soft); color: var(--cp-accent);
+      border-radius: 999px; padding: 2px 10px;
+      white-space: nowrap;
+    }
+    .arh-panel { margin-top: 0.5rem; }
+    .arh-list { min-height: 48px; }
+    .arh-no-sub {
+      padding: 1.25rem; text-align: center;
+      color: var(--cp-text-muted); font-size: 13px;
+    }
+    .arh-empty {
+      padding: 1rem; text-align: center;
+      color: var(--cp-text-muted); font-size: 13px;
+    }
+    .arh-error {
+      padding: 1rem; color: var(--cp-danger); font-size: 13px;
+    }
+    .arh-filter-select {
+      font-family: inherit; font-size: 12px;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid var(--cp-border); border-radius: 6px;
+      background: var(--cp-surface); color: var(--cp-text);
+    }
+
+    /* Emerging issue card */
+    .arh-emerging-card {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--cp-border);
+    }
+    .arh-emerging-card:last-child { border-bottom: none; }
+    .arh-emerging-title {
+      font-size: 13px; font-weight: 600; color: var(--cp-text);
+      margin-bottom: 0.25rem;
+    }
+    .arh-emerging-meta {
+      display: flex; gap: 0.5rem; flex-wrap: wrap;
+      font-size: 11px; color: var(--cp-text-muted);
+      margin-bottom: 0.35rem;
+    }
+    .arh-emerging-desc {
+      font-size: 12px; color: var(--cp-text-soft);
+      line-height: 1.45;
+    }
+    .arh-emerging-impacts {
+      display: flex; gap: 0.35rem; flex-wrap: wrap;
+      margin-top: 0.35rem;
+    }
+    .arh-tag {
+      display: inline-block;
+      font-size: 10px; font-weight: 600;
+      padding: 1px 7px; border-radius: 999px;
+      background: var(--cp-surface-soft); color: var(--cp-text-muted);
+      border: 1px solid var(--cp-border);
+    }
+    .arh-tag.sev-error { background: rgba(220,38,38,0.1); color: var(--cp-danger); border-color: var(--cp-danger); }
+    .arh-tag.sev-warning { background: rgba(245,158,11,0.1); color: var(--cp-warning); border-color: var(--cp-warning); }
+
+    /* Event card */
+    .arh-event-card {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--cp-border);
+    }
+    .arh-event-card:last-child { border-bottom: none; }
+    .arh-event-header {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+    .arh-event-title {
+      font-size: 13px; font-weight: 600; color: var(--cp-text);
+      flex: 1; min-width: 0;
+    }
+    .arh-event-type {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 999px;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .arh-event-type.ServiceIssue { background: rgba(220,38,38,0.12); color: var(--cp-danger); }
+    .arh-event-type.PlannedMaintenance { background: rgba(59,130,246,0.12); color: #3b82f6; }
+    .arh-event-type.HealthAdvisory { background: rgba(245,158,11,0.12); color: var(--cp-warning); }
+    .arh-event-type.SecurityAdvisory { background: rgba(124,58,237,0.12); color: var(--cp-purple); }
+    .arh-event-type.RCA { background: rgba(22,163,74,0.12); color: var(--cp-success); }
+    .arh-event-type.EmergingIssues { background: rgba(245,158,11,0.12); color: var(--cp-warning); }
+    .arh-event-type.Billing { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
+    .arh-event-meta {
+      display: flex; gap: 0.5rem; flex-wrap: wrap;
+      font-size: 11px; color: var(--cp-text-muted);
+      margin-bottom: 0.35rem;
+    }
+    .arh-event-summary {
+      font-size: 12px; color: var(--cp-text-soft);
+      line-height: 1.45;
+    }
+    .arh-event-services {
+      display: flex; gap: 0.35rem; flex-wrap: wrap;
+      margin-top: 0.35rem;
+    }
+    .arh-status-dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .arh-status-dot.Active { background: var(--cp-danger); }
+    .arh-status-dot.Resolved { background: var(--cp-success); }
+
+    /* Availability card */
+    .arh-avail-card {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid var(--cp-border);
+    }
+    .arh-avail-card:last-child { border-bottom: none; }
+    .arh-avail-status {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .arh-avail-status.Available { background: var(--cp-success); }
+    .arh-avail-status.Unavailable { background: var(--cp-danger); }
+    .arh-avail-status.Degraded { background: var(--cp-warning); }
+    .arh-avail-status.Unknown { background: var(--cp-text-muted); }
+    .arh-avail-info { flex: 1; min-width: 0; }
+    .arh-avail-name {
+      font-size: 12px; font-weight: 600; color: var(--cp-text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .arh-avail-detail {
+      font-size: 11px; color: var(--cp-text-muted);
+    }
+    .arh-avail-state-label {
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .arh-avail-state-label.Available { color: var(--cp-success); }
+    .arh-avail-state-label.Unavailable { color: var(--cp-danger); }
+    .arh-avail-state-label.Degraded { color: var(--cp-warning); }
+    .arh-avail-state-label.Unknown { color: var(--cp-text-muted); }
 
     /* Issue detail modal */
     .sh-modal-backdrop {
@@ -684,7 +842,7 @@
       <button class="nav-tab nav-dropdown-toggle active" type="button" aria-expanded="false" aria-haspopup="true">Service Health <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item active" href="/servicehealth" aria-current="page">Microsoft 365</a>
-        <a class="nav-dropdown-item" href="/azureservicehealth">Azure</a>
+        <a class="nav-dropdown-item" href="/servicehealth#arh-section">Azure</a>
       </div>
     </div>
   </nav>
@@ -711,13 +869,12 @@
   </script>
 
   <div class="page-content">
-    <!-- Hero -->
+    <!-- Heading bar -->
     <div class="sh-hero">
-      <div>
-        <div class="sh-hero-title">Microsoft 365 Service Health &amp; Communications</div>
-        <div class="sh-hero-sub">Real-time monitoring and status updates for Microsoft 365 services</div>
+      <div class="sh-hero-left">
+        <div class="sh-hero-title">Microsoft 365 Service Health</div>
+        <span class="sh-live">Live</span>
       </div>
-      <span class="sh-live">Live Monitoring</span>
     </div>
 
     <!-- Dashboard layout -->
@@ -777,7 +934,7 @@
               <button type="button" data-range="30" class="active" aria-pressed="true" aria-label="30 days">30d</button>
             </div>
           </div>
-          <svg class="sh-trend-svg" id="sh-trend-svg" viewBox="0 0 800 140" preserveAspectRatio="none" role="img" aria-label="30-day health trend chart"></svg>
+          <svg class="sh-trend-svg" id="sh-trend-svg" viewBox="0 0 800 90" preserveAspectRatio="none" role="img" aria-label="30-day health trend chart"></svg>
           <div class="sh-trend-legend">
             <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-danger)"></span>Active issues</span>
             <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-warning)"></span>Affected services</span>
@@ -818,6 +975,72 @@
         </div>
       </section>
 
+      <!-- Azure Resource Health — populated from subscription picker selection -->
+      <div class="arh-section" id="arh-section">
+        <div class="arh-section-header">
+          <h2 class="arh-section-heading">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" style="vertical-align: -2px; margin-right: 4px;">
+              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm-.75 3.5h1.5v5h-1.5v-5ZM8 12a.75.75 0 1 1 0-1.5A.75.75 0 0 1 8 12Z" fill="currentColor"/>
+            </svg>
+            Azure Resource Health
+          </h2>
+          <span class="arh-sub-badge" id="arh-sub-badge" style="display:none"></span>
+        </div>
+
+        <!-- Emerging Issues (tenant-level — always loads) -->
+        <section class="sh-panel arh-panel">
+          <div class="sh-panel-head">
+            <div class="sh-panel-title">
+              <span class="sh-panel-title-icon" aria-hidden="true">🔥</span>
+              <span>Emerging Issues</span>
+              <span class="sh-panel-title-count" id="arh-emerging-count" style="display:none">0</span>
+            </div>
+            <button class="export-btn" id="arh-emerging-refresh" type="button" aria-label="Refresh emerging issues"><span aria-hidden="true">↻</span></button>
+          </div>
+          <div class="arh-list" id="arh-emerging-list">
+            <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
+          </div>
+        </section>
+
+        <!-- Service Health Events (subscription-scoped) -->
+        <section class="sh-panel arh-panel">
+          <div class="sh-panel-head">
+            <div class="sh-panel-title">
+              <span class="sh-panel-title-icon" aria-hidden="true">⚡</span>
+              <span>Service Health Events</span>
+              <span class="sh-panel-title-count" id="arh-events-count" style="display:none">0</span>
+            </div>
+            <button class="export-btn" id="arh-events-refresh" type="button" aria-label="Refresh events"><span aria-hidden="true">↻</span></button>
+          </div>
+          <div class="arh-list" id="arh-events-list">
+            <div class="arh-no-sub" id="arh-events-nosub">Select a subscription above to view events.</div>
+          </div>
+        </section>
+
+        <!-- Availability Statuses (subscription-scoped) -->
+        <section class="sh-panel arh-panel">
+          <div class="sh-panel-head">
+            <div class="sh-panel-title">
+              <span class="sh-panel-title-icon" aria-hidden="true">💚</span>
+              <span>Resource Availability</span>
+              <span class="sh-panel-title-count" id="arh-avail-count" style="display:none">0</span>
+            </div>
+            <div style="display:flex;gap:0.4rem;align-items:center;">
+              <select class="arh-filter-select" id="arh-avail-filter" aria-label="Filter availability">
+                <option value="">All</option>
+                <option value="Unavailable">Unavailable</option>
+                <option value="Degraded">Degraded</option>
+                <option value="Available">Available</option>
+                <option value="Unknown">Unknown</option>
+              </select>
+              <button class="export-btn" id="arh-avail-refresh" type="button" aria-label="Refresh availability"><span aria-hidden="true">↻</span></button>
+            </div>
+          </div>
+          <div class="arh-list" id="arh-avail-list">
+            <div class="arh-no-sub" id="arh-avail-nosub">Select a subscription above to view resource availability.</div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 
@@ -1213,8 +1436,8 @@
     function renderTrend() {
       const svg = document.getElementById('sh-trend-svg');
       if (!svg) return;
-      const W = 800, H = 140;
-      const pad = { top: 12, right: 12, bottom: 24, left: 28 };
+      const W = 800, H = 90;
+      const pad = { top: 8, right: 12, bottom: 20, left: 28 };
       const innerW = W - pad.left - pad.right;
       const innerH = H - pad.top - pad.bottom;
       const series = buildSeries(trendRange);
@@ -1399,6 +1622,305 @@
     // Initial load + auto-refresh every minute
     loadServiceHealth();
     scheduleRefresh();
+
+    // ════════════════════════════════════════════════
+    // AZURE RESOURCE HEALTH — uses subscription picker
+    // ════════════════════════════════════════════════
+    (function initAzureResourceHealth() {
+      const SECTION = document.getElementById('arh-section');
+      if (!SECTION) return;
+
+      // ── Helpers ──────────────────────────────────────
+      function getSubId() {
+        if (window.SubscriptionPicker) {
+          const ids = SubscriptionPicker.getSelectedIds();
+          if (ids.length > 0) return ids[0];
+        }
+        return '';
+      }
+
+      function updateSubBadge() {
+        const badge = document.getElementById('arh-sub-badge');
+        const subId = getSubId();
+        if (subId) {
+          badge.textContent = subId.length > 16 ? subId.slice(0, 8) + '…' : subId;
+          badge.style.display = '';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+
+      function stripHtml(html) {
+        if (!html) return '';
+        var tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return (tmp.textContent || tmp.innerText || '').trim();
+      }
+
+      function relTime(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d)) return '';
+        var diff = Date.now() - d.getTime();
+        if (diff < 3600000) return Math.max(1, Math.round(diff / 60000)) + 'm ago';
+        if (diff < 86400000) return Math.round(diff / 3600000) + 'h ago';
+        return Math.round(diff / 86400000) + 'd ago';
+      }
+
+      // ── Emerging Issues ──────────────────────────────
+      async function loadEmergingIssues() {
+        var list = document.getElementById('arh-emerging-list');
+        var countEl = document.getElementById('arh-emerging-count');
+        list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
+        try {
+          var res = await fetch('/api/azure-resource-health/emerging-issues');
+          var data = await res.json();
+          if (data.error) {
+            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            return;
+          }
+          var items = data.value || [];
+          // Flatten to active events + banners from all entries
+          var activeEvents = [];
+          var banners = [];
+          for (var i = 0; i < items.length; i++) {
+            var props = items[i].properties || items[i];
+            if (props.statusActiveEvents) activeEvents.push.apply(activeEvents, props.statusActiveEvents);
+            if (props.statusBanners) banners.push.apply(banners, props.statusBanners);
+          }
+          var total = activeEvents.length + banners.length;
+          countEl.textContent = total;
+          countEl.style.display = total > 0 ? '' : 'none';
+          if (total === 0) {
+            list.innerHTML = '<div class="arh-empty">\u2705 No emerging issues</div>';
+            return;
+          }
+          var html = '';
+          for (var a = 0; a < activeEvents.length; a++) {
+            var ev = activeEvents[a];
+            var sevClass = (ev.severity || '').toLowerCase() === 'error' ? 'sev-error' :
+                           (ev.severity || '').toLowerCase() === 'warning' ? 'sev-warning' : '';
+            html += '<div class="arh-emerging-card">';
+            html += '<div class="arh-emerging-title">' + escapeHtml(ev.title || 'Untitled') + '</div>';
+            html += '<div class="arh-emerging-meta">';
+            if (ev.severity) html += '<span class="arh-tag ' + sevClass + '">' + escapeHtml(ev.severity) + '</span>';
+            if (ev.stage) html += '<span>' + escapeHtml(ev.stage) + '</span>';
+            if (ev.trackingId) html += '<span>' + escapeHtml(ev.trackingId) + '</span>';
+            if (ev.startTime) html += '<span>' + relTime(ev.startTime) + '</span>';
+            html += '</div>';
+            if (ev.description) {
+              var desc = stripHtml(ev.description);
+              html += '<div class="arh-emerging-desc">' + escapeHtml(desc.length > 300 ? desc.slice(0, 300) + '…' : desc) + '</div>';
+            }
+            if (ev.impacts && ev.impacts.length > 0) {
+              html += '<div class="arh-emerging-impacts">';
+              for (var j = 0; j < ev.impacts.length; j++) {
+                html += '<span class="arh-tag">' + escapeHtml(ev.impacts[j].name || ev.impacts[j].id || '') + '</span>';
+              }
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+          for (var b = 0; b < banners.length; b++) {
+            var bn = banners[b];
+            html += '<div class="arh-emerging-card">';
+            html += '<div class="arh-emerging-title">' + escapeHtml(bn.title || 'Banner') + '</div>';
+            html += '<div class="arh-emerging-meta">';
+            html += '<span class="arh-tag">Banner</span>';
+            if (bn.lastModifiedTime) html += '<span>' + relTime(bn.lastModifiedTime) + '</span>';
+            html += '</div>';
+            if (bn.message) {
+              var msg = stripHtml(bn.message);
+              html += '<div class="arh-emerging-desc">' + escapeHtml(msg.length > 300 ? msg.slice(0, 300) + '…' : msg) + '</div>';
+            }
+            html += '</div>';
+          }
+          list.innerHTML = html;
+        } catch (err) {
+          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        }
+      }
+
+      // ── Service Health Events ────────────────────────
+      async function loadEvents() {
+        var subId = getSubId();
+        var list = document.getElementById('arh-events-list');
+        var countEl = document.getElementById('arh-events-count');
+        if (!subId) {
+          list.innerHTML = '<div class="arh-no-sub">Select a subscription above to view events.</div>';
+          countEl.style.display = 'none';
+          return;
+        }
+        list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
+        try {
+          var res = await fetch('/api/azure-resource-health/events?subscriptionId=' + encodeURIComponent(subId));
+          var data = await res.json();
+          if (data.error) {
+            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            return;
+          }
+          var events = data.value || [];
+          countEl.textContent = events.length;
+          countEl.style.display = events.length > 0 ? '' : 'none';
+          if (events.length === 0) {
+            list.innerHTML = '<div class="arh-empty">\u2705 No active service health events</div>';
+            return;
+          }
+          // Sort: Active first, then by lastUpdateTime desc
+          events.sort(function(a, b) {
+            var ap = a.properties || a, bp = b.properties || b;
+            var aActive = (ap.status || '') === 'Active' ? 0 : 1;
+            var bActive = (bp.status || '') === 'Active' ? 0 : 1;
+            if (aActive !== bActive) return aActive - bActive;
+            return new Date(bp.lastUpdateTime || 0) - new Date(ap.lastUpdateTime || 0);
+          });
+          var html = '';
+          for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var p = ev.properties || ev;
+            var eventType = p.eventType || '';
+            var status = p.status || '';
+            html += '<div class="arh-event-card">';
+            html += '<div class="arh-event-header">';
+            html += '<span class="arh-status-dot ' + escapeHtml(status) + '" title="' + escapeHtml(status) + '"></span>';
+            html += '<div class="arh-event-title">' + escapeHtml(p.title || ev.name || 'Untitled') + '</div>';
+            html += '<span class="arh-event-type ' + escapeHtml(eventType) + '">' + escapeHtml(eventType) + '</span>';
+            html += '</div>';
+            html += '<div class="arh-event-meta">';
+            if (status) html += '<span>' + escapeHtml(status) + '</span>';
+            if (p.eventLevel) html += '<span>' + escapeHtml(p.eventLevel) + '</span>';
+            if (ev.name) html += '<span>' + escapeHtml(ev.name) + '</span>';
+            if (p.lastUpdateTime) html += '<span>Updated ' + relTime(p.lastUpdateTime) + '</span>';
+            if (p.impactStartTime) html += '<span>Started ' + relTime(p.impactStartTime) + '</span>';
+            html += '</div>';
+            if (p.summary) {
+              var summary = stripHtml(p.summary);
+              html += '<div class="arh-event-summary">' + escapeHtml(summary.length > 400 ? summary.slice(0, 400) + '…' : summary) + '</div>';
+            }
+            if (p.impact && p.impact.length > 0) {
+              html += '<div class="arh-event-services">';
+              for (var j = 0; j < p.impact.length; j++) {
+                html += '<span class="arh-tag">' + escapeHtml(p.impact[j].impactedService || '') + '</span>';
+              }
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+          list.innerHTML = html;
+        } catch (err) {
+          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        }
+      }
+
+      // ── Availability Statuses ────────────────────────
+      var currentAvailFilter = '';
+      async function loadAvailability() {
+        var subId = getSubId();
+        var list = document.getElementById('arh-avail-list');
+        var countEl = document.getElementById('arh-avail-count');
+        if (!subId) {
+          list.innerHTML = '<div class="arh-no-sub">Select a subscription above to view resource availability.</div>';
+          countEl.style.display = 'none';
+          return;
+        }
+        list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
+        try {
+          var res = await fetch('/api/azure-resource-health/availability-statuses?subscriptionId=' + encodeURIComponent(subId));
+          var data = await res.json();
+          if (data.error) {
+            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            return;
+          }
+          var items = data.value || [];
+          window._arhAvailData = items; // cache for filtering
+          renderAvailability(items);
+        } catch (err) {
+          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        }
+      }
+
+      function renderAvailability(items) {
+        var list = document.getElementById('arh-avail-list');
+        var countEl = document.getElementById('arh-avail-count');
+        var filterVal = currentAvailFilter;
+        var filtered = items;
+        if (filterVal) {
+          filtered = items.filter(function(it) {
+            var state = (it.properties || {}).availabilityState || '';
+            return state === filterVal;
+          });
+        }
+        countEl.textContent = filtered.length;
+        countEl.style.display = filtered.length > 0 ? '' : 'none';
+        if (filtered.length === 0) {
+          list.innerHTML = '<div class="arh-empty">' +
+            (filterVal ? 'No resources with status "' + escapeHtml(filterVal) + '"' : '\u2705 No resources found') +
+            '</div>';
+          return;
+        }
+        // Sort: Unavailable first, then Degraded, then Unknown, then Available
+        var order = { 'Unavailable': 0, 'Degraded': 1, 'Unknown': 2, 'Available': 3 };
+        filtered.sort(function(a, b) {
+          var sa = (a.properties || {}).availabilityState || 'Unknown';
+          var sb = (b.properties || {}).availabilityState || 'Unknown';
+          return (order[sa] != null ? order[sa] : 9) - (order[sb] != null ? order[sb] : 9);
+        });
+        // Cap at 200 to keep DOM manageable
+        var capped = filtered.length > 200;
+        var show = capped ? filtered.slice(0, 200) : filtered;
+        var html = '';
+        for (var i = 0; i < show.length; i++) {
+          var it = show[i];
+          var p = it.properties || {};
+          var state = p.availabilityState || 'Unknown';
+          // Extract resource name from ARM id
+          var resourceName = (it.id || '').split('/providers/Microsoft.ResourceHealth/')[0];
+          var parts = resourceName.split('/');
+          var shortName = parts[parts.length - 1] || resourceName;
+          var resourceType = '';
+          if (parts.length >= 2) resourceType = parts[parts.length - 2];
+          html += '<div class="arh-avail-card">';
+          html += '<div class="arh-avail-status ' + escapeHtml(state) + '" title="' + escapeHtml(state) + '"></div>';
+          html += '<div class="arh-avail-info">';
+          html += '<div class="arh-avail-name" title="' + escapeHtml(it.id || '') + '">' + escapeHtml(shortName) + '</div>';
+          html += '<div class="arh-avail-detail">' + escapeHtml(resourceType) + (p.summary ? ' — ' + escapeHtml(p.summary) : '') + '</div>';
+          html += '</div>';
+          html += '<span class="arh-avail-state-label ' + escapeHtml(state) + '">' + escapeHtml(state) + '</span>';
+          html += '</div>';
+        }
+        if (capped) {
+          html += '<div class="arh-empty">Showing 200 of ' + filtered.length + ' resources</div>';
+        }
+        list.innerHTML = html;
+      }
+
+      // ── Filter ──────────────────────────────────────
+      document.getElementById('arh-avail-filter').addEventListener('change', function(e) {
+        currentAvailFilter = e.target.value;
+        if (window._arhAvailData) renderAvailability(window._arhAvailData);
+      });
+
+      // ── Refresh buttons ──────────────────────────────
+      document.getElementById('arh-emerging-refresh').addEventListener('click', loadEmergingIssues);
+      document.getElementById('arh-events-refresh').addEventListener('click', loadEvents);
+      document.getElementById('arh-avail-refresh').addEventListener('click', loadAvailability);
+
+      // ── Load all + react to subscription changes ─────
+      function loadAll() {
+        updateSubBadge();
+        loadEmergingIssues();
+        loadEvents();
+        loadAvailability();
+      }
+
+      // React to subscription picker changes
+      window.addEventListener('subscriptions-changed', function() {
+        loadAll();
+      });
+
+      // Initial load
+      loadAll();
+    })();
 
     // ════════════════════════════════════════════════
     // GENERATE EXPORT MODAL
@@ -1658,5 +2180,6 @@
   <script src="/static/outlook-export.js" defer></script>
   <script src="/static/export-formats.js" defer></script>
   <script src="/static/ai-insights.js" defer></script>
+  <script src="/static/subscription-picker.js" defer></script>
 </body>
 </html>

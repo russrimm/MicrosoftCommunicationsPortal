@@ -1,0 +1,8 @@
+name: microsoft-communications-portal
+metadata:
+  template: microsoft-communications-portal
+services:
+  web:
+    project: .
+    language: js
+    host: appservice

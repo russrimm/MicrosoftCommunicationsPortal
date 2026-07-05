@@ -1,0 +1,5 @@
+{
+  "resourcesResourceGroups": "rg-",
+  "webServerFarms": "plan-",
+  "webSitesAppService": "app-"
+}
