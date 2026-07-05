@@ -215,13 +215,92 @@
     }
     .sh-top-row {
       display: grid;
-      grid-template-columns: minmax(0, 320px) minmax(0, 1.4fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
       gap: 0.75rem;
       flex-shrink: 0;
+    }
+    .sh-top-left {
+      display: flex; flex-direction: column; gap: 0.75rem;
+      min-height: 0;
+    }
+    .sh-top-left > .sh-panel-flex {
+      max-height: 220px;
+    }
+    .sh-top-right {
+      display: flex; flex-direction: column; gap: 0.75rem;
+      min-height: 0;
     }
     @media (max-width: 1100px) {
       .sh-top-row { grid-template-columns: 1fr; }
     }
+
+    /* Recent Activity */
+    .sh-activity { display: flex; flex-direction: column; gap: 0; flex: 1; min-height: 0; overflow-y: auto; }
+    .sh-activity::-webkit-scrollbar { width: 6px; }
+    .sh-activity::-webkit-scrollbar-track { background: transparent; }
+    .sh-activity::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .sh-activity-row {
+      display: flex; align-items: flex-start; gap: 0.625rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--cp-border);
+      font-size: 12px;
+    }
+    .sh-activity-row:last-child { border-bottom: none; }
+    .sh-activity-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 4px;
+    }
+    .sh-activity-dot.sev-incident   { background: var(--cp-danger); }
+    .sh-activity-dot.sev-degraded   { background: var(--cp-warning); }
+    .sh-activity-dot.sev-extended   { background: var(--cp-purple); }
+    .sh-activity-dot.sev-restoring,
+    .sh-activity-dot.sev-investigating { background: var(--cp-link); }
+    .sh-activity-dot.sev-unknown    { background: var(--cp-text-muted); }
+    .sh-activity-body { flex: 1; min-width: 0; }
+    .sh-activity-title {
+      font-weight: 600; color: var(--cp-text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sh-activity-meta {
+      font-size: 11px; color: var(--cp-text-muted);
+      display: flex; gap: 0.5rem; flex-wrap: wrap;
+    }
+
+    /* Uptime Heatmap */
+    .sh-heatmap-wrap { overflow-x: auto; }
+    .sh-heatmap-wrap::-webkit-scrollbar { height: 6px; }
+    .sh-heatmap-wrap::-webkit-scrollbar-track { background: transparent; }
+    .sh-heatmap-wrap::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
+    .sh-heatmap {
+      display: grid;
+      gap: 2px;
+      width: 100%;
+    }
+    .sh-heatmap-label {
+      font-size: 10px; color: var(--cp-text-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      text-align: right; padding-right: 6px;
+      display: flex; align-items: center; justify-content: flex-end;
+    }
+    .sh-heatmap-daylabel {
+      font-size: 9px; color: var(--cp-text-muted);
+      text-align: center;
+    }
+    .sh-heatmap-cell {
+      border-radius: 2px; min-height: 14px;
+      transition: opacity 0.15s;
+    }
+    .sh-heatmap-cell:hover { opacity: 0.8; }
+    .sh-heatmap-cell.hm-ok       { background: var(--cp-success); }
+    .sh-heatmap-cell.hm-degraded { background: var(--cp-warning); }
+    .sh-heatmap-cell.hm-incident { background: var(--cp-danger); }
+    .sh-heatmap-cell.hm-empty    { background: var(--cp-border); opacity: 0.3; }
+    .sh-heatmap-legend {
+      display: flex; gap: 0.75rem; justify-content: center;
+      font-size: 10px; color: var(--cp-text-muted); margin-top: 0.4rem;
+    }
+    .sh-heatmap-legend-item { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .sh-heatmap-legend-dot { width: 10px; height: 10px; border-radius: 2px; }
     .sh-content-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -879,49 +958,64 @@
 
     <!-- Dashboard layout -->
     <div class="sh-page-stack">
-      <!-- Top row: compact overview donut + trend + per-service breakdown -->
+      <!-- Top row: left column (overview + breakdown), right column (trend chart) -->
       <div class="sh-top-row">
-        <section class="sh-panel">
-          <div class="sh-panel-head">
-            <div class="sh-panel-title">Overview</div>
-            <div class="sh-panel-meta">
-              <span id="sh-updated">—</span>
-              <button class="export-btn" id="sh-refresh-btn" type="button" aria-label="Refresh service health"><span aria-hidden="true">↻</span></button>
-            </div>
-          </div>
-          <div class="sh-overview">
-            <div class="sh-donut-wrap">
-              <svg class="sh-donut-svg" id="sh-donut-svg" viewBox="0 0 42 42" role="img" aria-label="Service health overview"></svg>
-              <div class="sh-donut-center">
-                <div class="sh-donut-num" id="sh-donut-total">—</div>
-                <div class="sh-donut-label">Services</div>
+        <div class="sh-top-left">
+          <section class="sh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">Overview</div>
+              <div class="sh-panel-meta">
+                <span id="sh-updated">—</span>
+                <button class="export-btn" id="sh-refresh-btn" type="button" aria-label="Refresh service health"><span aria-hidden="true">↻</span></button>
               </div>
             </div>
-            <div class="sh-legend">
-              <div class="sh-legend-row">
-                <span class="sh-legend-dot operational"></span>
-                <span class="sh-legend-name">Operational</span>
-                <span class="sh-legend-num" id="sh-stat-operational">—</span>
+            <div class="sh-overview">
+              <div class="sh-donut-wrap">
+                <svg class="sh-donut-svg" id="sh-donut-svg" viewBox="0 0 42 42" role="img" aria-label="Service health overview"></svg>
+                <div class="sh-donut-center">
+                  <div class="sh-donut-num" id="sh-donut-total">—</div>
+                  <div class="sh-donut-label">Services</div>
+                </div>
               </div>
-              <div class="sh-legend-row">
-                <span class="sh-legend-dot degraded"></span>
-                <span class="sh-legend-name">Degraded</span>
-                <span class="sh-legend-num" id="sh-stat-degraded">—</span>
-              </div>
-              <div class="sh-legend-row">
-                <span class="sh-legend-dot extended"></span>
-                <span class="sh-legend-name">Extended Recovery</span>
-                <span class="sh-legend-num" id="sh-stat-extended">—</span>
-              </div>
-              <div class="sh-legend-row">
-                <span class="sh-legend-dot degraded"></span>
-                <span class="sh-legend-name">Active issues</span>
-                <span class="sh-legend-num" id="sh-stat-issues">—</span>
+              <div class="sh-legend">
+                <div class="sh-legend-row">
+                  <span class="sh-legend-dot operational"></span>
+                  <span class="sh-legend-name">Operational</span>
+                  <span class="sh-legend-num" id="sh-stat-operational">—</span>
+                </div>
+                <div class="sh-legend-row">
+                  <span class="sh-legend-dot degraded"></span>
+                  <span class="sh-legend-name">Degraded</span>
+                  <span class="sh-legend-num" id="sh-stat-degraded">—</span>
+                </div>
+                <div class="sh-legend-row">
+                  <span class="sh-legend-dot extended"></span>
+                  <span class="sh-legend-name">Extended Recovery</span>
+                  <span class="sh-legend-num" id="sh-stat-extended">—</span>
+                </div>
+                <div class="sh-legend-row">
+                  <span class="sh-legend-dot degraded"></span>
+                  <span class="sh-legend-name">Active issues</span>
+                  <span class="sh-legend-num" id="sh-stat-issues">—</span>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
+          <section class="sh-panel sh-panel-flex">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span>By Service</span>
+                <span class="sh-panel-title-count" id="sh-breakdown-total">—</span>
+              </div>
+            </div>
+            <div class="sh-breakdown" id="sh-breakdown">
+              <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="sh-top-right">
         <section class="sh-panel">
           <div class="sh-panel-head">
             <div class="sh-panel-title">
@@ -945,22 +1039,37 @@
         <section class="sh-panel sh-panel-flex">
           <div class="sh-panel-head">
             <div class="sh-panel-title">
-              <span class="sh-panel-title-icon" aria-hidden="true">🧩</span>
-              <span>By Service</span>
-              <span class="sh-panel-title-count" id="sh-breakdown-total">—</span>
+              <span>Recent Activity</span>
+              <span class="sh-panel-title-count" id="sh-activity-total">—</span>
             </div>
           </div>
-          <div class="sh-breakdown" id="sh-breakdown">
+          <div class="sh-activity" id="sh-activity">
             <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
           </div>
         </section>
+
+        <section class="sh-panel">
+          <div class="sh-panel-head">
+            <div class="sh-panel-title">
+              <span>Uptime Heatmap</span>
+            </div>
+          </div>
+          <div class="sh-heatmap-wrap" id="sh-heatmap">
+            <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
+          </div>
+          <div class="sh-heatmap-legend">
+            <span class="sh-heatmap-legend-item"><span class="sh-heatmap-legend-dot" style="background:var(--cp-success)"></span>Operational</span>
+            <span class="sh-heatmap-legend-item"><span class="sh-heatmap-legend-dot" style="background:var(--cp-warning)"></span>Degraded</span>
+            <span class="sh-heatmap-legend-item"><span class="sh-heatmap-legend-dot" style="background:var(--cp-danger)"></span>Incident</span>
+          </div>
+        </section>
+        </div>
       </div>
 
       <!-- Current Issues — fills remaining height, scrolls internally -->
       <section class="sh-panel sh-issues-panel">
         <div class="sh-panel-head">
           <div class="sh-panel-title">
-            <span class="sh-panel-title-icon" aria-hidden="true">📊</span>
             <span>Current Issues</span>
             <span class="sh-panel-title-count" id="sh-issues-total">—</span>
           </div>
@@ -1156,6 +1265,8 @@
         renderStats();
         renderBreakdown();
         renderSidebar();
+        renderRecentActivity();
+        renderHeatmap();
         renderTrend();
       } catch (err) {
         document.getElementById('sh-breakdown').innerHTML =
@@ -1328,6 +1439,125 @@
             </div>
           </div>`;
       }).join('');
+    }
+
+    function renderRecentActivity() {
+      const list = flatIssues().slice(0, 6);
+      const container = document.getElementById('sh-activity');
+      const countEl = document.getElementById('sh-activity-total');
+      const total = flatIssues().length;
+      if (countEl) countEl.textContent = total;
+      if (!list.length) {
+        container.innerHTML = '<div class="sh-empty">✓ No recent activity</div>';
+        return;
+      }
+      container.innerHTML = list.map(it => {
+        const sev = severityFromIssue(it);
+        const dt = it.lastModifiedDateTime ? new Date(it.lastModifiedDateTime) : null;
+        const ago = dt ? timeAgo(dt) : '';
+        return `
+          <div class="sh-activity-row">
+            <span class="sh-activity-dot sev-${sev}"></span>
+            <div class="sh-activity-body">
+              <div class="sh-activity-title" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</div>
+              <div class="sh-activity-meta">
+                <span>${escapeHtml(it.service)}</span>
+                <span>${escapeHtml(ago)}</span>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function timeAgo(dt) {
+      const diff = Date.now() - dt.getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return mins + 'm ago';
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return hrs + 'h ago';
+      const days = Math.floor(hrs / 24);
+      return days + 'd ago';
+    }
+
+    function renderHeatmap() {
+      const container = document.getElementById('sh-heatmap');
+      const DAYS = 14;
+      const today = new Date(); today.setHours(0,0,0,0);
+
+      // Build per-service per-day status from allServices issue data.
+      const svcMap = new Map();
+      for (const svc of allServices) {
+        const name = svc.service || svc.displayName || 'Unknown';
+        if (!svcMap.has(name)) svcMap.set(name, new Map());
+        const dayMap = svcMap.get(name);
+        for (const issue of (svc.issues || [])) {
+          const start = issue.startDateTime ? new Date(issue.startDateTime) : null;
+          const end = issue.endDateTime ? new Date(issue.endDateTime) : (issue.isResolved ? null : new Date());
+          if (!start) continue;
+          const cls = String(issue.classification || '').toLowerCase();
+          const weight = cls === 'incident' ? 2 : 1;
+          for (let di = 0; di < DAYS; di++) {
+            const d = new Date(today); d.setDate(today.getDate() - (DAYS - 1 - di));
+            const dk = dayKey(d);
+            const dEnd = new Date(d); dEnd.setHours(23,59,59,999);
+            if (start <= dEnd && (!end || end >= d)) {
+              dayMap.set(dk, Math.max(dayMap.get(dk) || 0, weight));
+            }
+          }
+        }
+      }
+
+      // Pick top services (those with any issues, plus top operational ones, up to 6).
+      let svcNames = [...svcMap.entries()]
+        .filter(([, dm]) => [...dm.values()].some(v => v > 0))
+        .sort((a, b) => {
+          const sa = [...a[1].values()].reduce((s,v) => s+v, 0);
+          const sb = [...b[1].values()].reduce((s,v) => s+v, 0);
+          return sb - sa;
+        })
+        .map(([n]) => n)
+        .slice(0, 6);
+      // If fewer than 3, pad with operational services for context.
+      if (svcNames.length < 3) {
+        for (const svc of allServices) {
+          const n = svc.service || svc.displayName || 'Unknown';
+          if (!svcNames.includes(n)) { svcNames.push(n); }
+          if (svcNames.length >= 5) break;
+        }
+      }
+
+      if (!svcNames.length) {
+        container.innerHTML = '<div class="sh-empty">No service data</div>';
+        return;
+      }
+
+      const cols = DAYS + 1; // +1 for label column
+      let html = `<div class="sh-heatmap" style="grid-template-columns: 100px repeat(${DAYS}, 1fr);">`;
+
+      // Day header row.
+      html += '<div class="sh-heatmap-label"></div>';
+      for (let di = 0; di < DAYS; di++) {
+        const d = new Date(today); d.setDate(today.getDate() - (DAYS - 1 - di));
+        const label = di === DAYS - 1 ? 'Today' : `${d.getMonth()+1}/${d.getDate()}`;
+        html += `<div class="sh-heatmap-daylabel">${label}</div>`;
+      }
+
+      // Service rows.
+      for (const name of svcNames) {
+        html += `<div class="sh-heatmap-label" title="${escapeHtml(name)}">${escapeHtml(name)}</div>`;
+        const dayMap = svcMap.get(name) || new Map();
+        for (let di = 0; di < DAYS; di++) {
+          const d = new Date(today); d.setDate(today.getDate() - (DAYS - 1 - di));
+          const dk = dayKey(d);
+          const v = dayMap.get(dk) || 0;
+          const cls = v >= 2 ? 'hm-incident' : v === 1 ? 'hm-degraded' : 'hm-ok';
+          const tip = `${name} — ${d.getMonth()+1}/${d.getDate()}: ${v >= 2 ? 'Incident' : v === 1 ? 'Degraded' : 'Operational'}`;
+          html += `<div class="sh-heatmap-cell ${cls}" title="${escapeHtml(tip)}"></div>`;
+        }
+      }
+      html += '</div>';
+      container.innerHTML = html;
     }
 
     function toggleExpandIssues() {
