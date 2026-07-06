@@ -7,7 +7,7 @@
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
-      const theme = (param === "dark" || param === "light") ? param : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -28,18 +28,18 @@
   <nav class="page-tabs" aria-label="Primary">
     <a class="nav-tab" href="/home">Home</a>
     <div class="nav-dropdown">
-      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Roadmaps <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
+      <button class="nav-tab nav-dropdown-toggle active" type="button" aria-expanded="false" aria-haspopup="true">Roadmaps <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item" href="/powerplatform">Power Platform</a>
         <a class="nav-dropdown-item" href="/fabricroadmap">Fabric</a>
         <a class="nav-dropdown-item" href="/azureupdates">Azure</a>
+        <a class="nav-dropdown-item active" href="/m365updates" aria-current="page">Microsoft 365</a>
       </div>
     </div>
     <div class="nav-dropdown">
-      <button class="nav-tab nav-dropdown-toggle active" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
+      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item" href="/messagecenter">Message Center</a>
-        <a class="nav-dropdown-item active" href="/m365updates" aria-current="page">Roadmap</a>
       </div>
     </div>
     <div class="nav-dropdown">

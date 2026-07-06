@@ -7,7 +7,7 @@
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
-      const theme = (param === "dark" || param === "light") ? param : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -33,13 +33,13 @@
         <a class="nav-dropdown-item active" href="/powerplatform" aria-current="page">Power Platform</a>
         <a class="nav-dropdown-item" href="/fabricroadmap">Fabric</a>
         <a class="nav-dropdown-item" href="/azureupdates">Azure</a>
+        <a class="nav-dropdown-item" href="/m365updates">Microsoft 365</a>
       </div>
     </div>
     <div class="nav-dropdown">
       <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item" href="/messagecenter">Message Center</a>
-        <a class="nav-dropdown-item" href="/m365updates">Roadmap</a>
       </div>
     </div>
     <div class="nav-dropdown">
@@ -274,6 +274,11 @@
     ]);
     const EXCLUDED_NAME_RE = /^ai builder$/i;
 
+    // Canonical name aliases — merge upstream name variants into PRODUCTS names
+    const PRODUCT_NAME_ALIASES = new Map([
+      ['Microsoft Power Platform governance and administration', 'Power Platform governance and administration'],
+    ]);
+
     function isExcludedFeature(f) {
       return EXCLUDED_IDS.has(f.ProductId) || EXCLUDED_NAME_RE.test(f.Product || '');
     }
@@ -350,7 +355,8 @@
     // ════════════════════════════════════════════════
     let allFeatures = [];
     let currentFiltered = [];
-    const selectedProductIds = new Set(PRODUCTS.map(p => p.id));
+    const selectedProductIds = new Set(PRODUCTS.filter(p => p.category === 'Power Platform').map(p => p.id));
+    const loadedProductIds = new Set();
     let defaultProductFilterApplied = false;
 
     // Multi-select filter sets
@@ -382,6 +388,7 @@
     function normalizeFeature(f) {
       if (f.FeatureName)  f.FeatureName  = decodeEntities(f.FeatureName);
       if (f.Product)      f.Product      = decodeEntities(f.Product);
+      if (f.Product && PRODUCT_NAME_ALIASES.has(f.Product)) f.Product = PRODUCT_NAME_ALIASES.get(f.Product);
       if (f.ProductArea)  f.ProductArea  = decodeEntities(f.ProductArea);
       if (f.FeatureType)  f.FeatureType  = decodeEntities(f.FeatureType);
       if (f.EnabledFor)   f.EnabledFor   = decodeEntities(f.EnabledFor);
@@ -449,6 +456,7 @@
       };
       setLoading(true, `Loading… 0 of ${total} product${total !== 1 ? 's' : ''} (0%)`, 0);
       const known = await Promise.all(ids.map(id => fetchProduct(id).then(r => { updateProgress(); return r; })));
+      ids.forEach(id => loadedProductIds.add(id));
       allFeatures = dedup(known.flat().filter(f => f.FeatureName && !isExcludedFeature(f)));
       applyDefaultProductFilter();
       rebuildFilters();
@@ -539,6 +547,8 @@
         names.add(f.Product);
         if (!hierByName[f.Product] && f.ProductHierarchyPath) hierByName[f.Product] = f.ProductHierarchyPath;
       }
+      // Also include all known PRODUCTS so Power Platform items are always pre-selected
+      for (const p of PRODUCTS) names.add(p.name);
       if (!names.size) return;
       for (const n of names) {
         if (categoryForProductName(n, hierByName[n]) !== 'Dynamics 365') productFilter.add(n);
@@ -648,6 +658,11 @@
         if (f.FeatureType) types.add(f.FeatureType);
       });
 
+      // Ensure all known PRODUCTS appear in filter (even if not yet loaded)
+      for (const p of PRODUCTS) {
+        products.add(p.name);
+        if (!hierByName[p.name]) hierByName[p.name] = '';
+      }
       // Product: grouped by category
       renderProductMultiOptions([...products].sort(), hierByName);
 
@@ -698,18 +713,36 @@
         </label>`).join('');
     }
 
-    function onMultiChange(ev) {
+    async function onMultiChange(ev) {
       const kind = ev.target.dataset.kind;
       const value = ev.target.dataset.value;
       const set = getFilterSet(kind);
       if (ev.target.checked) set.add(value); else set.delete(value);
+
+      // Lazy-load product data when a previously-unloaded product is checked
+      if (kind === 'product' && ev.target.checked) {
+        const prod = PRODUCTS.find(p => p.name === value);
+        if (prod && !loadedProductIds.has(prod.id)) {
+          selectedProductIds.add(prod.id);
+          setLoading(true, `Loading ${value}…`);
+          const features = await fetchProduct(prod.id);
+          loadedProductIds.add(prod.id);
+          const newFeats = features.filter(f => f.FeatureName && !isExcludedFeature(f));
+          if (newFeats.length) {
+            allFeatures = dedup([...allFeatures, ...newFeats]);
+            rebuildFilters();
+          }
+          setLoading(false);
+        }
+      }
+
       const allKnown = getAllKnownValues(kind);
       const label = { product: 'Products', area: 'Areas', status: 'Statuses', wave: 'Waves', type: 'Types' }[kind] || kind;
       updateMultiLabel(kind, allKnown, label);
       filterAndRender();
     }
 
-    function setAllOptions(kind, checked) {
+    async function setAllOptions(kind, checked) {
       const set = getFilterSet(kind);
       const containerId = `au-${kind}-options`;
       const inputs = document.querySelectorAll(`#${containerId} input`);
@@ -717,6 +750,29 @@
         i.checked = checked;
         if (checked) set.add(i.dataset.value); else set.delete(i.dataset.value);
       });
+
+      // Lazy-load any unloaded products when "Select all" is used
+      if (kind === 'product' && checked) {
+        const toLoad = PRODUCTS.filter(p => !loadedProductIds.has(p.id));
+        if (toLoad.length) {
+          toLoad.forEach(p => selectedProductIds.add(p.id));
+          setLoading(true, `Loading ${toLoad.length} additional product${toLoad.length !== 1 ? 's' : ''}…`, 0);
+          let completed = 0;
+          const results = await Promise.all(toLoad.map(p => fetchProduct(p.id).then(r => {
+            completed++;
+            loadedProductIds.add(p.id);
+            setLoading(true, `Loading… ${completed} of ${toLoad.length}`, Math.round((completed / toLoad.length) * 100));
+            return r;
+          })));
+          const newFeats = results.flat().filter(f => f.FeatureName && !isExcludedFeature(f));
+          if (newFeats.length) {
+            allFeatures = dedup([...allFeatures, ...newFeats]);
+            rebuildFilters();
+          }
+          setLoading(false);
+        }
+      }
+
       const allKnown = Array.from(inputs).map(i => i.dataset.value);
       const label = { product: 'Products', area: 'Areas', status: 'Statuses', wave: 'Waves', type: 'Types' }[kind] || kind;
       updateMultiLabel(kind, allKnown, label);

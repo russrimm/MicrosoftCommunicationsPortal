@@ -7,7 +7,7 @@
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
-      const theme = (param === "dark" || param === "light") ? param : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -33,13 +33,13 @@
         <a class="nav-dropdown-item" href="/powerplatform">Power Platform</a>
         <a class="nav-dropdown-item" href="/fabricroadmap">Fabric</a>
         <a class="nav-dropdown-item" href="/azureupdates">Azure</a>
+        <a class="nav-dropdown-item" href="/m365updates">Microsoft 365</a>
       </div>
     </div>
     <div class="nav-dropdown">
       <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item" href="/messagecenter">Message Center</a>
-        <a class="nav-dropdown-item" href="/m365updates">Roadmap</a>
       </div>
     </div>
     <div class="nav-dropdown">

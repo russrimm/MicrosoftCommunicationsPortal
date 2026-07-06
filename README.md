@@ -204,6 +204,41 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
    environment variables are set by the platform. On a VM the Azure IMDS endpoint
    is used.
 
+   > **`azd up` users:** the post-provision hook runs `scripts/create-entra-app.ps1`
+   > which automatically grants these Graph permissions to the App Service managed
+   > identity — no manual steps needed.
+
+   **Granting Graph permissions to a managed identity manually**
+
+   Graph application permissions cannot be added through the portal UI for managed
+   identities — you must use the CLI or Microsoft Graph API. Run these commands as
+   a Global Administrator (or Privileged Role Administrator):
+
+   ```powershell
+   # 1. Get the managed identity's object ID
+   $miObjectId = az webapp identity show `
+       --name <app-service-name> -g <resource-group> `
+       --query principalId -o tsv
+
+   # 2. Get the Microsoft Graph service principal's object ID in your tenant
+   $graphSpId = az ad sp show `
+       --id "00000003-0000-0000-c000-000000000000" `
+       --query id -o tsv
+
+   # 3. Grant ServiceMessage.Read.All (Message Center)
+   az rest --method POST `
+       --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$graphSpId/appRoleAssignments" `
+       --body "{`"principalId`":`"$miObjectId`",`"resourceId`":`"$graphSpId`",`"appRoleId`":`"2c6a42ca-0d4d-49ad-bc0e-21222c449a65`"}"
+
+   # 4. Grant ServiceHealth.Read.All (Service Health)
+   az rest --method POST `
+       --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$graphSpId/appRoleAssignments" `
+       --body "{`"principalId`":`"$miObjectId`",`"resourceId`":`"$graphSpId`",`"appRoleId`":`"79c261e0-fe76-4144-aad5-bdc68fbe4037`"}"
+   ```
+
+   You can verify the assignments in Azure portal → Entra ID → Enterprise
+   applications → search for the managed identity object ID → Permissions.
+
    **Option B — Scripted app registration (local dev or non-Azure hosts)**
 
    You'll need an account that can register apps **and** grant tenant-wide admin

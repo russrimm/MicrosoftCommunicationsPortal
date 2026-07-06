@@ -7,7 +7,7 @@
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
-      const theme = (param === "dark" || param === "light") ? param : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -33,13 +33,13 @@
         <a class="nav-dropdown-item" href="/powerplatform">Power Platform</a>
         <a class="nav-dropdown-item" href="/fabricroadmap">Fabric</a>
         <a class="nav-dropdown-item" href="/azureupdates">Azure</a>
+        <a class="nav-dropdown-item" href="/m365updates">Microsoft 365</a>
       </div>
     </div>
     <div class="nav-dropdown">
       <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item" href="/messagecenter">Message Center</a>
-        <a class="nav-dropdown-item" href="/m365updates">Roadmap</a>
       </div>
     </div>
     <div class="nav-dropdown">
@@ -224,9 +224,9 @@
       </div>
       <div class="sh-modal-body">
         <div class="sh-modal-meta" id="sh-modal-meta"></div>
-        <div class="sh-modal-section-title" id="sh-modal-impact-label">Impact</div>
+        <div class="sh-modal-section-title">Impact</div>
         <div class="sh-modal-impact" id="sh-modal-impact"></div>
-        <div class="sh-modal-section-title" id="sh-modal-updates-label">Updates</div>
+        <div class="sh-modal-section-title">Updates</div>
         <div class="sh-modal-posts" id="sh-modal-posts"></div>
       </div>
     </div>
@@ -684,9 +684,7 @@
       document.getElementById('sh-modal-sub').innerHTML =
         `<span class="sh-issue-class">${issues.length} issue${issues.length > 1 ? 's' : ''} on this day</span>`;
       document.getElementById('sh-modal-meta').innerHTML = '';
-      document.getElementById('sh-modal-impact-label').style.display = 'none';
       document.getElementById('sh-modal-impact').textContent = '';
-      document.getElementById('sh-modal-updates-label').style.display = 'none';
       document.getElementById('sh-modal-posts').innerHTML = issues.map(it => {
         const sev = severityFromIssue(it);
         const status = humanizeStatus(it.status, sev);
@@ -695,7 +693,7 @@
         const timeStr = last ? `${formatShortDate(last)} · ${formatShortTime(last)}` : '';
         return `
           <div class="sh-modal-post" style="cursor:pointer" role="button" tabindex="0"
-               data-issue-id="${escapeHtml(it.id)}">
+               onclick="closeIssueModal(); setTimeout(function(){ openIssueModal('${escapeHtml(it.id)}'); }, 160)">
             <div class="sh-modal-post-head">
               <span class="sh-issue-pill sev-${sev}" style="font-size:10px"><span class="sh-issue-pill-dot"></span>${escapeHtml(status)}</span>
               <span>${escapeHtml(timeStr)}</span>
@@ -920,9 +918,6 @@
           <div class="sh-modal-meta-val"${m.mono ? ' style="font-family:ui-monospace,Consolas,monospace"' : ''}>${escapeHtml(m.value)}</div>
         </div>`).join('');
 
-      document.getElementById('sh-modal-impact-label').style.display = '';
-      document.getElementById('sh-modal-updates-label').style.display = '';
-
       const impactEl = document.getElementById('sh-modal-impact');
       const impactText = it.impact || '';
       impactEl.textContent = impactText || 'No impact description provided.';
@@ -993,20 +988,6 @@
       ev.preventDefault();
       const id = card.getAttribute('data-issue-id');
       if (id) openIssueModal(id);
-    });
-    // Heatmap issue-picker: delegated handlers (CSP disallows inline onclick).
-    function activatePickerPost(ev) {
-      const post = ev.target.closest('.sh-modal-post[data-issue-id]');
-      if (!post) return;
-      const id = post.getAttribute('data-issue-id');
-      if (!id) return;
-      ev.preventDefault();
-      closeIssueModal();
-      setTimeout(() => openIssueModal(id), 160);
-    }
-    document.getElementById('sh-modal-posts').addEventListener('click', activatePickerPost);
-    document.getElementById('sh-modal-posts').addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' || ev.key === ' ') activatePickerPost(ev);
     });
     document.getElementById('sh-modal-backdrop').addEventListener('click', (ev) => {
       if (ev.target === ev.currentTarget) closeIssueModal();

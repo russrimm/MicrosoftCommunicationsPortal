@@ -7,7 +7,7 @@
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
-      const theme = (param === "dark" || param === "light") ? param : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -34,13 +34,13 @@
         <a class="nav-dropdown-item" href="/powerplatform">Power Platform</a>
         <a class="nav-dropdown-item" href="/fabricroadmap">Fabric</a>
         <a class="nav-dropdown-item" href="/azureupdates">Azure</a>
+        <a class="nav-dropdown-item" href="/m365updates">Microsoft 365</a>
       </div>
     </div>
     <div class="nav-dropdown">
       <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
       <div class="nav-dropdown-menu">
         <a class="nav-dropdown-item" href="/messagecenter">Message Center</a>
-        <a class="nav-dropdown-item" href="/m365updates">Roadmap</a>
       </div>
     </div>
     <div class="nav-dropdown">
@@ -385,50 +385,28 @@
           case 'messagecenter': {
             const res = await fetch('/api/messagecenter');
             const data = await res.json();
-            if (!res.ok || data.error) {
-              throw { authError: true, message: data.error || 'Authentication required' };
-            }
-            const msgs = data.messages || data.value || [];
             const svcs = new Set();
-            msgs.forEach(msg => {
+            (data.value || data || []).forEach(msg => {
               (msg.services || []).forEach(s => svcs.add(s));
             });
             items = [...svcs].sort().map(s => ({ id: s, name: s }));
-            state.fetchedData[key] = msgs;
+            state.fetchedData[key] = data.value || data || [];
             break;
           }
           case 'servicehealth': {
             const res = await fetch('/api/servicehealth');
             const data = await res.json();
-            if (!res.ok || data.error) {
-              throw { authError: true, message: data.error || 'Authentication required' };
-            }
-            const services = data.services || data.value || [];
             const svcs = new Set();
-            const flatIssues = [];
-            services.forEach(svc => {
-              if (svc.service) svcs.add(svc.service);
-              (svc.issues || []).forEach(issue => {
-                flatIssues.push({ ...issue, service: issue.service || svc.service });
-              });
+            (data.value || data || []).forEach(issue => {
+              if (issue.service) svcs.add(issue.service);
             });
             items = [...svcs].sort().map(s => ({ id: s, name: s }));
-            state.fetchedData[key] = flatIssues;
+            state.fetchedData[key] = data.value || data || [];
             break;
           }
         }
-      } catch (e) {
-        const src = SOURCES.find(s => s.key === key);
-        if ((e && e.authError) || (src && src.auth)) {
-          const msg = (e && e.authError && e.message) ? e.message : 'Microsoft Graph is not configured on the server.';
-          body.innerHTML = `<div class="product-loading" style="color:var(--cp-warning)">
-            <strong>Authentication required</strong><br>
-            <span style="font-size:12px;opacity:0.85">${msg.length > 200 ? 'Microsoft Graph is not configured.' : msg.replace(/</g,'&lt;')}<br>
-            Set <code>M365_CLIENT_ID</code>, <code>M365_CLIENT_SECRET</code>, and <code>M365_TENANT_ID</code> in your <code>.env</code> file, or use <code>USE_MANAGED_IDENTITY=true</code> on Azure.</span>
-          </div>`;
-        } else {
-          body.innerHTML = '<div class="product-loading" style="color:var(--cp-danger)">Failed to load data from this source.</div>';
-        }
+      } catch {
+        body.innerHTML = '<div class="product-loading" style="color:var(--cp-danger)">Failed to load. The source may require authentication.</div>';
         return;
       }
 
@@ -670,7 +648,7 @@
               if (!items) {
                 const r = await fetch('/api/messagecenter');
                 const d = await r.json();
-                items = d.messages || d.value || [];
+                items = d.value || d || [];
               }
               allData[key] = items.filter(msg => (msg.services || []).some(s => selected.has(s)));
               break;
@@ -680,13 +658,7 @@
               if (!items) {
                 const r = await fetch('/api/servicehealth');
                 const d = await r.json();
-                const services = d.services || d.value || [];
-                items = [];
-                services.forEach(svc => {
-                  (svc.issues || []).forEach(issue => {
-                    items.push({ ...issue, service: issue.service || svc.service });
-                  });
-                });
+                items = d.value || d || [];
               }
               allData[key] = items.filter(issue => selected.has(issue.service));
               break;
@@ -747,20 +719,20 @@
           case 'powerplatform':
             headers = ['Product', 'Feature', 'Status', 'GA Date', 'Type'];
             rows = items.map(f => [
-              f.productName || f.Product || '',
-              (f.FeatureName || f.title || '').substring(0, 60),
-              f.GAStatus || (f.PublicPreviewDate ? 'Preview' : (f.GADate ? 'GA' : 'Planned')),
-              f.GADate ? new Date(f.GADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
-              f.FeatureType || ''
+              f.productName || '',
+              (f.title || f.name || '').substring(0, 60),
+              f.publicPreviewDate ? 'Preview' : (f.gADate ? 'GA' : 'Planned'),
+              f.gADate ? new Date(f.gADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
+              f.cloudInstance || f.featureType || ''
             ]);
             break;
           case 'fabric':
             headers = ['Product', 'Feature', 'Release Type', 'Status'];
             rows = items.map(f => [
-              f.productName || f.ProductName || '',
-              (f.FeatureName || f.title || '').substring(0, 60),
-              f.ReleaseType || f.releaseType || '',
-              f.ReleaseStatus || f.status || ''
+              f.productName || '',
+              (f.title || f.name || '').substring(0, 60),
+              f.releaseType || f.type || '',
+              f.status || ''
             ]);
             break;
           case 'm365':

@@ -32,7 +32,7 @@ When executives ask "what's changing in our Microsoft environment this quarter?"
 
 ## What the Microsoft Communications Portal Does
 
-I built this as an open-source solution that any organization can deploy internally. It brings **eight Microsoft communication streams** into a single, filterable, dark-mode-friendly interface:
+I built this as an open-source solution that any organization can deploy internally. It brings **eight Microsoft communication streams** into a single, filterable interface:
 
 | Stream | What it covers |
 |--------|---------------|
