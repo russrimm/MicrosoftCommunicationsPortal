@@ -17,6 +17,7 @@ const PAGES = [
   { slug: 'service-health',       url: '/servicehealth' },
   { slug: 'azure-service-health', url: '/azureservicehealth' },
   { slug: 'fabric-roadmap',       url: '/fabricroadmap' },
+  { slug: 'guided-report',        url: '/guidedreport' },
 ];
 
 const THEMES = ['light', 'dark'];

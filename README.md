@@ -36,6 +36,7 @@ tenant-side incidents in one place.
 | Microsoft 365 Message Center | `/messagecenter` | `messagecenter.html` | Microsoft Graph |
 | Microsoft 365 Service Health | `/servicehealth` | `servicehealth.html` | Microsoft Graph |
 | Azure Service Health | `/azureservicehealth` | `azureservicehealth.html` | Azure Management API (ARM) |
+| Guided Report | `/guidedreport` | `guidedreport.html` | — (multi-source report wizard) |
 
 Every page supports light and dark themes. Pass `?clawpilotTheme=light` or
 `?clawpilotTheme=dark` on the URL, or click the theme toggle in the header.
@@ -44,11 +45,11 @@ The site root (`/`) redirects to `/home`.
 
 ## Quick Deploy
 
-Six of eight pages work with zero credentials. Only Message Center and Service Health need an Entra app registration.
+Seven of nine pages work with zero credentials. Only Message Center and Service Health need an Entra app registration.
 
 | Pages | Credentials needed? |
 |-------|--------------------|
-| Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap | None — works immediately |
+| Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap, Guided Report | None — works immediately |
 | Message Center, Service Health | Entra app registration (Graph API) |
 | Azure Service Health | Azure Management API credentials |
 | AI Insights (all pages) | Azure OpenAI, OpenAI, or GitHub Models key |
@@ -63,7 +64,7 @@ azd up
 ```
 
 - The post-provision hook automatically offers to set up Graph permissions for Message Center and Service Health.
-- The other 6 pages work without any credentials.
+- The other 7 pages work without any credentials.
 - **Prerequisites:** [Azure Developer CLI](https://aka.ms/azd) and [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) (for the Graph setup hook).
 
 ### Option 2 — Docker
@@ -106,7 +107,7 @@ Open http://localhost:3000. For Graph-backed pages, copy `.env.example` to `.env
 
 ## Screenshots
 
-All 8 pages are shown in light and dark mode below (16 screenshots). Regenerate with
+All 9 pages are shown in light and dark mode below (18 screenshots). Regenerate with
 `node scripts/capture-screenshots.js` (Playwright) while the server is running
 on `http://localhost:3000`. The script visits each route with both theme query
 strings, waits for any visible "Loading…" banner to clear (up to 45 s, since
@@ -160,6 +161,12 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 | Light | Dark |
 |---|---|
 | ![Azure Service Health — light](screenshots/azure-service-health-light.png) | ![Azure Service Health — dark](screenshots/azure-service-health-dark.png) |
+
+### Guided Report
+
+| Light | Dark |
+|---|---|
+| ![Guided Report — light](screenshots/guided-report-light.png) | ![Guided Report — dark](screenshots/guided-report-dark.png) |
 
 ## Setup
 
@@ -464,6 +471,7 @@ fabricroadmap.html               Microsoft Fabric Roadmap UI
 messagecenter.html               M365 Message Center UI
 servicehealth.html               M365 Service Health UI
 azureservicehealth.html          Azure Service Health UI
+guidedreport.html                Guided Report wizard (multi-source report builder)
 server.js                        Node HTTP server, static file host, API proxy, AI endpoints
 static/
   util.js                        Shared client-side utilities (escapeHtml, sanitizeHtml, safeUrl, theme toggle, event delegation)

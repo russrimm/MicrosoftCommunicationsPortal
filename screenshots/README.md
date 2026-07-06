@@ -14,6 +14,7 @@ using Playwright + headless Chromium.
 | `service-health-light.png` / `service-health-dark.png` | `/servicehealth` — Microsoft 365 Service Health |
 | `azure-service-health-light.png` / `azure-service-health-dark.png` | `/azureservicehealth` — Azure Service Health |
 | `fabric-roadmap-light.png` / `fabric-roadmap-dark.png` | `/fabricroadmap` — Microsoft Fabric Roadmap |
+| `guided-report-light.png` / `guided-report-dark.png` | `/guidedreport` — Guided Report |
 
 ## Regenerate
 
