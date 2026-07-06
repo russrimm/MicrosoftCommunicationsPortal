@@ -177,7 +177,6 @@
     const PP_PRODUCTS = [
       { id: 'e72f17ac-715d-e911-a968-000d3a4e32b5', name: 'Power Apps', category: 'Power Platform' },
       { id: 'e92f17ac-715d-e911-a968-000d3a4e32b5', name: 'Power Automate', category: 'Power Platform' },
-      { id: '1019ec3d-1dc5-e911-a969-000d3a4f36ce', name: 'Microsoft Copilot Studio', category: 'Power Platform' },
       { id: 'a0e02858-50a4-ea11-a812-000d3a8faea9', name: 'Microsoft Dataverse', category: 'Power Platform' },
       { id: 'dbedfa94-1517-ea11-a811-000d3a8f010c', name: 'Power Platform governance and administration', category: 'Power Platform' },
       { id: 'f3f92645-5223-ea11-a810-000d3a8f0f1e', name: 'Power Platform pro development', category: 'Power Platform' },
@@ -804,6 +803,159 @@
         }
       }
 
+      // ── Plan for Change section ────────────────────────────────────────────
+      // Pull planForChange items from messagecenter data and create a dedicated section
+      const planForChangeItems = (allData['messagecenter'] || []).filter(
+        msg => (msg.category || '').toLowerCase() === 'planforchange'
+      );
+
+      if (planForChangeItems.length > 0) {
+        const PFC_ACCENT = '7C3AED'; // Purple accent for Plan for Change
+
+        // Helper: strip HTML tags for plain-text slides
+        function stripHtml(html) {
+          if (!html) return '';
+          return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&')
+            .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"')
+            .replace(/&#39;/gi, "'").replace(/\s+/g, ' ').trim();
+        }
+
+        // Helper: format ISO dates
+        function fmtDate(iso) {
+          if (!iso) return '';
+          try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+          catch { return ''; }
+        }
+
+        // Helper: get service names from service objects
+        function svcName(s) {
+          if (typeof s === 'string') return s;
+          if (!s || typeof s !== 'object') return '';
+          return s.displayName || s.serviceName || s.name || '';
+        }
+
+        // Section divider slide
+        const pfcDivider = pptx.addSlide();
+        pfcDivider.background = { color: PFC_ACCENT };
+        pfcDivider.addText('Plan for Change', { x: 0.8, y: 2.2, w: 11, h: 1, fontSize: 28, bold: true, color: HEADER_FG, fontFace: 'Segoe UI' });
+        pfcDivider.addText(`${planForChangeItems.length} item${planForChangeItems.length !== 1 ? 's' : ''} requiring attention`, {
+          x: 0.8, y: 3.3, w: 11, h: 0.4, fontSize: 14, color: 'E0CBFF', fontFace: 'Segoe UI'
+        });
+
+        if (layout === 'summary') {
+          // Summary mode: one bullet per item with key metadata
+          const pfcBullets = planForChangeItems.map(msg => {
+            const services = (msg.services || []).map(svcName).filter(Boolean).join(', ');
+            const actionBy = msg.actionRequiredByDateTime ? ` | Action by: ${fmtDate(msg.actionRequiredByDateTime)}` : '';
+            const label = `${msg.title || 'Untitled'}${services ? ' [' + services + ']' : ''}${actionBy}`;
+            return { text: label, options: { fontSize: 11, bullet: true, color: '333333' } };
+          });
+          for (let i = 0; i < pfcBullets.length; i += rowsPerSlide) {
+            const chunk = pfcBullets.slice(i, i + rowsPerSlide);
+            const slide = pptx.addSlide();
+            slide.addText(`Plan for Change (${i + 1}–${Math.min(i + rowsPerSlide, pfcBullets.length)} of ${pfcBullets.length})`, {
+              x: 0.5, y: 0.3, w: 12, h: 0.5, fontSize: 16, bold: true, color: PFC_ACCENT, fontFace: 'Segoe UI'
+            });
+            slide.addText(chunk, { x: 0.5, y: 1.0, w: 12, h: 6, fontFace: 'Segoe UI', paraSpaceAfter: 4 });
+          }
+        } else {
+          // Table + detail mode: overview table then one detail slide per item
+          const pfcHeaders = ['ID', 'Title', 'Services', 'Severity', 'Action Required By', 'Last Modified'];
+          const pfcRows = planForChangeItems.map(msg => [
+            msg.id || '',
+            (msg.title || '').substring(0, 55),
+            (msg.services || []).map(svcName).filter(Boolean).join(', ').substring(0, 35),
+            msg.severity || '',
+            fmtDate(msg.actionRequiredByDateTime),
+            fmtDate(msg.lastModifiedDateTime)
+          ]);
+
+          const pfcColW = [0.9, 3.8, 2.5, 1.2, 1.9, 1.9];
+          const pfcRowsPer = layout === 'compact' ? 14 : 8;
+          for (let i = 0; i < pfcRows.length; i += pfcRowsPer) {
+            const chunk = pfcRows.slice(i, i + pfcRowsPer);
+            const slide = pptx.addSlide();
+            slide.addText(`Plan for Change — Overview (${i + 1}–${Math.min(i + pfcRowsPer, pfcRows.length)} of ${pfcRows.length})`, {
+              x: 0.5, y: 0.3, w: 12, h: 0.5, fontSize: 16, bold: true, color: PFC_ACCENT, fontFace: 'Segoe UI'
+            });
+            const tableRows = [
+              pfcHeaders.map(h => ({ text: h, options: { bold: true, fontSize: 10, color: HEADER_FG, fill: { color: PFC_ACCENT }, fontFace: 'Segoe UI', align: 'left', valign: 'middle' } })),
+              ...chunk.map((r, ri) => r.map(cell => ({
+                text: cell || '',
+                options: { fontSize: layout === 'compact' ? 9 : 10, color: '333333', fill: { color: ri % 2 === 0 ? 'FFFFFF' : ROW_BG }, fontFace: 'Segoe UI', valign: 'middle' }
+              })))
+            ];
+            slide.addTable(tableRows, {
+              x: 0.4, y: 1.0, w: 12.4, colW: pfcColW,
+              border: { type: 'solid', pt: 0.5, color: 'CCCCCC' },
+              rowH: layout === 'compact' ? 0.35 : 0.45,
+              autoPage: false
+            });
+          }
+
+          // Detail slides: one per Plan for Change item
+          for (const msg of planForChangeItems) {
+            const slide = pptx.addSlide();
+
+            // Title bar
+            slide.addShape(pptx.ShapeType ? pptx.ShapeType.rect : 'rect', {
+              x: 0, y: 0, w: 13.33, h: 0.9, fill: { color: PFC_ACCENT }
+            });
+            slide.addText(`Plan for Change: ${(msg.title || 'Untitled').substring(0, 80)}`, {
+              x: 0.4, y: 0.1, w: 12.5, h: 0.7, fontSize: 14, bold: true, color: HEADER_FG, fontFace: 'Segoe UI'
+            });
+
+            // Metadata properties
+            const services = (msg.services || []).map(svcName).filter(Boolean).join(', ');
+            const tags = (msg.tags || []).map(t => String(t)).join(', ');
+            const details = Array.isArray(msg.details)
+              ? msg.details.map(d => `${d.name || ''}: ${d.value || ''}`).join('\n')
+              : '';
+
+            const props = [
+              ['ID', msg.id],
+              ['Services', services],
+              ['Severity', msg.severity],
+              ['Major Change', msg.isMajorChange != null ? String(msg.isMajorChange) : ''],
+              ['Published', fmtDate(msg.startDateTime)],
+              ['Last Modified', fmtDate(msg.lastModifiedDateTime)],
+              ['End Date', fmtDate(msg.endDateTime)],
+              ['Action Required By', fmtDate(msg.actionRequiredByDateTime)],
+              ['Tags', tags],
+            ].filter(([, v]) => v != null && v !== '' && v !== 'false');
+
+            const propsTable = props.map(([k, v]) => [
+              { text: k, options: { bold: true, fontSize: 9, color: '555555', fill: { color: 'F3F0FF' }, fontFace: 'Segoe UI', valign: 'middle' } },
+              { text: v, options: { fontSize: 9, color: '333333', fill: { color: 'F3F0FF' }, fontFace: 'Segoe UI', valign: 'middle' } }
+            ]);
+            slide.addTable(propsTable, {
+              x: 0.4, y: 1.1, w: 5.0, colW: [1.8, 3.2],
+              border: { type: 'solid', pt: 0.5, color: 'E0D4F5' },
+              rowH: 0.28, autoPage: false
+            });
+
+            // Body content (right side or below depending on content length)
+            const bodyText = stripHtml(msg.body && msg.body.content ? msg.body.content : '');
+            const detailsText = details ? `\n\nAdditional Details:\n${details}` : '';
+            const fullBody = (bodyText + detailsText).substring(0, 1800);
+
+            if (fullBody) {
+              // If properties table is short, place body to the right; otherwise below
+              const bodyY = props.length > 8 ? (1.1 + props.length * 0.28 + 0.2) : 1.1;
+              const bodyX = props.length > 8 ? 0.4 : 5.6;
+              const bodyW = props.length > 8 ? 12.5 : 7.3;
+              const bodyH = props.length > 8 ? (7.5 - bodyY) : 6.0;
+
+              slide.addText(fullBody, {
+                x: bodyX, y: bodyY, w: bodyW, h: bodyH,
+                fontSize: 8, color: '444444', fontFace: 'Segoe UI',
+                valign: 'top', wrap: true, shrinkText: true
+              });
+            }
+          }
+        }
+      }
+
       // Summary slide
       const summarySlide = pptx.addSlide();
       summarySlide.background = { color: PRIMARY };
@@ -814,6 +966,9 @@
         return { text: `${name}: ${count} item${count !== 1 ? 's' : ''}`, options: { fontSize: 16, color: 'B0D4F1', bullet: true, fontFace: 'Segoe UI' } };
       });
       const totalItems = activeSources.reduce((sum, k) => sum + (allData[k] || []).length, 0);
+      if (planForChangeItems.length > 0) {
+        summaryLines.push({ text: `Plan for Change: ${planForChangeItems.length} item${planForChangeItems.length !== 1 ? 's' : ''}`, options: { fontSize: 16, color: 'E0CBFF', bullet: true, fontFace: 'Segoe UI' } });
+      }
       summaryLines.push({ text: `\nTotal: ${totalItems} items`, options: { fontSize: 18, color: HEADER_FG, bold: true, fontFace: 'Segoe UI' } });
       summarySlide.addText(summaryLines, { x: 0.8, y: 2.0, w: 11, h: 4, paraSpaceAfter: 8 });
 

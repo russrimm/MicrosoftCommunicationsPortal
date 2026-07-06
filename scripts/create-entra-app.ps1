@@ -20,7 +20,7 @@ $ErrorActionPreference = 'Stop'
 
 # Microsoft Graph resource + app-role IDs (Application permissions, well-known constants)
 $GRAPH_APP_ID        = '00000003-0000-0000-c000-000000000000'
-$ROLE_SERVICEMESSAGE = '2c6a42ca-0d4d-49ad-bc0e-21222c449a65'  # ServiceMessage.Read.All
+$ROLE_SERVICEMESSAGE = '1b620472-6534-4fe6-9df2-4680e8aa28ec'  # ServiceMessage.Read.All
 $ROLE_SERVICEHEALTH  = '79c261e0-fe76-4144-aad5-bdc68fbe4037'  # ServiceHealth.Read.All
 
 Write-Host ""

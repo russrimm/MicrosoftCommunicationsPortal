@@ -423,6 +423,7 @@
       if (tags.some(t => t.includes('admin impact'))) impacts.push({ cls: 'admin', label: 'Admin' });
       if (tags.some(t => t.includes('new feature'))) impacts.push({ cls: 'feature', label: 'New feature' });
       if (msg.actionRequiredByDateTime) impacts.push({ cls: 'action', label: 'Action required' });
+      if ((msg.category || '').toLowerCase() === 'planforchange') impacts.push({ cls: 'plan-change', label: 'Plan for Change' });
       const impactHtml = impacts.length
         ? `<div class="mc-card-impact">
              <span class="mc-card-impact-label">Impact</span>

@@ -206,6 +206,7 @@
 .mc-impact-pill.admin { color: var(--cp-danger); border-color: rgba(220,38,38,0.4); background: rgba(220,38,38,0.08); }
 .mc-impact-pill.feature { color: var(--cp-link); border-color: rgba(0,120,212,0.4); background: rgba(0,120,212,0.08); }
 .mc-impact-pill.action { color: var(--cp-warning); border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.08); }
+.mc-impact-pill.plan-change { color: #7c3aed; border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.08); }
 
 /* ── Product groups ── */
 .mc-product-group { display: flex; flex-direction: column; gap: 0.5rem; }
