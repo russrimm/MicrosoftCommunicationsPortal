@@ -741,21 +741,41 @@
             break;
           case 'm365':
           case 'azure':
-            headers = ['Title', 'Categories', 'Published'];
-            rows = items.map(it => [
-              (it.title || '').substring(0, 70),
-              (it.categories || []).join(', ').substring(0, 50),
-              it.pubDate ? new Date(it.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (it.publishedDate || '')
-            ]);
+            headers = ['Title', 'Details', 'Published'];
+            rows = items.map(it => {
+              let desc = it.description || '';
+              // Strip HTML tags for plain-text slide content
+              const tmp = document.createElement('div');
+              tmp.innerHTML = desc;
+              desc = (tmp.textContent || tmp.innerText || '').trim().substring(0, 120);
+              return [
+                (it.title || '').substring(0, 70),
+                desc,
+                it.pubDate ? new Date(it.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (it.publishedDate || '')
+              ];
+            });
             break;
           case 'messagecenter':
-            headers = ['Title', 'Services', 'Severity', 'Date'];
-            rows = items.map(msg => [
-              (msg.title || '').substring(0, 60),
-              (msg.services || []).join(', ').substring(0, 40),
-              msg.severity || msg.category || '',
-              msg.lastModifiedDateTime ? new Date(msg.lastModifiedDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
-            ]);
+            headers = ['Services', 'Title', 'Details', 'Date'];
+            rows = items.map(msg => {
+              const svcs = [...(msg.services || [])].sort((a, b) => a.localeCompare(b)).join(', ');
+              let detail = '';
+              if (Array.isArray(msg.details) && msg.details.length > 0) {
+                const summaryItem = msg.details.find(d => (d && d.name ? String(d.name) : '').toLowerCase() === 'summary');
+                detail = summaryItem && summaryItem.value ? String(summaryItem.value) : msg.details.map(d => d && d.value ? String(d.value).trim() : '').filter(Boolean).join(' · ');
+              }
+              if (!detail) {
+                const bodyContent = msg.body && typeof msg.body.content === 'string' ? msg.body.content : '';
+                const bodyText = bodyContent ? bodyContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+                detail = msg.description || msg.summary || bodyText || '';
+              }
+              return [
+                svcs.substring(0, 50),
+                (msg.title || '').substring(0, 60),
+                detail.substring(0, 120),
+                msg.lastModifiedDateTime ? new Date(msg.lastModifiedDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+              ];
+            });
             break;
           case 'servicehealth':
             headers = ['Service', 'Title', 'Status', 'Last Updated'];

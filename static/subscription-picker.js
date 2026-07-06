@@ -458,22 +458,25 @@ window.SubscriptionPicker = (() => {
       .sp-btn-primary:hover { background: var(--cp-accent-hover, #9a1a41); }
       .sp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-      /* Subscription badge in header */
+      /* Subscription badge in nav bar */
       .sp-header-btn {
-        position: relative;
+        position: absolute;
+        right: 1.25rem;
+        top: 50%;
+        transform: translateY(-50%);
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
         background: transparent;
-        border: 1px solid transparent;
+        border: 1px solid var(--cp-border, #ddd);
         border-radius: 0.625rem;
-        padding: 0.3rem 0.6rem;
+        padding: 0.35rem 0.75rem;
         cursor: pointer;
         font-size: 12px;
         color: var(--cp-text-muted, #666);
         font-family: inherit;
         transition: all 0.15s;
-        margin-left: 0.5rem;
+        white-space: nowrap;
       }
       .sp-header-btn:hover {
         background: var(--cp-accent-soft, rgba(177,31,75,0.08));
@@ -499,12 +502,12 @@ window.SubscriptionPicker = (() => {
     `;
   }
 
-  // ── Auto-init: add subscription button to header if .header exists ──────
+  // ── Auto-init: add subscription button to the nav bar ────────────────
   function autoInit() {
-    const header = document.querySelector('.header');
-    if (!header) return;
+    const nav = document.querySelector('.page-tabs');
+    if (!nav) return;
 
-    // Inject styles early so the header button renders correctly
+    // Inject styles early so the button renders correctly
     if (!document.getElementById('sp-styles')) {
       const style = document.createElement('style');
       style.id = 'sp-styles';
@@ -513,7 +516,7 @@ window.SubscriptionPicker = (() => {
     }
 
     // Check if button already exists
-    if (header.querySelector('.sp-header-btn')) return;
+    if (nav.querySelector('.sp-header-btn')) return;
 
     const btn = document.createElement('button');
     btn.className = 'sp-header-btn';
@@ -529,13 +532,7 @@ window.SubscriptionPicker = (() => {
     `;
     btn.addEventListener('click', open);
 
-    // Insert before the theme button if it exists
-    const themeBtn = header.querySelector('.theme-btn');
-    if (themeBtn) {
-      themeBtn.parentNode.insertBefore(btn, themeBtn);
-    } else {
-      header.appendChild(btn);
-    }
+    nav.appendChild(btn);
 
     // Update badge with saved selection count
     updateBadge();
