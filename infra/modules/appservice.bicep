@@ -17,7 +17,7 @@ param planSku string = 'B1'
 param runtimeName string = 'node'
 
 @description('Node.js runtime version')
-param runtimeVersion string = '20-lts'
+param runtimeVersion string = '24-lts'
 
 @description('App settings key-value pairs')
 param appSettings object = {}

@@ -32,7 +32,7 @@ module web 'modules/appservice.bicep' = {
     appServiceName: '${abbrs.webSitesAppService}${resourceToken}'
     planSku: planSku
     runtimeName: 'node'
-    runtimeVersion: '20-lts'
+    runtimeVersion: '24-lts'
     appSettings: {
       NODE_ENV: 'production'
       USE_MANAGED_IDENTITY: 'true'
