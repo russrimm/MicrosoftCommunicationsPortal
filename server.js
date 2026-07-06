@@ -30,6 +30,10 @@ const UPSTREAM_TIMEOUT_MS = 15000;
 // requests for the same key into a single upstream call.
 const upstreamCache   = new Map();   // key -> { expires, value }
 const upstreamInflight = new Map();  // key -> Array<callback>
+// Hard cap on cache entries. Several cache keys incorporate user-supplied
+// query parameters, so without a bound a client could grow the Map without
+// limit (memory DoS). Evicts expired entries first, then oldest-inserted.
+const UPSTREAM_CACHE_MAX = 500;
 
 function cachedFetch(key, ttlMs, fetcher, done) {
   const now = Date.now();
@@ -47,6 +51,15 @@ function cachedFetch(key, ttlMs, fetcher, done) {
     const callbacks = upstreamInflight.get(key) || [];
     upstreamInflight.delete(key);
     if (!err && ttlMs > 0) {
+      if (upstreamCache.size >= UPSTREAM_CACHE_MAX) {
+        const t = Date.now();
+        for (const [k, v] of upstreamCache) {
+          if (v.expires <= t) upstreamCache.delete(k);
+        }
+        while (upstreamCache.size >= UPSTREAM_CACHE_MAX) {
+          upstreamCache.delete(upstreamCache.keys().next().value);
+        }
+      }
       upstreamCache.set(key, { expires: Date.now() + ttlMs, value });
     }
     for (const cb of callbacks) {
@@ -59,6 +72,10 @@ function cachedFetch(key, ttlMs, fetcher, done) {
 // Simple fixed-window counter keyed by remote address. State: Map<ip, {count, resetAt}>.
 const rateLimitBuckets = new Map();
 const RATE_LIMIT_PURGE_INTERVAL = 512; // opportunistic purge every N checks
+// Bucket keys include the request path, which is client-controlled, so a
+// client spraying unique URLs could grow the Map without bound within a
+// window. Cap the Map size; evict expired first, then oldest-inserted.
+const RATE_LIMIT_MAX_BUCKETS = 10_000;
 let rateLimitPurgeCounter = 0;
 
 // Derive the client IP. Only trust X-Forwarded-For when explicitly enabled
@@ -88,6 +105,14 @@ function checkRateLimit(req, res, limit, windowMs) {
   const key = `${ip}:${routePath}`;
   let bucket = rateLimitBuckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
+    if (rateLimitBuckets.size >= RATE_LIMIT_MAX_BUCKETS) {
+      for (const [k, v] of rateLimitBuckets) {
+        if (v.resetAt <= now) rateLimitBuckets.delete(k);
+      }
+      while (rateLimitBuckets.size >= RATE_LIMIT_MAX_BUCKETS) {
+        rateLimitBuckets.delete(rateLimitBuckets.keys().next().value);
+      }
+    }
     bucket = { count: 0, resetAt: now + windowMs };
     rateLimitBuckets.set(key, bucket);
   }
@@ -343,11 +368,11 @@ function callLlm(opts, done) {
   req.end();
 }
 
-// Read a JSON request body (cap at 1MB) and parse it.
-function readJsonBody(req, done) {
+// Read a JSON request body (cap at maxBytes, default 1MB) and parse it.
+function readJsonBody(req, done, maxBytes) {
   let received = 0;
   const chunks = [];
-  const MAX = 1024 * 1024;
+  const MAX = maxBytes || 1024 * 1024;
   // Drop dangerous keys during parse to prevent prototype pollution.
   const reviver = (key, value) =>
     (key === '__proto__' || key === 'constructor' || key === 'prototype') ? undefined : value;
@@ -478,13 +503,17 @@ function fetchManagedIdentityToken(done) {
     res.on('data', c => { body += c; });
     res.on('end', () => {
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        return done(new Error(`Managed identity token HTTP ${res.statusCode}: ${body.slice(0, 300)}`));
+        // Log the upstream body server-side only — error messages may surface
+        // in client-facing API responses and must not echo upstream content.
+        console.error(`[auth] Managed identity token HTTP ${res.statusCode}: ${body.slice(0, 300)}`);
+        return done(new Error(`Managed identity token request failed (HTTP ${res.statusCode}); see server logs`));
       }
       let data;
       try { data = JSON.parse(body); }
       catch (e) { return done(new Error(`Managed identity token parse error: ${e.message}`)); }
       if (!data.access_token) {
-        return done(new Error(`Managed identity response missing access_token: ${body.slice(0, 200)}`));
+        console.error(`[auth] Managed identity response missing access_token: ${body.slice(0, 200)}`);
+        return done(new Error('Managed identity response missing access_token; see server logs'));
       }
       // expires_on is unix seconds (both platforms); expires_in may also appear.
       let expiresAt;
@@ -704,6 +733,30 @@ function getSelectedSubscriptionIds() {
   if (selectedSubscriptions.length > 0) return selectedSubscriptions.map(s => s.id);
   if (AZURE_SUBSCRIPTION_ID) return [AZURE_SUBSCRIPTION_ID];
   return [];
+}
+
+// Helper: return the set of subscription IDs the service principal can access
+// (from the cached ARM response). Returns null if the cache is cold / expired.
+function getAccessibleSubscriptionIds() {
+  const hit = upstreamCache.get('arm:subscriptions');
+  if (!hit || hit.expires <= Date.now()) return null;
+  const body = hit.value && hit.value.body;
+  const subs = (body && body.value) || [];
+  return new Set(subs.map(s => (s.subscriptionId || '').toLowerCase()));
+}
+
+// Strict UUID v4-ish format guard for subscription IDs.
+const SUBSCRIPTION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ARM event tracking IDs are short alphanumeric tokens (e.g. "5KYJ-1T8").
+const EVENT_TRACKING_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+// Cap user-supplied ARM query params ($filter, queryStartTime, $expand).
+// They are URL-encoded before use, but they also feed cache keys — unbounded
+// values would let a client bloat the cache and forge junk upstream queries.
+const ARM_PARAM_MAX_LEN = 512;
+function validArmParam(v) {
+  return typeof v === 'string' && v.length <= ARM_PARAM_MAX_LEN && !/[\r\n\0]/.test(v);
 }
 
 let armAccessToken      = null;
@@ -934,30 +987,56 @@ function fetchImpactedResources(token, subscriptionId, eventTrackingId, done) {
   cachedFetch(cacheKey, 120_000, (cb) => armGetAllPages(token, apiPath, 10, cb), done);
 }
 
+// Validate that a resourceUri is a legitimate ARM resource path and cannot
+// be used to proxy arbitrary ARM GET requests (confused-deputy).  Rejects
+// URIs containing query-string or fragment delimiters (?, #, &) and requires
+// the path to start with /subscriptions/{guid}/.
+function validateResourceUri(uri) {
+  if (!uri || typeof uri !== 'string') return false;
+  // Block characters that could inject query params or fragments
+  if (/[?#&]/.test(uri)) return false;
+  // Must start with /subscriptions/{guid}/ (case-insensitive)
+  const normalized = uri.replace(/^\/+/, '');
+  if (!/^subscriptions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i.test(normalized)) return false;
+  // Each path segment must contain only safe characters (alphanum, hyphen, underscore, dot)
+  const segments = normalized.split('/');
+  for (const seg of segments) {
+    if (seg.length === 0) continue; // tolerate trailing slash
+    if (!/^[a-zA-Z0-9._-]+$/.test(seg)) return false;
+  }
+  return true;
+}
+
 // Events for a specific resource.
 function fetchResourceEvents(token, resourceUri, done) {
-  const apiPath = `/${resourceUri.replace(/^\/+/, '')}/providers/Microsoft.ResourceHealth/events?api-version=${ARM_API_VERSION}`;
-  const cacheKey = `arm:resource-events:${resourceUri}`;
+  if (!validateResourceUri(resourceUri)) return done(new Error('Invalid resourceUri'));
+  const safe = resourceUri.replace(/^\/+/, '');
+  const apiPath = `/${safe}/providers/Microsoft.ResourceHealth/events?api-version=${ARM_API_VERSION}`;
+  const cacheKey = `arm:resource-events:${safe}`;
   cachedFetch(cacheKey, 120_000, (cb) => armGetAllPages(token, apiPath, 5, cb), done);
 }
 
 // Availability status for a specific resource.
 function fetchResourceAvailability(token, resourceUri, opts, done) {
-  let apiPath = `/${resourceUri.replace(/^\/+/, '')}/providers/Microsoft.ResourceHealth/availabilityStatuses?api-version=${ARM_API_VERSION}`;
+  if (!validateResourceUri(resourceUri)) return done(new Error('Invalid resourceUri'));
+  const safe = resourceUri.replace(/^\/+/, '');
+  let apiPath = `/${safe}/providers/Microsoft.ResourceHealth/availabilityStatuses?api-version=${ARM_API_VERSION}`;
   const params = [];
   if (opts.expand) params.push(`$expand=${encodeURIComponent(opts.expand)}`);
   if (params.length) apiPath += '&' + params.join('&');
-  const cacheKey = `arm:resource-avail:${resourceUri}:${opts.expand || ''}`;
+  const cacheKey = `arm:resource-avail:${safe}:${opts.expand || ''}`;
   cachedFetch(cacheKey, 120_000, (cb) => armGetAllPages(token, apiPath, 5, cb), done);
 }
 
 // Current availability status for a specific resource.
 function fetchResourceCurrentStatus(token, resourceUri, opts, done) {
-  let apiPath = `/${resourceUri.replace(/^\/+/, '')}/providers/Microsoft.ResourceHealth/availabilityStatuses/current?api-version=${ARM_API_VERSION}`;
+  if (!validateResourceUri(resourceUri)) return done(new Error('Invalid resourceUri'));
+  const safe = resourceUri.replace(/^\/+/, '');
+  let apiPath = `/${safe}/providers/Microsoft.ResourceHealth/availabilityStatuses/current?api-version=${ARM_API_VERSION}`;
   const params = [];
   if (opts.expand) params.push(`$expand=${encodeURIComponent(opts.expand)}`);
   if (params.length) apiPath += '&' + params.join('&');
-  const cacheKey = `arm:resource-current:${resourceUri}:${opts.expand || ''}`;
+  const cacheKey = `arm:resource-current:${safe}:${opts.expand || ''}`;
   cachedFetch(cacheKey, 60_000, (cb) => armGet(token, apiPath, cb), done);
 }
 
@@ -967,7 +1046,11 @@ function fetchResourceCurrentStatus(token, resourceUri, opts, done) {
 // not received admin consent — surface that possibility to the caller.
 function describeGraphError(status, err, requiredPermission) {
   const code = (err && err.code) || '';
-  const msg  = (err && err.message) || '';
+  // Redact identifiers (GUIDs, emails) from upstream error text before it is
+  // echoed in client-facing responses; full errors are logged by callers.
+  const msg  = String((err && err.message) || '')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<redacted-guid>')
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<redacted-email>');
   if (status === 403 || status === 401) {
     const perm = requiredPermission || 'the required Microsoft Graph application permission';
     const detail = msg && msg.toLowerCase() !== code.toLowerCase() ? ` Graph said: "${msg}".` : '';
@@ -1256,8 +1339,9 @@ loadEmptyProducts();
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
 
-  // ── Health check endpoint (no auth, no rate limit) ───────────────────────
+  // ── Health check endpoint (no auth; generous rate limit for monitors) ────
   if (parsed.pathname === '/healthz' || parsed.pathname === '/health') {
+    if (!checkRateLimit(req, res, 100, 60_000)) return;
     sendJson(req, res, 200, {
       status: 'ok',
       version: require('./package.json').version,
@@ -1269,6 +1353,7 @@ const server = http.createServer((req, res) => {
 
   // ── AI status endpoint (UI uses this to show/hide AI features) ───────────
   if (parsed.pathname === '/api/ai-status') {
+    if (!checkRateLimit(req, res, 100, 60_000)) return;
     sendJson(req, res, 200, {
       enabled: !!AI_PROVIDER,
       provider: AI_PROVIDER ? AI_PROVIDER.name : null,
@@ -1312,7 +1397,7 @@ const server = http.createServer((req, res) => {
         }
         sendJson(req, res, 200, result, { 'Cache-Control': 'max-age=300' });
       });
-    });
+    }, 256 * 1024); // 256KB is ample for 20 items; limits unauthenticated DoS surface
     return;
   }
 
@@ -1497,19 +1582,39 @@ const server = http.createServer((req, res) => {
     }
     // POST — update selection
     if (req.method === 'POST') {
-      let body = '';
-      req.on('data', chunk => { body += chunk; if (body.length > 16384) req.destroy(); });
-      req.on('end', () => {
-        let data;
-        try { data = JSON.parse(body); }
-        catch (e) { return sendJson(req, res, 400, { error: 'Invalid JSON' }); }
+      readJsonBody(req, (bodyErr, data) => {
+        if (bodyErr) return sendJson(req, res, 400, { error: bodyErr.message });
         if (!Array.isArray(data.selected)) {
           return sendJson(req, res, 400, { error: 'Body must contain "selected" array of {id, displayName} objects' });
         }
-        // Validate each entry has at minimum an id string
+        // Validate each entry has at minimum a well-formed subscription ID
         const cleaned = data.selected
           .filter(s => s && typeof s.id === 'string' && s.id.trim())
-          .map(s => ({ id: s.id.trim(), displayName: String(s.displayName || '') }));
+          .map(s => ({ id: s.id.trim(), displayName: String(s.displayName || '').slice(0, 256) }));
+
+        // Guard: reject IDs that are not valid UUID format
+        const badFormat = cleaned.filter(s => !SUBSCRIPTION_ID_RE.test(s.id));
+        if (badFormat.length > 0) {
+          return sendJson(req, res, 400, { error: 'Invalid subscription ID format: ' + badFormat.map(s => s.id).join(', ') });
+        }
+
+        // Guard: validate every requested ID is in the set the service principal can actually access
+        const accessible = getAccessibleSubscriptionIds();
+        if (accessible) {
+          const unauthorized = cleaned.filter(s => !accessible.has(s.id.toLowerCase()));
+          if (unauthorized.length > 0) {
+            return sendJson(req, res, 403, {
+              error: 'One or more subscription IDs are not accessible to this service: ' + unauthorized.map(s => s.id).join(', ')
+            });
+          }
+        } else if (cleaned.length > 0) {
+          // Cache is cold — the subscription list hasn't been fetched yet.
+          // Refuse to accept arbitrary IDs until the list is loaded.
+          return sendJson(req, res, 409, {
+            error: 'Subscription list not yet loaded. Please open the subscription picker first to load available subscriptions.'
+          });
+        }
+
         selectedSubscriptions = cleaned;
         console.log(`[subscriptions] Selection updated: ${cleaned.length} subscription(s) — ${cleaned.map(s => s.displayName || s.id.slice(0, 8)).join(', ')}`);
         sendJson(req, res, 200, { selected: selectedSubscriptions, count: selectedSubscriptions.length });
@@ -1792,10 +1897,11 @@ const server = http.createServer((req, res) => {
             'Content-Type': 'application/json; charset=utf-8',
             ...corsHeaders(req),
           });
+          // Log the preview server-side only; do not echo upstream bytes to clients.
+          console.error(`[proxy] upstream non-JSON (status ${status}): ${body.slice(0, 200)}`);
           res.end(JSON.stringify({
             results: [],
             error: `Upstream returned non-JSON (status ${status}, ${body.length} bytes)`,
-            preview: body.slice(0, 200),
           }));
         }
     });
@@ -1823,6 +1929,13 @@ const server = http.createServer((req, res) => {
       }
     }
     if (req.method === 'DELETE') {
+      // Mutations always require ADMIN_TOKEN. The loopback check above is only
+      // the first line of defense — remoteAddress can be unreliable behind a
+      // misconfigured proxy or container network.
+      if (!process.env.ADMIN_TOKEN) {
+        sendJson(req, res, 403, { error: 'Forbidden: set ADMIN_TOKEN to enable mutations on this endpoint' });
+        return;
+      }
       const id = parsed.searchParams.get('id');
       if (id) { clearEmpty(id); sendJson(req, res, 200, { ok: true, cleared: 1, id }); }
       else {
@@ -1993,8 +2106,14 @@ const server = http.createServer((req, res) => {
           error: 'subscriptionId query parameter required (or select a subscription in the UI, or set AZURE_SUBSCRIPTION_ID in .env)'
         });
       }
+      if (!SUBSCRIPTION_ID_RE.test(subscriptionId)) {
+        return sendJson(req, res, 400, { error: 'Invalid subscriptionId — must be a GUID' });
+      }
       const filter = parsed.searchParams.get('filter') || '';
       const queryStartTime = parsed.searchParams.get('queryStartTime') || '';
+      if (!validArmParam(filter) || !validArmParam(queryStartTime)) {
+        return sendJson(req, res, 400, { error: 'Invalid filter/queryStartTime parameter' });
+      }
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -2025,8 +2144,14 @@ const server = http.createServer((req, res) => {
           error: 'subscriptionId query parameter required (or select a subscription in the UI, or set AZURE_SUBSCRIPTION_ID in .env)'
         });
       }
+      if (!SUBSCRIPTION_ID_RE.test(subscriptionId)) {
+        return sendJson(req, res, 400, { error: 'Invalid subscriptionId — must be a GUID' });
+      }
       const filter = parsed.searchParams.get('filter') || '';
       const expand = parsed.searchParams.get('expand') || 'recommendedactions';
+      if (!validArmParam(filter) || !validArmParam(expand)) {
+        return sendJson(req, res, 400, { error: 'Invalid filter/expand parameter' });
+      }
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -2061,6 +2186,12 @@ const server = http.createServer((req, res) => {
       if (!eventTrackingId) {
         return sendJson(req, res, 400, { error: 'eventTrackingId query parameter required' });
       }
+      if (!SUBSCRIPTION_ID_RE.test(subscriptionId)) {
+        return sendJson(req, res, 400, { error: 'Invalid subscriptionId — must be a GUID' });
+      }
+      if (!EVENT_TRACKING_ID_RE.test(eventTrackingId)) {
+        return sendJson(req, res, 400, { error: 'Invalid eventTrackingId format' });
+      }
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -2090,6 +2221,11 @@ const server = http.createServer((req, res) => {
       if (!resourceUri) {
         return sendJson(req, res, 400, {
           error: 'resourceUri query parameter required (full ARM resource ID, e.g. /subscriptions/.../providers/Microsoft.Compute/virtualMachines/myVm)'
+        });
+      }
+      if (!validateResourceUri(resourceUri)) {
+        return sendJson(req, res, 400, {
+          error: 'Invalid resourceUri — must be a valid ARM resource path starting with /subscriptions/{guid}/'
         });
       }
       getArmAccessToken((err, token) => {
@@ -2122,6 +2258,11 @@ const server = http.createServer((req, res) => {
           error: 'resourceUri query parameter required (full ARM resource ID)'
         });
       }
+      if (!validateResourceUri(resourceUri)) {
+        return sendJson(req, res, 400, {
+          error: 'Invalid resourceUri — must be a valid ARM resource path starting with /subscriptions/{guid}/'
+        });
+      }
       const expand = parsed.searchParams.get('expand') || 'recommendedactions';
       getArmAccessToken((err, token) => {
         if (err) {
@@ -2151,6 +2292,11 @@ const server = http.createServer((req, res) => {
       if (!resourceUri) {
         return sendJson(req, res, 400, {
           error: 'resourceUri query parameter required (full ARM resource ID)'
+        });
+      }
+      if (!validateResourceUri(resourceUri)) {
+        return sendJson(req, res, 400, {
+          error: 'Invalid resourceUri — must be a valid ARM resource path starting with /subscriptions/{guid}/'
         });
       }
       const expand = parsed.searchParams.get('expand') || 'recommendedactions';
@@ -2198,7 +2344,7 @@ if (!IS_LOOPBACK) {
       ? 'can obtain Microsoft Graph tokens via the host managed identity'
       : 'holds a Microsoft Graph client_secret in memory/env',
     'calls billed LLM APIs (Azure OpenAI / OpenAI / GitHub Models)',
-    'exposes an unauthenticated /api/empty-products endpoint',
+    'exposes /api/empty-products reads without auth when ADMIN_TOKEN is unset',
   ];
   if (process.env.ALLOW_REMOTE_BIND !== 'true') {
     console.error('\n\x1b[31mFATAL: refusing to bind to non-loopback host "' + HOST + '".\x1b[0m');

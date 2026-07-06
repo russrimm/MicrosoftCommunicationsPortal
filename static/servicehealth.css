@@ -532,6 +532,9 @@ html[data-theme="dark"] {
   border-radius: 8px;
   margin-bottom: 0.875rem;
 }
+.sh-modal-meta:empty {
+  display: none;
+}
 .sh-modal-meta-item { font-size: 12px; min-width: 0; }
 .sh-modal-meta-label {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;

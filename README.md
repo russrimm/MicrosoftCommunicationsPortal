@@ -71,20 +71,22 @@ azd up
 Pull and run:
 
 ```bash
-docker run -p 3000:3000 ghcr.io/russrimm/microsoft-communications-portal:latest
+docker run -p 127.0.0.1:3000:3000 ghcr.io/russrimm/microsoft-communications-portal:latest
 ```
 
 Or build locally:
 
 ```bash
 docker build -t mcp .
-docker run -p 3000:3000 mcp
+docker run -p 127.0.0.1:3000:3000 mcp
 ```
+
+> **Security note:** the examples publish the port on loopback only. Using `-p 3000:3000` exposes the portal on all host interfaces — only do that behind an authenticated reverse proxy on a trusted network, since the app can hold Graph credentials and calls billed LLM APIs.
 
 For Graph-backed pages (Message Center, Service Health), pass credentials:
 
 ```bash
-docker run -p 3000:3000 \
+docker run -p 127.0.0.1:3000:3000 \
   -e M365_TENANT_ID=your-tenant-id \
   -e M365_CLIENT_ID=your-client-id \
   -e M365_CLIENT_SECRET=your-client-secret \

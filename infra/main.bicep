@@ -37,6 +37,11 @@ module web 'modules/appservice.bicep' = {
       NODE_ENV: 'production'
       USE_MANAGED_IDENTITY: 'true'
       SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+      // App Service fronts the app with its own HTTPS ingress; the app must
+      // bind 0.0.0.0 inside the sandbox. This is the ONLY deployment path
+      // where ALLOW_REMOTE_BIND is set by default — deliberate opt-in.
+      HOST: '0.0.0.0'
+      ALLOW_REMOTE_BIND: 'true'
     }
   }
 }
