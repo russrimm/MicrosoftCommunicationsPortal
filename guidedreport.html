@@ -721,20 +721,21 @@
 
         switch (key) {
           case 'powerplatform':
-            headers = ['Product', 'Feature', 'Status', 'GA Date', 'Type'];
+            headers = ['Product', 'Feature', 'Preview Date', 'GA Date', 'Type'];
             rows = items.map(f => [
               f.productName || f.Product || '',
               (f.FeatureName || f.title || f.name || '').substring(0, 60),
-              f.PublicPreviewDate ? 'Preview' : (f.GADate ? 'GA' : 'Planned'),
+              f.PublicPreviewDate ? new Date(f.PublicPreviewDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
               f.GADate ? new Date(f.GADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
-              f.FeatureType || f.CloudInstance || ''
+              f.FeatureType || ''
             ]);
             break;
           case 'fabric':
-            headers = ['Product', 'Feature', 'Release Type', 'Status'];
+            headers = ['Product', 'Feature', 'Release Date', 'Release Type', 'Status'];
             rows = items.map(f => [
               f.productName || '',
               (f.title || f.name || '').substring(0, 60),
+              f.releaseDate || '—',
               f.releaseType || f.type || '',
               f.status || ''
             ]);
@@ -778,12 +779,10 @@
             });
             break;
           case 'servicehealth':
-            headers = ['Service', 'Title', 'Status', 'Last Updated'];
+            headers = ['Service', 'Status'];
             rows = items.map(issue => [
               issue.service || '',
-              (issue.title || '').substring(0, 60),
-              issue.status || '',
-              issue.lastModifiedDateTime ? new Date(issue.lastModifiedDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+              issue.status || ''
             ]);
             break;
         }
