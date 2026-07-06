@@ -12,6 +12,9 @@ param location string
 @description('App Service Plan SKU')
 param planSku string = 'B1'
 
+@description('Entra ID app registration client ID for Easy Auth. When set, all requests require Entra ID sign-in.')
+param authClientId string = ''
+
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -33,6 +36,7 @@ module web 'modules/appservice.bicep' = {
     planSku: planSku
     runtimeName: 'node'
     runtimeVersion: '24-lts'
+    authClientId: authClientId
     appSettings: {
       NODE_ENV: 'production'
       USE_MANAGED_IDENTITY: 'true'

@@ -38,7 +38,7 @@ Write-Host "User   : $($acct.user.name)"
 
 # 2. Create or reuse the app registration
 Write-Host ""
-Write-Host "[1/5] App registration: $AppName" -ForegroundColor Yellow
+Write-Host "[1/6] App registration: $AppName" -ForegroundColor Yellow
 $existing = az ad app list --display-name "$AppName" --only-show-errors --query "[0]" | ConvertFrom-Json
 if ($existing) {
     Write-Host "  Reusing existing app appId=$($existing.appId)"
@@ -54,7 +54,7 @@ if ($existing) {
 
 # 3. Ensure service principal exists (required for consent + tokens)
 Write-Host ""
-Write-Host "[2/5] Service principal" -ForegroundColor Yellow
+Write-Host "[2/6] Service principal" -ForegroundColor Yellow
 $sp = az ad sp list --filter "appId eq '$appId'" --only-show-errors --query "[0]" | ConvertFrom-Json
 if (-not $sp) {
     $sp = az ad sp create --id $appId --only-show-errors | ConvertFrom-Json
@@ -65,7 +65,7 @@ if (-not $sp) {
 
 # 4. Add required Graph app permissions (idempotent)
 Write-Host ""
-Write-Host "[3/5] API permissions (Microsoft Graph)" -ForegroundColor Yellow
+Write-Host "[3/6] API permissions (Microsoft Graph)" -ForegroundColor Yellow
 foreach ($role in @(
     @{ id = $ROLE_SERVICEMESSAGE; name = 'ServiceMessage.Read.All' },
     @{ id = $ROLE_SERVICEHEALTH;  name = 'ServiceHealth.Read.All'  }

@@ -45,29 +45,70 @@ The site root (`/`) redirects to `/home`.
 
 ## Quick Deploy
 
-Seven of nine pages work with zero credentials. Only Message Center and Service Health need an Entra app registration.
+Seven of nine pages work with **zero credentials** — you can be up and running in
+under a minute. Only a few pages need extra setup, and each is optional:
 
-| Pages | Credentials needed? |
-|-------|--------------------|
-| Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap, Guided Report | None — works immediately |
-| Message Center, Service Health | Entra app registration (Graph API) |
-| Azure Service Health | Azure Management API credentials |
-| AI Insights (all pages) | Azure OpenAI, OpenAI, or GitHub Models key |
+| Pages | What you need | Who should care |
+|-------|--------------|-----------------|
+| Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap, Guided Report | **Nothing** — works immediately | Everyone |
+| Message Center, Service Health | An **Entra app registration** that can read your tenant's Microsoft Graph data (see [Setup step 2](#setup)) | IT admins who want tenant-specific M365 announcements and incident reports |
+| Azure Service Health | The same Entra credentials **plus** an Azure role assignment (see [Setup step 3](#setup)) | Teams who also monitor Azure subscription-level health events |
+| AI Insights (available on all pages) | An API key from **Azure OpenAI**, **OpenAI**, or **GitHub Models** (see [AI summarization](#ai-summarization-optional)) | Anyone who wants AI-generated summaries and "top 5 most impactful changes" digests |
 
-### Option 1 — Azure Developer CLI *(recommended)*
+> **Not sure where to start?** Pick the deployment option below that matches your
+> situation. You can always add Graph credentials, Azure Service Health, or AI later.
 
-Two commands to deploy to Azure App Service:
+### Option 1 — Azure Developer CLI *(recommended for Azure users)*
+
+**What this does:** Deploys the portal as an Azure App Service (a managed web server
+in your Azure subscription) with a single command. The infrastructure (server,
+networking, etc.) is created automatically from the included Bicep templates.
+
+**Best for:** Teams that want a shared, always-on instance hosted in Azure without
+managing servers manually.
+
+**Prerequisites:**
+- [Azure Developer CLI (`azd`)](https://aka.ms/azd) — a command-line tool for
+  deploying apps to Azure
+- [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)
+  (`pwsh`) — needed for the post-deploy script that sets up Graph permissions
+- An Azure subscription with permission to create resources
 
 ```bash
 azd init --template russrimm/MicrosoftCommunicationsPortal
 azd up
 ```
 
-- The post-provision hook automatically offers to set up Graph permissions for Message Center and Service Health.
-- The other 7 pages work without any credentials.
-- **Prerequisites:** [Azure Developer CLI](https://aka.ms/azd) and [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) (for the Graph setup hook).
+After `azd up` finishes, the post-provision hook will offer to set up Graph
+permissions for Message Center and Service Health automatically.
 
-### Option 2 — Docker
+**Enable Entra ID authentication (recommended for shared deployments):**
+
+By default the App Service is deployed without login requirements — anyone with the
+URL can access it. To require users to sign in with their organizational account
+before using the portal, set the `authClientId` parameter:
+
+```bash
+azd env set AUTH_CLIENT_ID <your-entra-app-client-id>
+azd up
+```
+
+This turns on "Easy Auth" on the App Service, so unauthenticated visitors are
+redirected to the Entra ID login page. **Strongly recommended** if the portal will
+hold Graph credentials or AI API keys, since those enable access to tenant data and
+billed API calls.
+
+### Option 2 — Docker *(recommended for quick trials or on-prem)*
+
+**What this does:** Runs the portal in a Docker container — a lightweight,
+self-contained package that includes everything the app needs. No need to install
+Node.js or other tools on your machine.
+
+**Best for:** Trying the portal quickly, running on an existing Docker host, or
+deploying on-premises where Azure isn't available.
+
+**Prerequisite:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+(Windows/Mac) or Docker Engine (Linux).
 
 Pull and run:
 
@@ -75,16 +116,23 @@ Pull and run:
 docker run -p 127.0.0.1:3000:3000 ghcr.io/russrimm/microsoft-communications-portal:latest
 ```
 
-Or build locally:
+Or build from source:
 
 ```bash
 docker build -t mcp .
 docker run -p 127.0.0.1:3000:3000 mcp
 ```
 
-> **Security note:** the examples publish the port on loopback only. Using `-p 3000:3000` exposes the portal on all host interfaces — only do that behind an authenticated reverse proxy on a trusted network, since the app can hold Graph credentials and calls billed LLM APIs.
+Open http://localhost:3000. Seven pages work immediately.
 
-For Graph-backed pages (Message Center, Service Health), pass credentials:
+> **Security note:** The examples above bind to `127.0.0.1` (loopback), which means
+> only your local machine can reach the portal. Using `-p 3000:3000` instead exposes
+> it on all network interfaces — only do that behind an authenticated reverse proxy
+> on a trusted network, since the app can hold Graph credentials and call billed
+> LLM APIs.
+
+For Graph-backed pages (Message Center, Service Health), pass credentials as
+environment variables:
 
 ```bash
 docker run -p 127.0.0.1:3000:3000 \
@@ -94,16 +142,45 @@ docker run -p 127.0.0.1:3000:3000 \
   mcp
 ```
 
-### Option 3 — Run locally *(development)*
+> **Where do these values come from?** See [Setup step 2](#setup) below — it walks
+> you through creating the Entra app registration that produces these three values.
+
+### Option 3 — Run locally *(best for development and testing)*
+
+**What this does:** Clones the source code and runs the portal directly on your
+machine using Node.js. You can edit the code and see changes immediately.
+
+**Best for:** Developers who want to customize the portal, contribute code, or just
+kick the tires without Docker or Azure.
+
+**Prerequisites:**
+
+| Prerequisite | Version | Check | Install |
+|---|---|---|---|
+| **Node.js** (LTS) | 24.x or later | `node -v` | [nodejs.org/download](https://nodejs.org/en/download) |
+| **npm** | Bundled with Node | `npm -v` | Comes with Node.js |
+| **Git** | Any recent | `git --version` | [git-scm.com](https://git-scm.com/) |
+| **PowerShell 7+** *(optional)* | 7.x | `pwsh -v` | [Install PowerShell](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) |
+| **Azure CLI** *(optional)* | Any recent | `az --version` | [Install Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) |
+
+> **Node.js note:** The server uses the built-in `http`, `https`, `crypto`, and `URL` APIs with no native add-ons, so any Node 24 LTS build (x64, ARM64, etc.) works. Earlier versions (18–22) may work but are not tested.
+>
+> **Optional tools:** PowerShell 7+ and Azure CLI are only needed if you want to run `scripts/create-entra-app.ps1` to set up Graph API credentials for the Message Center and Service Health pages.
+
+**Clone and run:**
 
 ```bash
 git clone https://github.com/russrimm/MicrosoftCommunicationsPortal.git
 cd MicrosoftCommunicationsPortal
 npm install
-npm start
+npm start            # production mode
+# or
+npm run dev           # watch mode — auto-restarts on file changes
 ```
 
-Open http://localhost:3000. For Graph-backed pages, copy `.env.example` to `.env` and fill in your Entra app credentials — or run `pwsh scripts/create-entra-app.ps1` to automate it.
+Open http://localhost:3000. Seven of nine pages work immediately with no credentials.
+
+For Graph-backed pages (Message Center, Service Health), copy `.env.example` to `.env` and fill in your Entra app credentials — or run `pwsh scripts/create-entra-app.ps1` to automate it.
 
 ## Screenshots
 
@@ -172,47 +249,86 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 
 > **For a faster setup, see [Quick Deploy](#quick-deploy) above.**
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+### Step 1 — Install dependencies
 
-2. **Configure Microsoft Graph authentication** (required only for Message Center and Service Health):
+```bash
+npm install
+```
 
-   The Power Platform, M365 Roadmap, and Azure Updates pages work without credentials —
-   skip this step if you only need those.
+This downloads the one runtime dependency (`dotenv`) and is required before the
+server can start.
 
-   **Option A — Managed identity (recommended for Azure deployments)**
+### Step 2 — Configure Microsoft Graph authentication
 
-   If the portal runs on Azure (App Service, Container Apps, or a VM), assign a
-   system- or user-assigned managed identity to the host and grant it the
-   `ServiceMessage.Read.All` + `ServiceHealth.Read.All` Graph **application**
-   permissions with admin consent. Then set one variable in `.env`:
+*(Required only for the Message Center and Service Health pages. Skip this step
+if you only need the other seven pages.)*
 
-   ```
-   USE_MANAGED_IDENTITY=true
-   ```
+The Message Center and Service Health pages pull data from
+[Microsoft Graph](https://learn.microsoft.com/graph/overview) — Microsoft's API
+for reading your tenant's admin announcements and service incidents. To access
+Graph, the portal needs credentials that prove it has permission to read that data.
 
-   For a **user-assigned** identity, also add:
+**Which option should I pick?**
 
-   ```
-   AZURE_CLIENT_ID=<managed-identity-client-id>
-   ```
+| Option | Best for | Pros | Cons |
+|--------|----------|------|------|
+| **A — Managed identity** | Portal hosted on Azure (App Service, Container Apps, VM) | No secrets to manage or rotate; most secure; the Azure platform handles tokens automatically | Only works when running on Azure infrastructure; requires CLI commands to grant Graph permissions (can't use the portal UI) |
+| **B — Automated script** | Local development, or non-Azure servers | One command does everything; writes credentials to `.env` automatically; idempotent (safe to re-run) | Requires PowerShell 7+ and Azure CLI installed locally; needs an admin account that can grant tenant-wide consent |
+| **C — Manual portal UI** | When you can't run scripts, or prefer clicking through the Azure portal | No tools needed beyond a web browser; good for learning how app registrations work | More steps; easy to miss a step; you must copy/paste secrets carefully |
 
-   No client secret is needed — the platform issues the token automatically. On
-   App Service / Container Apps the `IDENTITY_ENDPOINT` and `IDENTITY_HEADER`
-   environment variables are set by the platform. On a VM the Azure IMDS endpoint
-   is used.
+> **What is an "app registration"?** It's an identity record in Microsoft Entra ID
+> (formerly Azure AD) that represents this portal. Think of it as a username and
+> password for the app itself (not for any human user). The portal uses it to call
+> Microsoft Graph on behalf of your organization, without any user needing to sign in.
 
-   > **`azd up` users:** the post-provision hook runs `scripts/create-entra-app.ps1`
-   > which automatically grants these Graph permissions to the App Service managed
-   > identity — no manual steps needed.
+> **What is "admin consent"?** Some Graph permissions are sensitive enough that a
+> tenant administrator must explicitly approve them. The two permissions this portal
+> needs (`ServiceMessage.Read.All` and `ServiceHealth.Read.All`) both require admin
+> consent — meaning a Global Administrator, Privileged Role Administrator, or Cloud
+> Application Administrator must click "Grant" before the portal can read data.
 
-   **Granting Graph permissions to a managed identity manually**
+---
 
-   Graph application permissions cannot be added through the portal UI for managed
-   identities — you must use the CLI or Microsoft Graph API. Run these commands as
-   a Global Administrator (or Privileged Role Administrator):
+#### Option A — Managed identity *(recommended for Azure deployments)*
+
+**What is a managed identity?** When you host an app on Azure, the platform can
+automatically give it an identity (like a built-in service account) so it can call
+other Microsoft services without you having to create or store any passwords. Azure
+handles the credential lifecycle — no secrets to rotate or leak.
+
+If the portal runs on Azure (App Service, Container Apps, or a VM), assign a
+system- or user-assigned managed identity to the host and grant it two Graph
+**application** permissions with admin consent. Then set one variable in `.env`:
+
+```
+USE_MANAGED_IDENTITY=true
+```
+
+**System-assigned vs. user-assigned identity:**
+- **System-assigned** (simpler): Azure creates the identity automatically when you
+  enable it on the App Service. It's tied to that specific resource and deleted if
+  the resource is deleted. No extra configuration needed.
+- **User-assigned** (more flexible): You create the identity separately and attach
+  it to one or more resources. Useful if you want to share one identity across
+  multiple apps. If you use this type, also add its client ID to `.env`:
+  ```
+  AZURE_CLIENT_ID=<managed-identity-client-id>
+  ```
+
+No client secret is needed — the platform issues the token automatically. On
+App Service / Container Apps the `IDENTITY_ENDPOINT` and `IDENTITY_HEADER`
+environment variables are set by the platform. On a VM the Azure IMDS endpoint
+is used.
+
+> **`azd up` users:** the post-provision hook runs `scripts/create-entra-app.ps1`
+> which automatically grants these Graph permissions to the App Service managed
+> identity — no manual steps needed.
+
+**Granting Graph permissions to a managed identity manually**
+
+Graph application permissions cannot be added through the portal UI for managed
+identities — you must use the CLI or Microsoft Graph API. Run these commands as
+a Global Administrator (or Privileged Role Administrator):
 
    ```powershell
    # 1. Get the managed identity's object ID
@@ -228,7 +344,7 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
    # 3. Grant ServiceMessage.Read.All (Message Center)
    az rest --method POST `
        --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$graphSpId/appRoleAssignments" `
-       --body "{`"principalId`":`"$miObjectId`",`"resourceId`":`"$graphSpId`",`"appRoleId`":`"2c6a42ca-0d4d-49ad-bc0e-21222c449a65`"}"
+       --body "{`"principalId`":`"$miObjectId`",`"resourceId`":`"$graphSpId`",`"appRoleId`":`"1b620472-6534-4fe6-9df2-4680e8aa28ec`"}"
 
    # 4. Grant ServiceHealth.Read.All (Service Health)
    az rest --method POST `
@@ -239,111 +355,195 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
    You can verify the assignments in Azure portal → Entra ID → Enterprise
    applications → search for the managed identity object ID → Permissions.
 
-   **Option B — Scripted app registration (local dev or non-Azure hosts)**
+---
 
-   You'll need an account that can register apps **and** grant tenant-wide admin
-   consent (Global Administrator, Privileged Role Administrator, or Cloud Application
-   Administrator).
+#### Option B — Automated script *(recommended for local dev or non-Azure hosts)*
 
-   [`scripts/create-entra-app.ps1`](scripts/create-entra-app.ps1) does everything in
-   Option C for you: creates the app registration, adds the two required Microsoft
-   Graph application permissions, grants admin consent, creates a client secret, and
-   writes `M365_TENANT_ID` / `M365_CLIENT_ID` / `M365_CLIENT_SECRET` into `.env`
-   (backing up any existing `.env` first). It's idempotent — safe to re-run to
-   rotate the secret or repair drift.
+**What this does:** Runs a PowerShell script that creates the app registration,
+adds the two required permissions, grants admin consent, creates a client secret,
+and writes everything into your `.env` file automatically. If the app registration
+already exists, it reuses it (safe to re-run).
 
-   Prerequisites: [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
-   and [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)
-   (`pwsh`).
+**You'll need:**
+- An account that can register apps **and** grant tenant-wide admin consent
+  (Global Administrator, Privileged Role Administrator, or Cloud Application
+  Administrator)
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed
+- [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)
+  installed (`pwsh`)
 
+**Steps:**
+
+1. Sign in to Azure CLI with your admin account:
    ```powershell
    az login --tenant <your-tenant-id>
+   ```
+   *(Replace `<your-tenant-id>` with your organization's tenant ID — find it in
+   Azure portal → Entra ID → Overview.)*
+
+2. Run the setup script:
+   ```powershell
    pwsh .\scripts\create-entra-app.ps1
    ```
 
-   Optional overrides (set before running):
+3. The script writes `M365_TENANT_ID`, `M365_CLIENT_ID`, and `M365_CLIENT_SECRET`
+   into `.env`. You're done — skip ahead to [Step 3](#step-3--configure-azure-service-health).
 
-   ```powershell
-   $env:APP_NAME     = 'My Portal Name'   # default: Microsoft Communications Portal
-   $env:SECRET_YEARS = '1'                # default: 2
-   ```
+**Optional overrides** (set before running):
 
-   Skip ahead to step 3 once the script finishes.
+```powershell
+$env:APP_NAME     = 'My Portal Name'   # default: Microsoft Communications Portal
+$env:SECRET_YEARS = '1'                # default: 2 years
+```
 
-   **Option C — Manual (portal UI)**
+---
 
-   <details>
-   <summary>Click to expand manual steps</summary>
+#### Option C — Manual setup via the portal UI
 
-   **2a. Create the app registration**
+Use this if you prefer clicking through the Azure portal or can't install
+PowerShell / Azure CLI.
 
-   1. Sign in to the [Entra admin center](https://entra.microsoft.com) (or
-      [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade/~/AppRegistrations)).
-   2. Go to **Identity → Applications → App registrations** and click **+ New registration**.
-   3. Fill in:
-      - **Name:** `Microsoft Communications Portal` (or any name you like)
-      - **Supported account types:** *Accounts in this organizational directory only (Single tenant)*
-      - **Redirect URI:** leave blank — this app uses the client-credentials flow, no redirect is needed.
-   4. Click **Register**.
-   5. On the **Overview** blade, copy these two values — you'll paste them into `.env` later:
-      - **Application (client) ID** → `M365_CLIENT_ID`
-      - **Directory (tenant) ID** → `M365_TENANT_ID`
+<details>
+<summary>Click to expand step-by-step instructions</summary>
 
-   **2b. Add Microsoft Graph API permissions**
+**Step 2a — Create the app registration**
 
-   1. In the new app registration, go to **API permissions → + Add a permission**.
-   2. Choose **Microsoft Graph → Application permissions** (NOT delegated).
-   3. Search for and add each of these permissions:
-      - `ServiceMessage.Read.All` — required for the Message Center page
-      - `ServiceHealth.Read.All` — required for the Service Health page
-   4. Click **Add permissions**.
-   5. Back on the **API permissions** blade, click **Grant admin consent for &lt;your tenant&gt;**
-      and confirm. The **Status** column should show a green check for both permissions.
+1. Sign in to the [Entra admin center](https://entra.microsoft.com) (or
+   [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade/~/AppRegistrations)).
+2. Go to **Identity → Applications → App registrations** and click **+ New registration**.
+3. Fill in:
+   - **Name:** `Microsoft Communications Portal` (or any name you like)
+   - **Supported account types:** *Accounts in this organizational directory only
+     (Single tenant)* — this means only users and apps in your organization can use it.
+   - **Redirect URI:** leave blank — this app uses the "client-credentials flow"
+     (app-to-app authentication), so no redirect is needed.
+4. Click **Register**.
+5. On the **Overview** blade, copy these two values — you'll paste them into `.env` later:
+   - **Application (client) ID** → this becomes `M365_CLIENT_ID`
+   - **Directory (tenant) ID** → this becomes `M365_TENANT_ID`
 
-   **2c. Create a client secret**
+**Step 2b — Add Microsoft Graph API permissions**
 
-   1. Go to **Certificates & secrets → Client secrets → + New client secret**.
-   2. Enter a description (e.g. `portal-local-dev`) and pick an expiration (6–24 months).
-   3. Click **Add**.
-   4. **Immediately copy the secret's `Value`** (not the Secret ID) — it's only shown once.
-      This is your `M365_CLIENT_SECRET`. If you navigate away before copying it, delete it
-      and create a new one.
+These permissions tell Microsoft Graph what data the portal is allowed to read.
 
-   **2d. Configure `.env`**
+1. In the new app registration, go to **API permissions → + Add a permission**.
+2. Choose **Microsoft Graph → Application permissions** (NOT "Delegated" — that's
+   for apps where a user signs in; this portal uses app-only access).
+3. Search for and check each of these permissions:
+   - `ServiceMessage.Read.All` — lets the portal read Message Center announcements
+   - `ServiceHealth.Read.All` — lets the portal read Service Health incidents
+4. Click **Add permissions**.
+5. Back on the **API permissions** blade, click **Grant admin consent for &lt;your tenant&gt;**
+   and confirm. The **Status** column should show a green check ✅ for both permissions.
 
-   1. Copy the template:
-      ```bash
-      # macOS / Linux
-      cp .env.example .env
+   > **Don't see the "Grant admin consent" button?** You need to be signed in as a
+   > Global Administrator, Privileged Role Administrator, or Cloud Application
+   > Administrator. Ask your IT admin to grant consent on your behalf.
 
-      # Windows PowerShell
-      Copy-Item .env.example .env
-      ```
-   2. Open `.env` and paste in the three values you collected above:
-      ```
-      M365_CLIENT_ID=00000000-0000-0000-0000-000000000000
-      M365_CLIENT_SECRET=your-client-secret-value
-      M365_TENANT_ID=00000000-0000-0000-0000-000000000000
-      ```
+**Step 2c — Create a client secret**
 
-   </details>
+A client secret is like a password for the app registration. The portal uses it to
+prove its identity when calling Microsoft Graph.
 
-   > Treat the client secret like a password. Never commit `.env` to source
-   > control — the included `.gitignore` already excludes it. The server reads
-   > `.env` at startup, so restart `node server.js` after any change.
-   >
-   > **Heads up:** Message Center and Service Health data can take up to ~1 hour
-   > to appear after first consent while Microsoft Graph provisions access.
+1. Go to **Certificates & secrets → Client secrets → + New client secret**.
+2. Enter a description (e.g. `portal-local-dev`) and pick an expiration (6–24 months).
+   Shorter is more secure but means you'll need to rotate it sooner.
+3. Click **Add**.
+4. **Immediately copy the secret's `Value`** (not the "Secret ID") — it's only shown
+   once. This is your `M365_CLIENT_SECRET`. If you navigate away before copying it,
+   delete it and create a new one.
 
-3. **Run the server:**
+**Step 2d — Create your `.env` file**
+
+1. Copy the template:
    ```bash
-   npm start
-   # or
-   node server.js
+   # macOS / Linux
+   cp .env.example .env
+
+   # Windows PowerShell
+   Copy-Item .env.example .env
+   ```
+2. Open `.env` in any text editor and paste in the three values you collected:
+   ```
+   M365_CLIENT_ID=00000000-0000-0000-0000-000000000000
+   M365_CLIENT_SECRET=your-client-secret-value
+   M365_TENANT_ID=00000000-0000-0000-0000-000000000000
    ```
 
-4. **Open in browser:**
-   http://localhost:3000
+</details>
+
+> **Keep secrets safe.** Treat the client secret like a password — never commit
+> `.env` to source control (the included `.gitignore` already excludes it). The
+> server reads `.env` at startup, so restart `node server.js` after any change.
+>
+> **Data delay:** Message Center and Service Health data can take **up to ~1 hour**
+> to appear after first consent while Microsoft Graph provisions access to your
+> tenant's data. This is a one-time delay.
+
+### Step 3 — Configure Azure Service Health
+
+*(Optional — only needed for the Azure Service Health page. Skip if you don't
+need Azure-level health monitoring.)*
+
+**What is Azure Service Health?** While the M365 Service Health page (Step 2)
+shows incidents for Microsoft 365 services (Teams, Exchange, SharePoint, etc.),
+the **Azure Service Health** page shows incidents for Azure infrastructure services
+(Virtual Machines, App Service, Storage, etc.) in your specific subscriptions.
+
+**How it works:** This page uses the
+[Azure Resource Manager (ARM) REST API](https://learn.microsoft.com/rest/api/resourcehealth/)
+(`management.azure.com`) — a different API from Microsoft Graph. It reuses the same
+credentials (managed identity or client secret) you set up in Step 2, but the
+service principal also needs an **Azure RBAC role** (a permission assignment) on the
+Azure subscription(s) you want to monitor.
+
+> **What is RBAC?** Role-Based Access Control is Azure's permission system. You
+> assign a "role" (like "Reader") to an identity (like your app registration) on a
+> "scope" (like a subscription). This grants the identity specific permissions within
+> that scope.
+
+**Steps:**
+
+1. **Assign a Reader role** to your app registration's service principal (or managed
+   identity) on each Azure subscription you want to monitor:
+
+   ```bash
+   # Replace the placeholders with your values:
+   az role assignment create \
+       --assignee <service-principal-app-id-or-managed-identity-object-id> \
+       --role "Reader" \
+       --scope "/subscriptions/<subscription-id>"
+   ```
+
+   > **Which role?** `Reader` is the simplest choice — it grants read-only access
+   > to all resources in the subscription. For a more restrictive option, use
+   > `Resource Health Reader` which only grants access to health data. Either works.
+
+   > **Where do I find my subscription ID?** Azure portal → Subscriptions → click
+   > your subscription → the **Subscription ID** is shown on the Overview blade.
+
+2. **Set the default subscription** in `.env` (optional — you can also pick
+   subscriptions in the UI):
+   ```
+   AZURE_SUBSCRIPTION_ID=your-subscription-id-here
+   ```
+
+Without a role assignment, the ARM API calls will return `403 Forbidden`. The portal
+includes a subscription picker on the Azure Service Health page so you can select
+which subscriptions to monitor after the role is granted.
+
+### Step 4 — Run the server
+
+```bash
+npm start
+# or
+node server.js
+```
+
+### Step 5 — Open in browser
+
+Navigate to http://localhost:3000. The home page shows status cards for all
+configured data sources so you can confirm which pages are working.
 
 ## Features
 
@@ -396,6 +596,11 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
   and items requiring admin action. See [AI summarization](#ai-summarization-optional) below.
 
 ### Security hardening
+- **Entra ID Easy Auth** — the Bicep infrastructure supports enabling Entra ID
+  authentication on the App Service via the `authClientId` parameter. When set,
+  all requests require an Entra ID sign-in before reaching the app — protecting
+  tenant-sensitive Graph data, Azure Resource Health endpoints, and billed LLM
+  API calls from unauthenticated access. See [Quick Deploy](#quick-deploy).
 - **Strict Content Security Policy** — inline scripts are authorized via a per-request
   cryptographic nonce (`script-src 'self' 'nonce-…'`); `'unsafe-inline'` is **not** used.
   Additional directives: `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'none'`,
@@ -427,8 +632,8 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 
 ## AI summarization (optional)
 
-The portal can call an LLM to surface what actually matters in the firehose of
-Microsoft updates. When enabled, every feed page shows:
+The portal can call an LLM (Large Language Model) to surface what actually matters
+in the firehose of Microsoft updates. When enabled, every feed page shows:
 
 - A **Top 5 most impactful changes** digest at the top of the page (covers the
   last 14 days, refreshed on demand), with one-line themes and an overall headline.
@@ -437,24 +642,40 @@ Microsoft updates. When enabled, every feed page shows:
   intended audience (IT admins, end users, developers, security), and a flag
   if admin action is required before a deadline.
 
-The server speaks the OpenAI-compatible chat-completions protocol, so any of
-these providers work out of the box — set **one** of the blocks in `.env` and
-restart. The server auto-detects which provider to use (priority: Azure OpenAI →
-OpenAI → GitHub Models).
+**How to enable:** Pick **one** of the three providers below, set the corresponding
+variables in `.env`, and restart the server. The server auto-detects which provider
+to use (priority: Azure OpenAI → OpenAI → GitHub Models). When no AI provider is
+configured the portal still works fine — the AI panel just shows a note pointing
+to `.env.example`.
 
-| Provider | Env vars | When to use |
-|---|---|---|
-| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, *(optional)* `AZURE_OPENAI_API_VERSION` | Recommended for Microsoft customers — data stays in your Azure tenant. |
-| **OpenAI** | `OPENAI_API_KEY`, *(optional)* `OPENAI_MODEL`, `OPENAI_BASE_URL` | Quickest setup if you already have an OpenAI key. |
-| **GitHub Models** | `GITHUB_TOKEN`, *(optional)* `GITHUB_MODEL` | Free tier — great for trying it out. Uses `https://models.github.ai`. |
+**Which provider should I pick?**
 
-Recommended model: `gpt-4o-mini` (or your deployment name) — fast, cheap, and
-plenty capable for this kind of triage. Responses are cached in memory:
-summaries for 10 minutes, digests for 15 minutes, so repeat views don't burn tokens.
+| Provider | Env vars to set | Pros | Cons | Cost |
+|----------|----------------|------|------|------|
+| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, *(optional)* `AZURE_OPENAI_API_VERSION` | Data stays in your Azure tenant (best for compliance); enterprise SLAs; content filtering built in | Requires an Azure OpenAI resource (need to [apply for access](https://aka.ms/oai/access) if you don't have one); most setup steps | Pay-per-token (very low with `gpt-4o-mini`) |
+| **OpenAI** | `OPENAI_API_KEY`, *(optional)* `OPENAI_MODEL`, `OPENAI_BASE_URL` | Fastest setup — just paste an API key; no Azure subscription needed | Data leaves your tenant; usage is billed to your OpenAI account | Pay-per-token |
+| **GitHub Models** | `GITHUB_TOKEN`, *(optional)* `GITHUB_MODEL` | **Free tier** — great for trying it out; no billing setup | Rate limits on free tier; data processed by GitHub; not for production workloads | Free (with limits) |
 
-When no AI provider is configured the portal still works fine — the AI panel
-shows a short note pointing back at `.env.example` and the per-item Summarize
-button is hidden.
+**Recommended model:** `gpt-4o-mini` (or your deployment name for Azure OpenAI) —
+fast, cheap, and plenty capable for this kind of triage.
+
+**Example `.env` for each provider:**
+
+```bash
+# ── Azure OpenAI (recommended for enterprise) ──
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_API_KEY=your-azure-openai-key
+AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
+
+# ── OpenAI (quickest setup) ──
+OPENAI_API_KEY=sk-...
+
+# ── GitHub Models (free, great for testing) ──
+GITHUB_TOKEN=ghp_...
+```
+
+Responses are cached in memory (summaries for 10 minutes, digests for 15 minutes)
+so repeat views don't burn tokens.
 
 ## API Endpoints
 
@@ -525,8 +746,10 @@ screenshots/                     Light + dark mode PNGs rendered into the README
 
 ## Requirements
 
-- Node.js 18+ (uses the built-in `http`, `https`, and global `URL` APIs)
+- **Node.js 24 LTS** or later (uses the built-in `http`, `https`, `crypto`, and global `URL` APIs — no native add-ons)
+- **npm** (bundled with Node.js)
 - An Entra app registration (only for the Message Center and Service Health pages)
+- PowerShell 7+ and Azure CLI (only if using `scripts/create-entra-app.ps1`)
 
 ## Contributing
 
