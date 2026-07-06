@@ -723,11 +723,11 @@
           case 'powerplatform':
             headers = ['Product', 'Feature', 'Status', 'GA Date', 'Type'];
             rows = items.map(f => [
-              f.productName || '',
-              (f.title || f.name || '').substring(0, 60),
-              f.publicPreviewDate ? 'Preview' : (f.gADate ? 'GA' : 'Planned'),
-              f.gADate ? new Date(f.gADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
-              f.cloudInstance || f.featureType || ''
+              f.productName || f.Product || '',
+              (f.FeatureName || f.title || f.name || '').substring(0, 60),
+              f.PublicPreviewDate ? 'Preview' : (f.GADate ? 'GA' : 'Planned'),
+              f.GADate ? new Date(f.GADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
+              f.FeatureType || f.CloudInstance || ''
             ]);
             break;
           case 'fabric':
