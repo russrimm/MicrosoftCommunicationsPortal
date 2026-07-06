@@ -12,613 +12,8 @@
     })();
   </script>
   <script src="/static/util.js"></script>
-  <style>
-    :root {
-      color-scheme: light;
-      --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff;
-      --cp-surface-soft: #f5f5f5; --cp-border: #dedede; --cp-border-strong: #919191;
-      --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
-      --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
-      --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
-      --cp-warning: #f59e0b; --cp-link: #0078d4;
-      --cp-purple: #7c3aed;
-    }
-    html[data-theme="dark"] {
-      color-scheme: dark;
-      --cp-bg: #1f1d1c; --cp-bg-elevated: #2a2826; --cp-surface: #292929;
-      --cp-surface-soft: #2e2e2e; --cp-border: #3a3a3a; --cp-border-strong: #5f5f5f;
-      --cp-text: #f0f0f0; --cp-text-muted: #9a9a9a; --cp-text-soft: #b8b8b8;
-      --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
-      --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
-      --cp-warning: #fbbf24; --cp-link: #4da6ff; --cp-purple: #a78bfa;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    .sr-only {
-      position: absolute !important;
-      width: 1px; height: 1px;
-      padding: 0; margin: -1px;
-      overflow: hidden; clip: rect(0,0,0,0);
-      white-space: nowrap; border: 0;
-    }
-
-    a:focus-visible, button:focus-visible, input:focus-visible,
-    select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
-      outline: 2px solid var(--cp-accent);
-      outline-offset: 2px;
-    }
-    body {
-      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 14px; line-height: 1.5;
-      background: var(--cp-bg); color: var(--cp-text);
-      min-height: 100vh; display: flex; flex-direction: column;
-    }
-    /* Header */
-    .header {
-      position: sticky; top: 0; z-index: 100;
-      background: var(--cp-surface); border-bottom: 1px solid var(--cp-border);
-      padding: 0 1.25rem; display: flex; align-items: center; gap: 0.875rem;
-      height: 56px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0;
-    }
-    .header-logo {
-      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .header-logo svg { display: block; width: 28px; height: 28px; }
-    .header-title { font-size: 15px; font-weight: 700; color: var(--cp-text); }
-    .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted, #605e5c); margin-top: 1px; }
-    .header-subtitle a { color: inherit; text-decoration: none; }
-    .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
-    .header-sub { font-size: 11px; color: var(--cp-text-muted); }
-    .page-tabs {
-      position: sticky; top: 56px; z-index: 99;
-      background: var(--cp-surface);
-      border-bottom: 1px solid var(--cp-border);
-      padding: 0 1.25rem;
-      display: flex; align-items: stretch; justify-content: center;
-      gap: 0.25rem;
-      height: 48px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    }
-    .nav-tab {
-      display: inline-flex; align-items: center;
-      padding: 0 1rem;
-      background: transparent;
-      border: none;
-      border-bottom: 3px solid transparent;
-      border-radius: 0;
-      color: var(--cp-text-muted);
-      font-size: 14px; font-weight: 600;
-      cursor: pointer;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
-      text-decoration: none;
-      white-space: nowrap;
-      margin-bottom: -1px;
-    }
-    .nav-tab:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
-    .nav-tab.active {
-      color: var(--cp-accent);
-      border-bottom-color: var(--cp-accent);
-      background: transparent;
-    }
-
-    /* ── Nav dropdown ── */
-    .nav-dropdown {
-      position: relative;
-      display: inline-flex;
-      align-items: stretch;
-    }
-    .nav-dropdown-toggle { font-family: inherit; gap: 0.3rem; }
-    .nav-dropdown-caret {
-      font-size: 10px;
-      transition: transform 0.15s;
-    }
-    .nav-dropdown.open .nav-dropdown-caret { transform: rotate(180deg); }
-    .nav-dropdown-menu {
-      display: none;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      min-width: 220px;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.5rem;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-      z-index: 200;
-      padding: 0.35rem 0;
-      margin-top: 1px;
-    }
-    .nav-dropdown.open .nav-dropdown-menu { display: block; }
-    .nav-dropdown-item {
-      display: block;
-      padding: 0.5rem 1rem;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--cp-text);
-      text-decoration: none;
-      transition: background 0.15s, color 0.15s;
-    }
-    .nav-dropdown-item:hover {
-      background: var(--cp-surface-soft);
-      color: var(--cp-accent);
-    }
-    .nav-dropdown-item.active {
-      color: var(--cp-accent);
-      font-weight: 600;
-      background: var(--cp-accent-soft);
-    }
-    .theme-btn {
-      margin-left: auto; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
-      border-radius: 0.625rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 12px;
-      color: var(--cp-text-muted); font-family: inherit; transition: all 0.15s;
-    }
-    .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
-
-    /* Page content */
-    .page-content {
-      flex: 1; min-height: 0;
-      padding: 0.875rem 1.125rem 1.125rem;
-      overflow: hidden;
-      display: flex; flex-direction: column; gap: 0.75rem;
-    }
-
-    /* Hero band */
-    .sh-hero {
-      background: linear-gradient(135deg, var(--cp-bg-elevated), var(--cp-surface));
-      border: 1px solid var(--cp-border);
-      border-radius: 12px;
-      padding: 0.75rem 1.125rem;
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 1rem; flex-wrap: wrap;
-      flex-shrink: 0;
-    }
-    .sh-hero-title { font-size: 16px; font-weight: 700; color: var(--cp-text); margin-bottom: 0.1rem; line-height: 1.2; }
-    .sh-hero-sub   { font-size: 12px; color: var(--cp-text-muted); }
-    .sh-live {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.45rem 0.875rem;
-      background: rgba(22,163,74,0.12);
-      border: 1px solid rgba(22,163,74,0.3);
-      border-radius: 999px;
-      color: var(--cp-success);
-      font-size: 12px; font-weight: 600;
-      flex-shrink: 0;
-    }
-    .sh-live::before {
-      content: ''; width: 8px; height: 8px; border-radius: 50%;
-      background: var(--cp-success);
-      box-shadow: 0 0 0 0 rgba(22,163,74,0.4);
-      animation: livepulse 2s ease-in-out infinite;
-    }
-    @keyframes livepulse {
-      0%   { box-shadow: 0 0 0 0 rgba(22,163,74,0.55); }
-      70%  { box-shadow: 0 0 0 8px rgba(22,163,74,0); }
-      100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
-    }
-
-    /* Panels */
-    .sh-panel {
-      background: var(--cp-bg-elevated);
-      border: 1px solid var(--cp-border);
-      border-radius: 12px;
-      padding: 0.875rem 1rem;
-      min-width: 0;
-    }
-    .sh-panel-head {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 0.75rem; margin-bottom: 0.875rem;
-    }
-    .sh-panel-title {
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--cp-text-muted);
-      display: flex; align-items: center; gap: 0.5rem;
-    }
-    .sh-panel-title-icon { color: var(--cp-danger); font-size: 14px; }
-    .sh-panel-title-count {
-      font-size: 14px; font-weight: 700; color: var(--cp-text);
-      letter-spacing: 0;
-    }
-    .sh-panel-meta { display: flex; align-items: center; gap: 0.75rem; font-size: 12px; color: var(--cp-text-muted); }
-
-    .export-btn {
-      padding: 0.35rem 0.75rem; background: var(--cp-accent);
-      border: 1px solid var(--cp-accent); border-radius: 0.5rem;
-      color: var(--cp-accent-fg); font-size: 12px; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
-    }
-    .export-btn:hover { background: var(--cp-accent-hover); border-color: var(--cp-accent-hover); }
-
-    /* Loading + empty */
-    .spinner {
-      width: 15px; height: 15px;
-      border: 2px solid var(--cp-accent-soft); border-top-color: var(--cp-accent);
-      border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .sh-loading {
-      padding: 2rem; text-align: center;
-      display: flex; align-items: center; justify-content: center; gap: 0.75rem;
-      color: var(--cp-accent);
-    }
-    .sh-empty { padding: 1.5rem; text-align: center; color: var(--cp-text-muted); font-size: 12px; }
-
-    /* ── Azure Resource Health styles ── */
-    .arh-section {
-      margin-top: 0;
-    }
-    /* Subscription filter dropdown */
-    .arh-sub-filter {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      flex-shrink: 0;
-    }
-    .arh-sub-filter-btn {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.4rem 0.875rem;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 8px;
-      color: var(--cp-text);
-      font-size: 12px; font-weight: 600;
-      cursor: pointer; font-family: inherit;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
-    .arh-sub-filter-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); }
-    .arh-sub-filter-btn .arh-sub-filter-icon {
-      font-size: 14px; flex-shrink: 0;
-    }
-    .arh-sub-filter-btn .arh-sub-filter-caret {
-      font-size: 10px; transition: transform 0.15s;
-    }
-    .arh-sub-filter.open .arh-sub-filter-caret { transform: rotate(180deg); }
-    .arh-sub-filter-count {
-      display: inline-flex; align-items: center; justify-content: center;
-      min-width: 18px; height: 18px;
-      padding: 0 5px;
-      border-radius: 999px;
-      background: var(--cp-accent); color: var(--cp-accent-fg);
-      font-size: 10px; font-weight: 700;
-    }
-    .arh-sub-filter-menu {
-      display: none;
-      position: absolute;
-      top: calc(100% + 4px);
-      right: 0;
-      min-width: 320px;
-      max-width: 420px;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 10px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.14);
-      z-index: 200;
-      padding: 0.5rem 0;
-      max-height: 280px;
-      overflow-y: auto;
-    }
-    .arh-sub-filter.open .arh-sub-filter-menu { display: block; }
-    .arh-sub-filter-item {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.5rem 0.875rem;
-      font-size: 12px;
-    }
-    .arh-sub-filter-item-dot {
-      width: 8px; height: 8px; border-radius: 50;
-      background: var(--cp-success); flex-shrink: 0;
-    }
-    .arh-sub-filter-item-name {
-      font-weight: 600; color: var(--cp-text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .arh-sub-filter-item-id {
-      font-size: 11px; color: var(--cp-text-muted);
-      font-family: "Cascadia Code", "Consolas", monospace;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .arh-sub-filter-empty {
-      padding: 0.75rem 1rem;
-      font-size: 12px; color: var(--cp-text-muted);
-      text-align: center;
-    }
-    .arh-sub-filter-change {
-      display: block;
-      padding: 0.5rem 0.875rem;
-      margin-top: 0.25rem;
-      border-top: 1px solid var(--cp-border);
-      font-size: 12px; font-weight: 600;
-      color: var(--cp-accent);
-      cursor: pointer;
-      background: none; border-left: none; border-right: none; border-bottom: none;
-      width: 100%; text-align: left;
-      font-family: inherit;
-      transition: background 0.15s;
-    }
-    .arh-sub-filter-change:hover { background: var(--cp-accent-soft); }
-    .arh-panel { margin-top: 0.5rem; }
-    .arh-list { min-height: 48px; }
-    .arh-no-sub {
-      padding: 1.25rem; text-align: center;
-      color: var(--cp-text-muted); font-size: 13px;
-    }
-    .arh-empty {
-      padding: 1rem; text-align: center;
-      color: var(--cp-text-muted); font-size: 13px;
-    }
-    .arh-error {
-      padding: 1rem; color: var(--cp-danger); font-size: 13px;
-    }
-    .arh-filter-select {
-      font-family: inherit; font-size: 12px;
-      padding: 0.25rem 0.5rem;
-      border: 1px solid var(--cp-border); border-radius: 6px;
-      background: var(--cp-surface); color: var(--cp-text);
-    }
-
-    /* Emerging issue card */
-    .arh-emerging-card {
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--cp-border);
-    }
-    .arh-emerging-card:last-child { border-bottom: none; }
-    .arh-emerging-title {
-      font-size: 13px; font-weight: 600; color: var(--cp-text);
-      margin-bottom: 0.25rem;
-    }
-    .arh-emerging-meta {
-      display: flex; gap: 0.5rem; flex-wrap: wrap;
-      font-size: 11px; color: var(--cp-text-muted);
-      margin-bottom: 0.35rem;
-    }
-    .arh-emerging-desc {
-      font-size: 12px; color: var(--cp-text-soft);
-      line-height: 1.45;
-    }
-    .arh-emerging-impacts {
-      display: flex; gap: 0.35rem; flex-wrap: wrap;
-      margin-top: 0.35rem;
-    }
-    .arh-tag {
-      display: inline-block;
-      font-size: 10px; font-weight: 600;
-      padding: 1px 7px; border-radius: 999px;
-      background: var(--cp-surface-soft); color: var(--cp-text-muted);
-      border: 1px solid var(--cp-border);
-    }
-    .arh-tag.sev-error { background: rgba(220,38,38,0.1); color: var(--cp-danger); border-color: var(--cp-danger); }
-    .arh-tag.sev-warning { background: rgba(245,158,11,0.1); color: var(--cp-warning); border-color: var(--cp-warning); }
-
-    /* Event card */
-    .arh-event-card {
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--cp-border);
-    }
-    .arh-event-card:last-child { border-bottom: none; }
-    .arh-event-header {
-      display: flex; align-items: center; gap: 0.5rem;
-      margin-bottom: 0.25rem;
-    }
-    .arh-event-title {
-      font-size: 13px; font-weight: 600; color: var(--cp-text);
-      flex: 1; min-width: 0;
-    }
-    .arh-event-type {
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      padding: 2px 8px; border-radius: 999px;
-      white-space: nowrap; flex-shrink: 0;
-    }
-    .arh-event-type.ServiceIssue { background: rgba(220,38,38,0.12); color: var(--cp-danger); }
-    .arh-event-type.PlannedMaintenance { background: rgba(59,130,246,0.12); color: #3b82f6; }
-    .arh-event-type.HealthAdvisory { background: rgba(245,158,11,0.12); color: var(--cp-warning); }
-    .arh-event-type.SecurityAdvisory { background: rgba(124,58,237,0.12); color: var(--cp-purple); }
-    .arh-event-type.RCA { background: rgba(22,163,74,0.12); color: var(--cp-success); }
-    .arh-event-type.EmergingIssues { background: rgba(245,158,11,0.12); color: var(--cp-warning); }
-    .arh-event-type.Billing { background: var(--cp-surface-soft); color: var(--cp-text-muted); }
-    .arh-event-meta {
-      display: flex; gap: 0.5rem; flex-wrap: wrap;
-      font-size: 11px; color: var(--cp-text-muted);
-      margin-bottom: 0.35rem;
-    }
-    .arh-event-summary {
-      font-size: 12px; color: var(--cp-text-soft);
-      line-height: 1.45;
-    }
-    .arh-event-services {
-      display: flex; gap: 0.35rem; flex-wrap: wrap;
-      margin-top: 0.35rem;
-    }
-    .arh-status-dot {
-      display: inline-block; width: 8px; height: 8px;
-      border-radius: 50%; flex-shrink: 0;
-    }
-    .arh-status-dot.Active { background: var(--cp-danger); }
-    .arh-status-dot.Resolved { background: var(--cp-success); }
-
-    /* Availability card */
-    .arh-avail-card {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.5rem 1rem;
-      border-bottom: 1px solid var(--cp-border);
-    }
-    .arh-avail-card:last-child { border-bottom: none; }
-    .arh-avail-status {
-      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-    }
-    .arh-avail-status.Available { background: var(--cp-success); }
-    .arh-avail-status.Unavailable { background: var(--cp-danger); }
-    .arh-avail-status.Degraded { background: var(--cp-warning); }
-    .arh-avail-status.Unknown { background: var(--cp-text-muted); }
-    .arh-avail-info { flex: 1; min-width: 0; }
-    .arh-avail-name {
-      font-size: 12px; font-weight: 600; color: var(--cp-text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .arh-avail-detail {
-      font-size: 11px; color: var(--cp-text-muted);
-    }
-    .arh-avail-state-label {
-      font-size: 11px; font-weight: 600; white-space: nowrap;
-    }
-    .arh-avail-state-label.Available { color: var(--cp-success); }
-    .arh-avail-state-label.Unavailable { color: var(--cp-danger); }
-    .arh-avail-state-label.Degraded { color: var(--cp-warning); }
-    .arh-avail-state-label.Unknown { color: var(--cp-text-muted); }
-
-    /* ── Status Summary Row ── */
-    .sh-status-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.625rem;
-      flex-shrink: 0;
-    }
-    .sh-stat-card {
-      background: var(--cp-bg-elevated);
-      border: 1px solid var(--cp-border);
-      border-radius: 10px;
-      padding: 0.625rem 0.875rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      transition: border-color 0.3s, background 0.3s;
-    }
-    .sh-stat-icon {
-      font-size: 18px;
-      width: 36px; height: 36px;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 8px;
-      flex-shrink: 0;
-      background: var(--cp-surface-soft);
-      transition: background 0.3s;
-    }
-    .sh-stat-body { min-width: 0; }
-    .sh-stat-value {
-      font-size: 20px; font-weight: 800; line-height: 1.1;
-      color: var(--cp-text); transition: color 0.3s;
-    }
-    .sh-stat-label {
-      font-size: 10px; color: var(--cp-text-muted); font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.4;
-    }
-    .sh-stat-card.sh-stat-ok {
-      border-color: rgba(22,163,74,0.25);
-      background: rgba(22,163,74,0.04);
-    }
-    .sh-stat-card.sh-stat-ok .sh-stat-icon { background: rgba(22,163,74,0.12); }
-    .sh-stat-card.sh-stat-ok .sh-stat-value { color: var(--cp-success); }
-    .sh-stat-card.sh-stat-warn {
-      border-color: rgba(220,38,38,0.25);
-      background: rgba(220,38,38,0.04);
-    }
-    .sh-stat-card.sh-stat-warn .sh-stat-icon { background: rgba(220,38,38,0.12); }
-    .sh-stat-card.sh-stat-warn .sh-stat-value { color: var(--cp-danger); }
-    html[data-theme="dark"] .sh-stat-card.sh-stat-ok {
-      background: rgba(74,222,128,0.06);
-      border-color: rgba(74,222,128,0.2);
-    }
-    html[data-theme="dark"] .sh-stat-card.sh-stat-warn {
-      background: rgba(248,113,113,0.08);
-      border-color: rgba(248,113,113,0.2);
-    }
-
-    /* ── Dashboard Grid Layout ── */
-    .arh-section {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      flex: 1;
-      min-height: 0;
-    }
-    .sh-dashboard-grid {
-      display: grid;
-      grid-template-columns: 1.8fr 1fr;
-      gap: 0.75rem;
-      flex: 1;
-      min-height: 0;
-    }
-    .sh-dashboard-main {
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-    }
-    .sh-dashboard-sidebar {
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-    .sh-dashboard-main > .sh-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    .sh-dashboard-sidebar > .sh-panel {
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    .sh-dashboard-sidebar > .sh-panel:last-child {
-      flex: 1;
-    }
-    .sh-dashboard-grid .arh-panel { margin-top: 0; }
-    .sh-dashboard-grid .arh-list {
-      flex: 1;
-      overflow-y: auto;
-      min-height: 0;
-    }
-    .sh-dashboard-grid .sh-panel {
-      border-radius: 10px;
-      padding: 0.625rem 0.875rem;
-    }
-    .sh-dashboard-grid .sh-panel-head {
-      margin-bottom: 0.5rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--cp-border);
-    }
-
-    /* ── Event card left-border severity indicators ── */
-    .sh-dashboard-grid .arh-event-card {
-      border-left: 3px solid var(--cp-border);
-      padding-left: calc(1rem - 3px);
-    }
-    .arh-event-card:has(.arh-status-dot.Active) {
-      border-left-color: var(--cp-danger);
-    }
-    .arh-event-card:has(.arh-status-dot.Resolved) {
-      border-left-color: var(--cp-success);
-    }
-    .arh-event-card:has(.arh-event-type.PlannedMaintenance) {
-      border-left-color: #3b82f6;
-    }
-    .arh-event-card:has(.arh-event-type.HealthAdvisory) {
-      border-left-color: var(--cp-warning);
-    }
-    .arh-event-card:has(.arh-event-type.SecurityAdvisory) {
-      border-left-color: var(--cp-purple);
-    }
-
-    /* ── Compact availability rows ── */
-    .sh-dashboard-grid .arh-avail-card {
-      padding: 0.3rem 0.75rem;
-      gap: 0.5rem;
-    }
-    .sh-dashboard-grid .arh-avail-status {
-      width: 8px; height: 8px;
-    }
-    .sh-dashboard-grid .arh-avail-name { font-size: 11.5px; }
-    .sh-dashboard-grid .arh-avail-detail { font-size: 10px; }
-
-    /* ── Responsive ── */
-    @media (max-width: 900px) {
-      .sh-dashboard-grid { grid-template-columns: 1fr; }
-      .sh-dashboard-sidebar > .sh-panel:last-child { flex: none; }
-      .sh-dashboard-main > .sh-panel { flex: none; }
-      .sh-dashboard-grid .arh-list { max-height: 400px; }
-    }
-    @media (max-width: 540px) {
-      .sh-status-row { grid-template-columns: 1fr; }
-    }
-  </style>
+  <link rel="stylesheet" href="/static/common.css">
+  <link rel="stylesheet" href="/static/azureservicehealth.css">
 </head>
 <body>
   <header class="header">
@@ -654,6 +49,7 @@
         <a class="nav-dropdown-item active" href="/azureservicehealth" aria-current="page">Azure</a>
       </div>
     </div>
+    <a class="nav-tab" href="/guidedreport">Guided Report</a>
   </nav>
   <script>
     (() => {
@@ -724,43 +120,26 @@
             <div class="sh-stat-label">Resources Healthy</div>
           </div>
         </div>
+        <div class="sh-stat-card sh-stat-pct" id="sh-stat-pct-card">
+          <div class="sh-stat-icon" aria-hidden="true">📊</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-pct-val">—</div>
+            <div class="sh-stat-label">Availability %</div>
+          </div>
+        </div>
+        <div class="sh-stat-card sh-stat-ts" id="sh-stat-ts-card">
+          <div class="sh-stat-icon" aria-hidden="true">🕐</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-ts-val">—</div>
+            <div class="sh-stat-label">Last Updated</div>
+          </div>
+        </div>
       </div>
 
       <!-- Dashboard Grid -->
       <div class="sh-dashboard-grid">
-        <!-- Main Column: Service Health Events -->
+        <!-- Main Column: Resource Availability (most data, gets widest column) -->
         <div class="sh-dashboard-main">
-          <section class="sh-panel arh-panel">
-            <div class="sh-panel-head">
-              <div class="sh-panel-title">
-                <span class="sh-panel-title-icon" aria-hidden="true">⚡</span>
-                <span>Service Health Events</span>
-                <span class="sh-panel-title-count" id="arh-events-count" style="display:none">0</span>
-              </div>
-              <button class="export-btn" id="arh-events-refresh" type="button" aria-label="Refresh events"><span aria-hidden="true">↻</span></button>
-            </div>
-            <div class="arh-list" id="arh-events-list">
-              <div class="arh-no-sub" id="arh-events-nosub">Select a subscription above to view events.</div>
-            </div>
-          </section>
-        </div>
-
-        <!-- Sidebar: Emerging Issues + Resource Availability -->
-        <div class="sh-dashboard-sidebar">
-          <section class="sh-panel arh-panel">
-            <div class="sh-panel-head">
-              <div class="sh-panel-title">
-                <span class="sh-panel-title-icon" aria-hidden="true">🔥</span>
-                <span>Emerging Issues</span>
-                <span class="sh-panel-title-count" id="arh-emerging-count" style="display:none">0</span>
-              </div>
-              <button class="export-btn" id="arh-emerging-refresh" type="button" aria-label="Refresh emerging issues"><span aria-hidden="true">↻</span></button>
-            </div>
-            <div class="arh-list" id="arh-emerging-list">
-              <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
-            </div>
-          </section>
-
           <section class="sh-panel arh-panel">
             <div class="sh-panel-head">
               <div class="sh-panel-title">
@@ -779,8 +158,44 @@
                 <button class="export-btn" id="arh-avail-refresh" type="button" aria-label="Refresh availability"><span aria-hidden="true">↻</span></button>
               </div>
             </div>
+            <!-- Health breakdown bar -->
+            <div class="arh-health-bar-wrap" id="arh-health-bar-wrap" style="display:none">
+              <div class="arh-health-bar" id="arh-health-bar"></div>
+              <div class="arh-health-legend" id="arh-health-legend"></div>
+            </div>
             <div class="arh-list" id="arh-avail-list">
               <div class="arh-no-sub" id="arh-avail-nosub">Select a subscription above to view resource availability.</div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Sidebar: Service Events + Emerging Issues -->
+        <div class="sh-dashboard-sidebar">
+          <section class="sh-panel arh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span class="sh-panel-title-icon" aria-hidden="true">⚡</span>
+                <span>Service Health Events</span>
+                <span class="sh-panel-title-count" id="arh-events-count" style="display:none">0</span>
+              </div>
+              <button class="export-btn" id="arh-events-refresh" type="button" aria-label="Refresh events"><span aria-hidden="true">↻</span></button>
+            </div>
+            <div class="arh-list" id="arh-events-list">
+              <div class="arh-no-sub" id="arh-events-nosub">Select a subscription above to view events.</div>
+            </div>
+          </section>
+
+          <section class="sh-panel arh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span class="sh-panel-title-icon" aria-hidden="true">🔥</span>
+                <span>Emerging Issues</span>
+                <span class="sh-panel-title-count" id="arh-emerging-count" style="display:none">0</span>
+              </div>
+              <button class="export-btn" id="arh-emerging-refresh" type="button" aria-label="Refresh emerging issues"><span aria-hidden="true">↻</span></button>
+            </div>
+            <div class="arh-list" id="arh-emerging-list">
+              <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
             </div>
           </section>
         </div>
@@ -797,6 +212,25 @@
       if (!SECTION) return;
 
       // ── Helpers ──────────────────────────────────────
+      // Relative time: "3d ago", "2h ago", "5m ago"; if future=true: "in 2h"
+      function relativeTime(isoStr, future) {
+        var d = new Date(isoStr);
+        if (isNaN(d.getTime())) return '';
+        var now = new Date();
+        var diffMs = future ? (d - now) : (now - d);
+        if (diffMs < 0) diffMs = -diffMs;
+        var sec = Math.floor(diffMs / 1000);
+        if (sec < 60) return future ? 'in <1m' : '<1m ago';
+        var min = Math.floor(sec / 60);
+        if (min < 60) return future ? ('in ' + min + 'm') : (min + 'm ago');
+        var hr = Math.floor(min / 60);
+        if (hr < 24) return future ? ('in ' + hr + 'h') : (hr + 'h ago');
+        var day = Math.floor(hr / 24);
+        if (day < 30) return future ? ('in ' + day + 'd') : (day + 'd ago');
+        var mo = Math.floor(day / 30);
+        return future ? ('in ' + mo + 'mo') : (mo + 'mo ago');
+      }
+
       function getSubId() {
         if (window.SubscriptionPicker) {
           const ids = SubscriptionPicker.getSelectedIds();
@@ -1090,19 +524,84 @@
           var it = show[i];
           var p = it.properties || {};
           var state = p.availabilityState || 'Unknown';
+          var isNonAvail = state !== 'Available';
           // Extract resource name from ARM id
           var resourceName = (it.id || '').split('/providers/Microsoft.ResourceHealth/')[0];
           var parts = resourceName.split('/');
           var shortName = parts[parts.length - 1] || resourceName;
           var resourceType = '';
           if (parts.length >= 2) resourceType = parts[parts.length - 2];
-          html += '<div class="arh-avail-card">';
+          // Extract resource group from ARM path
+          var rgMatch = resourceName.match(/\/resourceGroups\/([^\/]+)/i);
+          var rgName = rgMatch ? rgMatch[1] : '';
+          // Location
+          var location = it.location || '';
+          // Time since last state change
+          var agoText = '';
+          if (p.occuredTime) {
+            agoText = relativeTime(p.occuredTime);
+          }
+          // Detailed status (prefer over summary — more specific)
+          var detail = p.detailedStatus || p.summary || '';
+          // Reason info for non-available
+          var reasonLabel = '';
+          if (isNonAvail && p.reasonType) {
+            reasonLabel = p.reasonType;
+          } else if (isNonAvail && p.context) {
+            reasonLabel = p.context;
+          }
+          // Resolution ETA
+          var etaText = '';
+          if (p.resolutionETA) {
+            var etaDate = new Date(p.resolutionETA);
+            if (!isNaN(etaDate.getTime())) {
+              var now = new Date();
+              if (etaDate > now) {
+                etaText = 'ETA: ' + relativeTime(p.resolutionETA, true);
+              } else {
+                etaText = 'ETA passed: ' + etaDate.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+              }
+            }
+          }
+          // Recommended actions
+          var actions = p.recommendedActions || [];
+
+          html += '<div class="arh-avail-card' + (isNonAvail ? ' arh-non-available ' + escapeHtml(state) : '') + '">';
           html += '<div class="arh-avail-status ' + escapeHtml(state) + '" title="' + escapeHtml(state) + '"></div>';
           html += '<div class="arh-avail-info">';
           html += '<div class="arh-avail-name" title="' + escapeHtml(it.id || '') + '">' + escapeHtml(shortName) + '</div>';
-          html += '<div class="arh-avail-detail">' + escapeHtml(resourceType) + (p.summary ? ' — ' + escapeHtml(p.summary) : '') + '</div>';
+          // Meta badges row: resource type, location, resource group, reason, ETA
+          html += '<div class="arh-avail-meta">';
+          if (resourceType) html += '<span class="arh-avail-badge">' + escapeHtml(resourceType) + '</span>';
+          if (location) html += '<span class="arh-avail-badge" title="Region">📍 ' + escapeHtml(location) + '</span>';
+          if (rgName) html += '<span class="arh-avail-badge" title="Resource Group">📦 ' + escapeHtml(rgName) + '</span>';
+          if (reasonLabel) html += '<span class="arh-avail-badge arh-badge-reason">' + escapeHtml(reasonLabel) + '</span>';
+          if (etaText) html += '<span class="arh-avail-badge arh-badge-eta">⏱ ' + escapeHtml(etaText) + '</span>';
           html += '</div>';
+          // Detailed status
+          if (detail) {
+            html += '<div class="arh-avail-detail">' + escapeHtml(detail) + '</div>';
+          }
+          // Recommended actions (show up to 2 for non-available resources)
+          if (isNonAvail && actions.length > 0) {
+            html += '<div class="arh-avail-actions">';
+            var maxActions = Math.min(actions.length, 2);
+            for (var a = 0; a < maxActions; a++) {
+              var act = actions[a];
+              if (act.actionUrl) {
+                html += '<a class="arh-avail-action-link" href="' + escapeHtml(act.actionUrl) + '" target="_blank" rel="noopener noreferrer">→ ' + escapeHtml(act.actionUrlText || act.action || 'View recommendation') + '</a>';
+              } else if (act.action) {
+                html += '<span class="arh-avail-action-link" style="color:var(--cp-text-muted);cursor:default">→ ' + escapeHtml(act.action) + '</span>';
+              }
+            }
+            html += '</div>';
+          }
+          html += '</div>';
+          // Right column: state label + time ago
+          html += '<div class="arh-avail-right">';
           html += '<span class="arh-avail-state-label ' + escapeHtml(state) + '">' + escapeHtml(state) + '</span>';
+          if (agoText) html += '<span class="arh-avail-ago" title="Since ' + escapeHtml(p.occuredTime || '') + '">' + escapeHtml(agoText) + '</span>';
+          html += '</div>';
           html += '</div>';
         }
         if (capped) {
@@ -1124,6 +623,7 @@
 
       // ── Load all + react to subscription changes ─────
       function loadAll() {
+        window._arhLastRefresh = new Date();
         updateSubBadge();
         loadEmergingIssues();
         loadEvents();
@@ -1189,11 +689,23 @@
         // Resource availability (healthy / total from cached data)
         var avStat = document.getElementById('sh-stat-avail-val');
         var avCard = document.getElementById('sh-stat-avail-card');
+        var pctStat = document.getElementById('sh-stat-pct-val');
+        var pctCard = document.getElementById('sh-stat-pct-card');
+        var tsStat = document.getElementById('sh-stat-ts-val');
+        // Last Updated timestamp
+        if (tsStat && window._arhLastRefresh) {
+          var d = window._arhLastRefresh;
+          var hh = String(d.getHours()).padStart(2,'0');
+          var mm = String(d.getMinutes()).padStart(2,'0');
+          tsStat.textContent = hh + ':' + mm;
+        }
         if (avStat && avCard) {
           var data = window._arhAvailData || [];
           if (data.length === 0) {
             avStat.textContent = '\u2014';
             avCard.className = 'sh-stat-card';
+            if (pctStat) pctStat.textContent = '\u2014';
+            if (pctCard) pctCard.className = 'sh-stat-card sh-stat-pct';
           } else {
             var healthy = 0;
             for (var i = 0; i < data.length; i++) {
@@ -1203,8 +715,51 @@
             var allOk = healthy === data.length;
             avCard.classList.toggle('sh-stat-ok', allOk);
             avCard.classList.toggle('sh-stat-warn', !allOk);
+            // Availability %
+            if (pctStat && pctCard) {
+              var pct = Math.round((healthy / data.length) * 100);
+              pctStat.textContent = pct + '%';
+              pctCard.classList.toggle('sh-stat-warn', pct < 100);
+            }
+            // Health breakdown bar
+            updateHealthBar(data);
           }
         }
+      }
+      function updateHealthBar(data) {
+        var wrap = document.getElementById('arh-health-bar-wrap');
+        var bar = document.getElementById('arh-health-bar');
+        var legend = document.getElementById('arh-health-legend');
+        if (!wrap || !bar || !legend || !data || data.length === 0) {
+          if (wrap) wrap.style.display = 'none';
+          return;
+        }
+        var counts = { Available: 0, Degraded: 0, Unavailable: 0, Unknown: 0 };
+        for (var i = 0; i < data.length; i++) {
+          var st = (data[i].properties || {}).availabilityState || 'Unknown';
+          if (counts[st] != null) counts[st]++; else counts.Unknown++;
+        }
+        var total = data.length;
+        var barHtml = '';
+        var legendHtml = '';
+        var segments = [
+          { key: 'Available', cls: 'seg-available' },
+          { key: 'Degraded', cls: 'seg-degraded' },
+          { key: 'Unavailable', cls: 'seg-unavailable' },
+          { key: 'Unknown', cls: 'seg-unknown' }
+        ];
+        for (var s = 0; s < segments.length; s++) {
+          var seg = segments[s];
+          var ct = counts[seg.key];
+          if (ct > 0) {
+            var pct = (ct / total * 100).toFixed(1);
+            barHtml += '<div class="arh-health-bar-seg ' + seg.cls + '" style="width:' + pct + '%" title="' + seg.key + ': ' + ct + '"></div>';
+          }
+          legendHtml += '<span class="arh-health-legend-item"><span class="arh-health-legend-dot ' + seg.key + '"></span>' + seg.key + ' <span class="arh-health-legend-ct">' + ct + '</span></span>';
+        }
+        bar.innerHTML = barHtml;
+        legend.innerHTML = legendHtml;
+        wrap.style.display = '';
       }
       // Observe count elements for changes
       ['arh-emerging-count', 'arh-events-count', 'arh-avail-count'].forEach(function(id) {

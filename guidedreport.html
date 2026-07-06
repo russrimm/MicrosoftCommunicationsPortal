@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guided Report – Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <script src="/static/util.js"></script>
+  <link rel="stylesheet" href="/static/common.css">
+  <link rel="stylesheet" href="/static/guidedreport.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
+    <div>
+      <div class="header-title">Microsoft Communications Portal</div>
+      <div class="header-subtitle">Created by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
+    </div>
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" data-act="toggleTheme">🌙 Dark</button>
+  </header>
+
+  <nav class="page-tabs" aria-label="Primary">
+    <a class="nav-tab" href="/home">Home</a>
+    <div class="nav-dropdown">
+      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Roadmaps <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
+      <div class="nav-dropdown-menu">
+        <a class="nav-dropdown-item" href="/powerplatform">Power Platform</a>
+        <a class="nav-dropdown-item" href="/fabricroadmap">Fabric</a>
+        <a class="nav-dropdown-item" href="/azureupdates">Azure</a>
+      </div>
+    </div>
+    <div class="nav-dropdown">
+      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
+      <div class="nav-dropdown-menu">
+        <a class="nav-dropdown-item" href="/messagecenter">Message Center</a>
+        <a class="nav-dropdown-item" href="/m365updates">Roadmap</a>
+      </div>
+    </div>
+    <div class="nav-dropdown">
+      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Service Health <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
+      <div class="nav-dropdown-menu">
+        <a class="nav-dropdown-item" href="/servicehealth">Microsoft 365</a>
+        <a class="nav-dropdown-item" href="/azureservicehealth">Azure</a>
+      </div>
+    </div>
+    <a class="nav-tab active" href="/guidedreport" aria-current="page">Guided Report</a>
+  </nav>
+  <script>
+    (() => {
+      document.querySelectorAll('.nav-dropdown-toggle').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const dd = btn.closest('.nav-dropdown');
+          document.querySelectorAll('.nav-dropdown.open').forEach(d => {
+            if (d !== dd) { d.classList.remove('open'); d.querySelector('.nav-dropdown-toggle').setAttribute('aria-expanded', 'false'); }
+          });
+          const open = dd.classList.toggle('open');
+          btn.setAttribute('aria-expanded', open);
+        });
+      });
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.nav-dropdown.open').forEach(d => {
+          d.classList.remove('open');
+          d.querySelector('.nav-dropdown-toggle').setAttribute('aria-expanded', 'false');
+        });
+      });
+    })();
+  </script>
+
+  <!-- Live region for screen reader announcements -->
+  <div id="wizard-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <main class="wizard-container">
+    <!-- Step indicator -->
+    <div class="step-indicator" role="navigation" aria-label="Wizard progress">
+      <div class="step-item active" data-step="1">
+        <span class="step-num">1</span>
+        <span class="step-label">Select Sources</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step-item" data-step="2">
+        <span class="step-num">2</span>
+        <span class="step-label">Choose Products</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step-item" data-step="3">
+        <span class="step-num">3</span>
+        <span class="step-label">Review &amp; Generate</span>
+      </div>
+    </div>
+
+    <!-- Step 1: Select Sources -->
+    <section class="step-panel active" id="step1" role="region" aria-label="Step 1: Select Sources">
+      <h2 class="step-title">Select Sources</h2>
+      <p class="step-desc">Choose which Microsoft communication streams to include in your report.</p>
+      <div class="bulk-actions">
+        <button class="bulk-btn" id="selectAllSources" type="button">Select All</button>
+        <button class="bulk-btn" id="clearAllSources" type="button">Clear All</button>
+      </div>
+      <div class="source-grid" id="sourceGrid"></div>
+      <div class="wizard-footer">
+        <div></div>
+        <button class="btn btn-primary" id="step1Next" type="button" disabled>Next →</button>
+      </div>
+    </section>
+
+    <!-- Step 2: Choose Products & Topics -->
+    <section class="step-panel" id="step2" role="region" aria-label="Step 2: Choose Products & Topics">
+      <h2 class="step-title">Choose Products &amp; Topics</h2>
+      <p class="step-desc">Select specific products or topics from each source to include.</p>
+      <div class="product-sections" id="productSections"></div>
+      <div class="wizard-footer">
+        <button class="btn btn-secondary" id="step2Back" type="button">← Back</button>
+        <button class="btn btn-primary" id="step2Next" type="button" disabled>Next →</button>
+      </div>
+    </section>
+
+    <!-- Step 3: Review & Generate -->
+    <section class="step-panel" id="step3" role="region" aria-label="Step 3: Review & Generate">
+      <h2 class="step-title">Review &amp; Generate</h2>
+      <p class="step-desc">Confirm your selections and generate the PPTX report.</p>
+      <div class="review-summary" id="reviewSummary"></div>
+      <div class="pptx-options">
+        <h3>Report Options</h3>
+        <div class="option-row">
+          <div class="option-label">Report Title</div>
+          <input type="text" class="option-input" id="reportTitle" value="Microsoft Communications Report">
+        </div>
+        <div class="option-row">
+          <div class="option-label">Layout</div>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="layout" value="compact"> Compact (more items per slide)</label>
+            <label class="radio-option"><input type="radio" name="layout" value="detailed" checked> Detailed (fewer items, more detail)</label>
+            <label class="radio-option"><input type="radio" name="layout" value="summary"> Summary (bullet points only)</label>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;">
+        <button class="btn btn-generate" id="generateBtn" type="button">📊 Generate PPTX</button>
+      </div>
+      <div class="progress-bar-container" id="progressContainer">
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+        <div class="progress-bar-text" id="progressText">Preparing…</div>
+      </div>
+      <div class="wizard-footer">
+        <button class="btn btn-secondary" id="step3Back" type="button">← Back</button>
+        <div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <a href="https://github.com/russrimm/MicrosoftCommunicationsPortal" target="_blank" rel="noopener noreferrer">GitHub</a>
+    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; Not an official Microsoft product
+  </footer>
+
+  <script src="/static/pptxgen.bundle.js"></script>
+  <script>
+  (() => {
+    /* ── Data ── */
+    const SOURCES = [
+      { key: 'powerplatform', name: 'Power Platform Release Plans', icon: '/public/PowerPlatform_scalable.svg', desc: 'Browse planned features for Power Apps, Power Automate, and more.', auth: false },
+      { key: 'm365', name: 'Microsoft 365 Roadmap', icon: '/public/m365.svg', desc: 'M365 feature announcements and timelines.', auth: false },
+      { key: 'azure', name: 'Azure Updates', icon: '/public/Azure.svg', desc: 'Azure service updates and new features.', auth: false },
+      { key: 'fabric', name: 'Microsoft Fabric', icon: '/public/fabric_48_color.svg', desc: 'Fabric data platform roadmap items.', auth: false },
+      { key: 'messagecenter', name: 'Microsoft 365 Message Center', icon: '/public/m365.svg', desc: 'Tenant-specific advisories (requires Graph auth).', auth: true },
+      { key: 'servicehealth', name: 'Service Health', icon: '/public/m365.svg', desc: 'Service incidents and advisories (requires Graph auth).', auth: true },
+    ];
+
+    const PP_PRODUCTS = [
+      { id: 'e72f17ac-715d-e911-a968-000d3a4e32b5', name: 'Power Apps', category: 'Power Platform' },
+      { id: 'e92f17ac-715d-e911-a968-000d3a4e32b5', name: 'Power Automate', category: 'Power Platform' },
+      { id: '1019ec3d-1dc5-e911-a969-000d3a4f36ce', name: 'Microsoft Copilot Studio', category: 'Power Platform' },
+      { id: 'a0e02858-50a4-ea11-a812-000d3a8faea9', name: 'Microsoft Dataverse', category: 'Power Platform' },
+      { id: 'dbedfa94-1517-ea11-a811-000d3a8f010c', name: 'Power Platform governance and administration', category: 'Power Platform' },
+      { id: 'f3f92645-5223-ea11-a810-000d3a8f0f1e', name: 'Power Platform pro development', category: 'Power Platform' },
+      { id: '1197f7de-0a44-ec11-8c62-00224829b77f', name: 'Power Pages', category: 'Power Platform' },
+      { id: 'bb2f17ac-715d-e911-a968-000d3a4e32b5', name: 'Dynamics 365 Sales', category: 'Dynamics 365' },
+      { id: 'bf2f17ac-715d-e911-a968-000d3a4e32b5', name: 'Dynamics 365 Customer Service', category: 'Dynamics 365' },
+      { id: '656ef9c3-c601-ef11-a1fd-6045bdfe3ffa', name: 'Dynamics 365 Contact Center', category: 'Dynamics 365' },
+      { id: 'c12f17ac-715d-e911-a968-000d3a4e32b5', name: 'Dynamics 365 Field Service', category: 'Dynamics 365' },
+      { id: '50a470c0-d3b7-e911-a992-000d3a4f3343', name: 'Dynamics 365 Finance', category: 'Dynamics 365' },
+      { id: 'e1a941d5-d3b7-e911-a992-000d3a4f3343', name: 'Dynamics 365 Supply Chain Management', category: 'Dynamics 365' },
+      { id: '1304b79a-d3b7-e911-a992-000d3a4f3343', name: 'Dynamics 365 Project Operations', category: 'Dynamics 365' },
+      { id: '92fdd980-d3b7-e911-a992-000d3a4f3343', name: 'Dynamics 365 Human Resources', category: 'Dynamics 365' },
+      { id: '03283a34-cab7-e911-a963-000d3a4f3883', name: 'Dynamics 365 Commerce', category: 'Dynamics 365' },
+      { id: 'c92f17ac-715d-e911-a968-000d3a4e32b5', name: 'Dynamics 365 Business Central', category: 'Dynamics 365' },
+      { id: '1480bbd4-7256-ee11-be6f-000d3a574715', name: 'Dynamics 365 Customer Insights - Data', category: 'Dynamics 365' },
+      { id: '940fa520-7756-ee11-be6f-000d3a574715', name: 'Dynamics 365 Customer Insights - Journeys', category: 'Dynamics 365' },
+      { id: 'e30c6971-52c8-e911-a968-000d3a4f3883', name: 'Finance and Operations cross-app capabilities', category: 'Dynamics 365' },
+    ];
+
+    const FABRIC_PRODUCTS = [
+      { id: '796a0af7-2dc7-ee11-9079-000d3a3419a8', name: 'Administration, Governance and Security', queryString: 'administration,governanceandsecurity' },
+      { id: '951b64e0-a663-f111-a826-6045bd00f798', name: 'Conversational Analytics', queryString: 'conversationalanalytics' },
+      { id: '0e17459c-141b-f011-998a-00224804b6c3', name: 'Cosmos DB', queryString: 'cosmosdb' },
+      { id: 'a731518f-36ca-ee11-9079-000d3a341a60', name: 'Data Engineering', queryString: 'dataengineering' },
+      { id: 'a821f83f-dbd6-ee11-9079-000d3a310f67', name: 'Data Factory', queryString: 'datafactory' },
+      { id: '0522b590-dcd6-ee11-9079-000d3a310f67', name: 'Data Science', queryString: 'datascience' },
+      { id: 'fa3a73cd-dcd6-ee11-9079-000d3a310f67', name: 'Data Warehouse', queryString: 'datawarehouse' },
+      { id: '00a77bd4-ded6-ee11-9079-000d3a310f67', name: 'Fabric Developer Experiences', queryString: 'fabricdeveloperexperiences' },
+      { id: '26eee7fa-e0d6-ee11-9079-000d3a310f67', name: 'Fabric Ecosystem', queryString: 'fabricecosystem' },
+      { id: 'fc2b2511-e1d6-ee11-9079-000d3a310f67', name: 'IQ', queryString: 'iq' },
+      { id: '45b5b720-e3d6-ee11-9079-000d3a310f67', name: 'OneLake', queryString: 'onelake' },
+      { id: '5af1f135-e4d6-ee11-9079-000d3a310f67', name: 'Power BI', queryString: 'powerbi' },
+      { id: '64ca6c52-f2d6-ee11-9079-000d3a310f67', name: 'Real-Time Intelligence', queryString: 'real-timeintelligence' },
+    ];
+
+    /* ── State ── */
+    const state = {
+      currentStep: 1,
+      selectedSources: new Set(),
+      products: {},       // key -> [{id, name, ...}]
+      selectedProducts: {},// key -> Set of ids
+      fetchedData: {},     // key -> raw items (cached for step 2)
+    };
+
+    const $ = s => document.querySelector(s);
+    const $$ = s => document.querySelectorAll(s);
+    const announce = msg => { const el = $('#wizard-live'); el.textContent = ''; requestAnimationFrame(() => { el.textContent = msg; }); };
+
+    /* ── Step navigation ── */
+    function goToStep(n) {
+      state.currentStep = n;
+      $$('.step-panel').forEach(p => p.classList.remove('active'));
+      $(`#step${n}`).classList.add('active');
+
+      $$('.step-item').forEach(si => {
+        const s = +si.dataset.step;
+        si.classList.toggle('active', s === n);
+        si.classList.toggle('completed', s < n);
+        const num = si.querySelector('.step-num');
+        num.textContent = s < n ? '✓' : s;
+      });
+      $$('.step-connector').forEach((c, i) => {
+        c.classList.toggle('done', i + 1 < n);
+      });
+
+      if (n === 2) buildStep2();
+      if (n === 3) buildStep3();
+
+      const labels = ['Select Sources', 'Choose Products & Topics', 'Review & Generate'];
+      announce(`Step ${n} of 3: ${labels[n-1]}`);
+    }
+
+    /* ═══════════════════════════════════════════
+       STEP 1 — Source selection
+    ═══════════════════════════════════════════ */
+    function buildStep1() {
+      const grid = $('#sourceGrid');
+      grid.innerHTML = SOURCES.map(s => `
+        <div class="source-card" data-key="${s.key}" role="checkbox" aria-checked="false" tabindex="0"
+             aria-label="${s.name}${s.auth ? ' (requires auth)' : ''}">
+          <div class="source-card-icon"><img src="${s.icon}" alt="" aria-hidden="true"></div>
+          <div class="source-card-body">
+            <div class="source-card-name">${s.name}</div>
+            <div class="source-card-desc">${s.desc}</div>
+            ${s.auth ? '<span class="source-card-auth">Requires auth</span>' : ''}
+          </div>
+          <span class="source-card-check" aria-hidden="true">
+            <svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+      `).join('');
+
+      grid.querySelectorAll('.source-card').forEach(card => {
+        function toggle() {
+          const key = card.dataset.key;
+          if (state.selectedSources.has(key)) {
+            state.selectedSources.delete(key);
+            card.classList.remove('selected');
+            card.setAttribute('aria-checked', 'false');
+          } else {
+            state.selectedSources.add(key);
+            card.classList.add('selected');
+            card.setAttribute('aria-checked', 'true');
+          }
+          updateStep1Next();
+        }
+        card.addEventListener('click', toggle);
+        card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+      });
+
+      $('#selectAllSources').addEventListener('click', () => {
+        SOURCES.forEach(s => state.selectedSources.add(s.key));
+        grid.querySelectorAll('.source-card').forEach(c => { c.classList.add('selected'); c.setAttribute('aria-checked', 'true'); });
+        updateStep1Next();
+      });
+      $('#clearAllSources').addEventListener('click', () => {
+        state.selectedSources.clear();
+        grid.querySelectorAll('.source-card').forEach(c => { c.classList.remove('selected'); c.setAttribute('aria-checked', 'false'); });
+        updateStep1Next();
+      });
+    }
+
+    function updateStep1Next() {
+      $('#step1Next').disabled = state.selectedSources.size === 0;
+    }
+
+    /* ═══════════════════════════════════════════
+       STEP 2 — Product/topic selection
+    ═══════════════════════════════════════════ */
+    async function buildStep2() {
+      const container = $('#productSections');
+      container.innerHTML = '';
+
+      for (const key of state.selectedSources) {
+        const src = SOURCES.find(s => s.key === key);
+        if (!state.selectedProducts[key]) state.selectedProducts[key] = new Set();
+
+        const section = document.createElement('div');
+        section.className = 'product-section';
+        section.dataset.key = key;
+        section.innerHTML = `
+          <div class="product-section-header" role="button" tabindex="0" aria-expanded="true">
+            <img src="${src.icon}" alt="" aria-hidden="true">
+            <span class="product-section-title">${src.name}</span>
+            <span class="product-section-badge" data-badge="${key}">0</span>
+            <span class="product-section-chevron" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+          <div class="product-section-body">
+            <div class="product-loading"><div class="spinner"></div> Loading…</div>
+          </div>
+        `;
+        container.appendChild(section);
+
+        // Toggle collapse
+        const header = section.querySelector('.product-section-header');
+        header.addEventListener('click', () => {
+          section.classList.toggle('collapsed');
+          header.setAttribute('aria-expanded', !section.classList.contains('collapsed'));
+        });
+        header.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
+        });
+
+        // Load products
+        loadProducts(key, section);
+      }
+    }
+
+    async function loadProducts(key, section) {
+      const body = section.querySelector('.product-section-body');
+      let items = [];
+
+      try {
+        switch (key) {
+          case 'powerplatform':
+            items = PP_PRODUCTS.map(p => ({ id: p.id, name: p.name, category: p.category }));
+            break;
+          case 'fabric':
+            items = FABRIC_PRODUCTS.map(p => ({ id: p.id, name: p.name, queryString: p.queryString }));
+            break;
+          case 'm365': {
+            const res = await fetch('/api/m365updates');
+            const data = await res.json();
+            const cats = new Set();
+            (data.items || data || []).forEach(item => {
+              (item.categories || []).forEach(c => cats.add(c));
+            });
+            items = [...cats].sort().map(c => ({ id: c, name: c }));
+            state.fetchedData[key] = data.items || data || [];
+            break;
+          }
+          case 'azure': {
+            const res = await fetch('/api/azureupdates');
+            const data = await res.json();
+            const cats = new Set();
+            (data.items || data || []).forEach(item => {
+              (item.categories || []).forEach(c => cats.add(c));
+            });
+            items = [...cats].sort().map(c => ({ id: c, name: c }));
+            state.fetchedData[key] = data.items || data || [];
+            break;
+          }
+          case 'messagecenter': {
+            const res = await fetch('/api/messagecenter');
+            const data = await res.json();
+            const svcs = new Set();
+            (data.value || data || []).forEach(msg => {
+              (msg.services || []).forEach(s => svcs.add(s));
+            });
+            items = [...svcs].sort().map(s => ({ id: s, name: s }));
+            state.fetchedData[key] = data.value || data || [];
+            break;
+          }
+          case 'servicehealth': {
+            const res = await fetch('/api/servicehealth');
+            const data = await res.json();
+            const svcs = new Set();
+            (data.value || data || []).forEach(issue => {
+              if (issue.service) svcs.add(issue.service);
+            });
+            items = [...svcs].sort().map(s => ({ id: s, name: s }));
+            state.fetchedData[key] = data.value || data || [];
+            break;
+          }
+        }
+      } catch {
+        body.innerHTML = '<div class="product-loading" style="color:var(--cp-danger)">Failed to load. The source may require authentication.</div>';
+        return;
+      }
+
+      state.products[key] = items;
+      if (items.length === 0) {
+        body.innerHTML = '<div class="product-loading">No items found for this source.</div>';
+        return;
+      }
+
+      renderProductList(key, items, body, section);
+    }
+
+    function renderProductList(key, items, body, section) {
+      const selectedSet = state.selectedProducts[key];
+
+      // Group items by category if available
+      const groups = {};
+      items.forEach(it => {
+        const g = it.category || 'Items';
+        if (!groups[g]) groups[g] = [];
+        groups[g].push(it);
+      });
+      const groupKeys = Object.keys(groups);
+
+      let html = `
+        <div class="bulk-actions">
+          <button class="bulk-btn" data-act="selectAll" type="button">Select All</button>
+          <button class="bulk-btn" data-act="clear" type="button">Clear</button>
+        </div>
+        <input type="text" class="product-filter" placeholder="Filter ${items.length} items…" data-filter="${key}">
+      `;
+
+      groupKeys.forEach(g => {
+        if (groupKeys.length > 1 || g !== 'Items') {
+          html += `<div class="product-group-label" data-group="${g}">${g}</div>`;
+        }
+        html += `<div class="product-list" data-group-list="${g}">`;
+        groups[g].forEach(it => {
+          html += `
+            <label class="product-option" data-name="${it.name.toLowerCase()}" data-group="${g}">
+              <input type="checkbox" value="${it.id}" data-src="${key}" ${selectedSet.has(it.id) ? 'checked' : ''}>
+              ${it.name}
+            </label>
+          `;
+        });
+        html += '</div>';
+      });
+
+      body.innerHTML = html;
+
+      // Select All / Clear
+      body.querySelector('[data-act="selectAll"]').addEventListener('click', () => {
+        body.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = true; selectedSet.add(cb.value); });
+        updateBadge(key, section);
+        updateStep2Next();
+      });
+      body.querySelector('[data-act="clear"]').addEventListener('click', () => {
+        body.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; selectedSet.delete(cb.value); });
+        updateBadge(key, section);
+        updateStep2Next();
+      });
+
+      // Checkbox change
+      body.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          if (cb.checked) selectedSet.add(cb.value);
+          else selectedSet.delete(cb.value);
+          updateBadge(key, section);
+          updateStep2Next();
+        });
+      });
+
+      // Filter
+      body.querySelector('.product-filter').addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        body.querySelectorAll('.product-option').forEach(opt => {
+          opt.style.display = opt.dataset.name.includes(q) ? '' : 'none';
+        });
+        // Hide empty group labels
+        body.querySelectorAll('.product-group-label').forEach(lbl => {
+          const g = lbl.dataset.group;
+          const list = body.querySelector(`[data-group-list="${g}"]`);
+          const visible = list ? list.querySelectorAll('.product-option:not([style*="display: none"])').length : 0;
+          lbl.style.display = visible > 0 ? '' : 'none';
+        });
+      });
+
+      updateBadge(key, section);
+    }
+
+    function updateBadge(key, section) {
+      const badge = section.querySelector(`[data-badge="${key}"]`);
+      if (badge) badge.textContent = state.selectedProducts[key]?.size || 0;
+    }
+
+    function updateStep2Next() {
+      const anySelected = [...state.selectedSources].some(k => (state.selectedProducts[k]?.size || 0) > 0);
+      $('#step2Next').disabled = !anySelected;
+    }
+
+    /* ═══════════════════════════════════════════
+       STEP 3 — Review & Generate
+    ═══════════════════════════════════════════ */
+    function buildStep3() {
+      const summary = $('#reviewSummary');
+      let html = '';
+      let totalCount = 0;
+
+      for (const key of state.selectedSources) {
+        const selected = state.selectedProducts[key];
+        if (!selected || selected.size === 0) continue;
+
+        const src = SOURCES.find(s => s.key === key);
+        const items = state.products[key] || [];
+        const selectedItems = items.filter(it => selected.has(it.id));
+        totalCount += selectedItems.length;
+
+        html += `<div class="review-source-group" data-key="${key}">
+          <div class="review-source-name"><img src="${src.icon}" alt="">${src.name} <span style="font-weight:400;color:var(--cp-text-muted)">(${selectedItems.length})</span></div>
+          <div class="review-chips">`;
+
+        selectedItems.forEach(it => {
+          html += `<span class="review-chip" data-src="${key}" data-id="${it.id}">
+            ${it.name}
+            <button class="review-chip-x" type="button" aria-label="Remove ${it.name}" data-src="${key}" data-id="${it.id}">✕</button>
+          </span>`;
+        });
+
+        html += '</div></div>';
+      }
+
+      if (totalCount === 0) {
+        html = '<div style="color:var(--cp-text-muted);text-align:center;padding:1rem;">No products selected. Go back to Step 2 to make selections.</div>';
+      } else {
+        html += `<div style="margin-top:0.75rem;font-size:12px;color:var(--cp-text-muted);text-align:right;">Total selections: <strong>${totalCount}</strong></div>`;
+      }
+
+      summary.innerHTML = html;
+
+      // Chip removal
+      summary.querySelectorAll('.review-chip-x').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const src = btn.dataset.src;
+          const id = btn.dataset.id;
+          state.selectedProducts[src]?.delete(id);
+          buildStep3();
+        });
+      });
+    }
+
+    /* ═══════════════════════════════════════════
+       PPTX Generation
+    ═══════════════════════════════════════════ */
+    async function generatePPTX() {
+      const btn = $('#generateBtn');
+      const prog = $('#progressContainer');
+      const fill = $('#progressFill');
+      const text = $('#progressText');
+
+      btn.disabled = true;
+      prog.classList.add('visible');
+      fill.style.width = '0%';
+      text.textContent = 'Fetching data…';
+
+      const layout = document.querySelector('input[name="layout"]:checked')?.value || 'detailed';
+      const title = $('#reportTitle').value || 'Microsoft Communications Report';
+      const activeSources = [...state.selectedSources].filter(k => (state.selectedProducts[k]?.size || 0) > 0);
+      const totalSteps = activeSources.length + 2; // fetch steps + build + save
+      let completedSteps = 0;
+
+      function progress(msg) {
+        completedSteps++;
+        fill.style.width = Math.min(100, Math.round((completedSteps / totalSteps) * 100)) + '%';
+        text.textContent = msg;
+      }
+
+      // Fetch all data
+      const allData = {};
+      const fetches = activeSources.map(async key => {
+        try {
+          const selected = state.selectedProducts[key];
+          switch (key) {
+            case 'powerplatform': {
+              const results = [];
+              const ids = [...selected];
+              const batchSize = 3;
+              for (let i = 0; i < ids.length; i += batchSize) {
+                const batch = ids.slice(i, i + batchSize);
+                const batchResults = await Promise.all(batch.map(async id => {
+                  try {
+                    const r = await fetch(`/proxy?langCode=en-US&productId=${id}`);
+                    const d = await r.json();
+                    const productName = PP_PRODUCTS.find(p => p.id === id)?.name || 'Unknown';
+                    return (d.results || []).map(f => ({ ...f, productName }));
+                  } catch { return []; }
+                }));
+                results.push(...batchResults.flat());
+              }
+              allData[key] = results;
+              break;
+            }
+            case 'fabric': {
+              const results = [];
+              const prods = FABRIC_PRODUCTS.filter(p => selected.has(p.id));
+              const batchResults = await Promise.all(prods.map(async p => {
+                try {
+                  const r = await fetch(`/api/fabricroadmap?product=${p.queryString}`);
+                  const d = await r.json();
+                  return (d.items || d || []).map(f => ({ ...f, productName: p.name }));
+                } catch { return []; }
+              }));
+              results.push(...batchResults.flat());
+              allData[key] = results;
+              break;
+            }
+            case 'm365': {
+              let items = state.fetchedData[key];
+              if (!items) {
+                const r = await fetch('/api/m365updates');
+                const d = await r.json();
+                items = d.items || d || [];
+              }
+              allData[key] = items.filter(it => (it.categories || []).some(c => selected.has(c)));
+              break;
+            }
+            case 'azure': {
+              let items = state.fetchedData[key];
+              if (!items) {
+                const r = await fetch('/api/azureupdates');
+                const d = await r.json();
+                items = d.items || d || [];
+              }
+              allData[key] = items.filter(it => (it.categories || []).some(c => selected.has(c)));
+              break;
+            }
+            case 'messagecenter': {
+              let items = state.fetchedData[key];
+              if (!items) {
+                const r = await fetch('/api/messagecenter');
+                const d = await r.json();
+                items = d.value || d || [];
+              }
+              allData[key] = items.filter(msg => (msg.services || []).some(s => selected.has(s)));
+              break;
+            }
+            case 'servicehealth': {
+              let items = state.fetchedData[key];
+              if (!items) {
+                const r = await fetch('/api/servicehealth');
+                const d = await r.json();
+                items = d.value || d || [];
+              }
+              allData[key] = items.filter(issue => selected.has(issue.service));
+              break;
+            }
+          }
+        } catch { allData[key] = []; }
+        progress(`Loaded ${SOURCES.find(s => s.key === key)?.name}…`);
+      });
+
+      await Promise.all(fetches);
+      progress('Building slides…');
+
+      // Build PPTX
+      const PptxGen = window.PptxGenJS || window.pptxgen;
+      const pptx = new PptxGen();
+      pptx.layout = 'LAYOUT_WIDE';
+      pptx.author = 'Microsoft Communications Portal';
+
+      const PRIMARY = '0078D4';
+      const ACCENT = 'B11F4B';
+      const HEADER_BG = '0078D4';
+      const HEADER_FG = 'FFFFFF';
+      const ROW_BG = 'F5F5F5';
+      const rowsPerSlide = layout === 'compact' ? 14 : layout === 'summary' ? 18 : 8;
+
+      // Title slide
+      const titleSlide = pptx.addSlide();
+      titleSlide.background = { color: PRIMARY };
+      titleSlide.addText(title, { x: 0.8, y: 1.8, w: 11, h: 1.2, fontSize: 32, bold: true, color: HEADER_FG, fontFace: 'Segoe UI' });
+      titleSlide.addText(`Generated ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} — Microsoft Communications Portal`, {
+        x: 0.8, y: 3.1, w: 11, h: 0.5, fontSize: 14, color: 'B0D4F1', fontFace: 'Segoe UI'
+      });
+      const srcNames = activeSources.map(k => SOURCES.find(s => s.key === k)?.name).join(' · ');
+      titleSlide.addText(`Sources: ${srcNames}`, {
+        x: 0.8, y: 3.8, w: 11, h: 0.5, fontSize: 11, color: '8FBEE8', fontFace: 'Segoe UI'
+      });
+
+      // Per-source slides
+      for (const key of activeSources) {
+        const src = SOURCES.find(s => s.key === key);
+        const items = allData[key] || [];
+
+        // Section divider
+        const divider = pptx.addSlide();
+        divider.background = { color: ACCENT };
+        divider.addText(src.name, { x: 0.8, y: 2.2, w: 11, h: 1, fontSize: 28, bold: true, color: HEADER_FG, fontFace: 'Segoe UI' });
+        divider.addText(`${items.length} item${items.length !== 1 ? 's' : ''}`, {
+          x: 0.8, y: 3.3, w: 11, h: 0.4, fontSize: 14, color: 'F0C0CC', fontFace: 'Segoe UI'
+        });
+
+        if (items.length === 0) continue;
+
+        // Build rows based on source
+        let headers = [];
+        let rows = [];
+
+        switch (key) {
+          case 'powerplatform':
+            headers = ['Product', 'Feature', 'Status', 'GA Date', 'Type'];
+            rows = items.map(f => [
+              f.productName || '',
+              (f.title || f.name || '').substring(0, 60),
+              f.publicPreviewDate ? 'Preview' : (f.gADate ? 'GA' : 'Planned'),
+              f.gADate ? new Date(f.gADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
+              f.cloudInstance || f.featureType || ''
+            ]);
+            break;
+          case 'fabric':
+            headers = ['Product', 'Feature', 'Release Type', 'Status'];
+            rows = items.map(f => [
+              f.productName || '',
+              (f.title || f.name || '').substring(0, 60),
+              f.releaseType || f.type || '',
+              f.status || ''
+            ]);
+            break;
+          case 'm365':
+          case 'azure':
+            headers = ['Title', 'Categories', 'Published'];
+            rows = items.map(it => [
+              (it.title || '').substring(0, 70),
+              (it.categories || []).join(', ').substring(0, 50),
+              it.pubDate ? new Date(it.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (it.publishedDate || '')
+            ]);
+            break;
+          case 'messagecenter':
+            headers = ['Title', 'Services', 'Severity', 'Date'];
+            rows = items.map(msg => [
+              (msg.title || '').substring(0, 60),
+              (msg.services || []).join(', ').substring(0, 40),
+              msg.severity || msg.category || '',
+              msg.lastModifiedDateTime ? new Date(msg.lastModifiedDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+            ]);
+            break;
+          case 'servicehealth':
+            headers = ['Service', 'Title', 'Status', 'Last Updated'];
+            rows = items.map(issue => [
+              issue.service || '',
+              (issue.title || '').substring(0, 60),
+              issue.status || '',
+              issue.lastModifiedDateTime ? new Date(issue.lastModifiedDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+            ]);
+            break;
+        }
+
+        if (layout === 'summary') {
+          // Bullet-point summary slides
+          for (let i = 0; i < rows.length; i += rowsPerSlide) {
+            const chunk = rows.slice(i, i + rowsPerSlide);
+            const slide = pptx.addSlide();
+            slide.addText(`${src.name} (${i + 1}–${Math.min(i + rowsPerSlide, rows.length)} of ${rows.length})`, {
+              x: 0.5, y: 0.3, w: 12, h: 0.5, fontSize: 16, bold: true, color: PRIMARY, fontFace: 'Segoe UI'
+            });
+            const bullets = chunk.map(r => ({ text: r[headers.indexOf('Feature') > -1 ? 1 : 0] || r[0], options: { fontSize: 11, bullet: true, color: '333333' } }));
+            slide.addText(bullets, { x: 0.5, y: 1.0, w: 12, h: 6, fontFace: 'Segoe UI', paraSpaceAfter: 4 });
+          }
+        } else {
+          // Table slides
+          const colW = headers.map(() => (12.2 / headers.length));
+          for (let i = 0; i < rows.length; i += rowsPerSlide) {
+            const chunk = rows.slice(i, i + rowsPerSlide);
+            const slide = pptx.addSlide();
+            slide.addText(`${src.name} (${i + 1}–${Math.min(i + rowsPerSlide, rows.length)} of ${rows.length})`, {
+              x: 0.5, y: 0.3, w: 12, h: 0.5, fontSize: 16, bold: true, color: PRIMARY, fontFace: 'Segoe UI'
+            });
+
+            const tableRows = [
+              headers.map(h => ({ text: h, options: { bold: true, fontSize: 10, color: HEADER_FG, fill: { color: HEADER_BG }, fontFace: 'Segoe UI', align: 'left', valign: 'middle' } })),
+              ...chunk.map((r, ri) => r.map(cell => ({
+                text: cell || '',
+                options: { fontSize: layout === 'compact' ? 9 : 10, color: '333333', fill: { color: ri % 2 === 0 ? 'FFFFFF' : ROW_BG }, fontFace: 'Segoe UI', valign: 'middle' }
+              })))
+            ];
+
+            slide.addTable(tableRows, {
+              x: 0.4, y: 1.0, w: 12.4,
+              colW,
+              border: { type: 'solid', pt: 0.5, color: 'CCCCCC' },
+              rowH: layout === 'compact' ? 0.35 : 0.45,
+              autoPage: false
+            });
+          }
+        }
+      }
+
+      // Summary slide
+      const summarySlide = pptx.addSlide();
+      summarySlide.background = { color: PRIMARY };
+      summarySlide.addText('Report Summary', { x: 0.8, y: 0.8, w: 11, h: 0.8, fontSize: 28, bold: true, color: HEADER_FG, fontFace: 'Segoe UI' });
+      const summaryLines = activeSources.map(k => {
+        const name = SOURCES.find(s => s.key === k)?.name || k;
+        const count = (allData[k] || []).length;
+        return { text: `${name}: ${count} item${count !== 1 ? 's' : ''}`, options: { fontSize: 16, color: 'B0D4F1', bullet: true, fontFace: 'Segoe UI' } };
+      });
+      const totalItems = activeSources.reduce((sum, k) => sum + (allData[k] || []).length, 0);
+      summaryLines.push({ text: `\nTotal: ${totalItems} items`, options: { fontSize: 18, color: HEADER_FG, bold: true, fontFace: 'Segoe UI' } });
+      summarySlide.addText(summaryLines, { x: 0.8, y: 2.0, w: 11, h: 4, paraSpaceAfter: 8 });
+
+      progress('Saving file…');
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      await pptx.writeFile({ fileName: `Communications-Report-${dateStr}.pptx` });
+
+      fill.style.width = '100%';
+      text.textContent = 'Done! Your report has been downloaded.';
+      btn.disabled = false;
+      announce('Report generated and downloaded successfully.');
+    }
+
+    /* ── Event wiring ── */
+    $('#step1Next').addEventListener('click', () => goToStep(2));
+    $('#step2Back').addEventListener('click', () => goToStep(1));
+    $('#step2Next').addEventListener('click', () => goToStep(3));
+    $('#step3Back').addEventListener('click', () => goToStep(2));
+    $('#generateBtn').addEventListener('click', generatePPTX);
+
+    /* ── Init ── */
+    buildStep1();
+  })();
+  </script>
+
+  <!-- Theme toggle -->
+  <script>
+    (() => {
+      const btn = document.getElementById('theme-btn');
+      function applyTheme(t) {
+        document.documentElement.setAttribute('data-theme', t);
+        btn.textContent = t === 'dark' ? '☀️ Light' : '🌙 Dark';
+      }
+      applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
+      btn.addEventListener('click', () => {
+        const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+      });
+    })();
+  </script>
+</body>
+</html>

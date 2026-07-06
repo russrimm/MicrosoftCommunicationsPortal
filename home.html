@@ -11,371 +11,8 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <style>
-    :root {
-      color-scheme: light;
-      --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff;
-      --cp-surface-soft: #f5f5f5; --cp-border: #dedede; --cp-border-strong: #919191;
-      --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
-      --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
-      --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
-      --cp-warning: #f59e0b; --cp-link: #0078d4;
-      --cp-highlight: rgba(177,31,75,0.12);
-    }
-    html[data-theme="dark"] {
-      color-scheme: dark;
-      --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929;
-      --cp-surface-soft: #2e2e2e; --cp-border: #474747; --cp-border-strong: #5f5f5f;
-      --cp-text: #dedede; --cp-text-muted: #919191; --cp-text-soft: #b0b0b0;
-      --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
-      --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
-      --cp-warning: #fbbf24; --cp-link: #4da6ff;
-      --cp-highlight: rgba(253,142,161,0.12);
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    .sr-only {
-      position: absolute !important;
-      width: 1px; height: 1px;
-      padding: 0; margin: -1px;
-      overflow: hidden; clip: rect(0,0,0,0);
-      white-space: nowrap; border: 0;
-    }
-
-    a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
-      outline: 2px solid var(--cp-accent);
-      outline-offset: 2px;
-    }
-
-    body {
-      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-      background: var(--cp-bg);
-      color: var(--cp-text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* ── Header ── */
-    .header {
-      position: sticky; top: 0; z-index: 100;
-      background: var(--cp-surface);
-      border-bottom: 1px solid var(--cp-border);
-      padding: 0 1.25rem;
-      display: flex; align-items: center; gap: 0.875rem;
-      height: 56px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-      flex-shrink: 0;
-    }
-    .header-logo {
-      width: 32px; height: 32px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .header-logo svg { display: block; width: 28px; height: 28px; }
-    .header-title { font-size: 15px; font-weight: 700; color: var(--cp-text); }
-    .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted); margin-top: 1px; }
-    .header-subtitle a { color: inherit; text-decoration: none; }
-    .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
-    .theme-btn {
-      margin-left: auto;
-      background: var(--cp-surface-soft);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.625rem;
-      padding: 0.3rem 0.75rem;
-      cursor: pointer; font-size: 12px;
-      color: var(--cp-text-muted); font-family: inherit;
-      transition: all 0.15s;
-    }
-    .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
-
-    /* ── Nav tabs ── */
-    .page-tabs {
-      position: sticky; top: 56px; z-index: 99;
-      background: var(--cp-surface);
-      border-bottom: 1px solid var(--cp-border);
-      padding: 0 1.25rem;
-      display: flex; align-items: stretch; justify-content: center;
-      gap: 0.25rem;
-      height: 48px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-      flex-shrink: 0;
-    }
-    .nav-tab {
-      display: inline-flex; align-items: center;
-      padding: 0 1rem;
-      background: transparent;
-      border: none;
-      border-bottom: 3px solid transparent;
-      border-radius: 0;
-      color: var(--cp-text-muted);
-      font-size: 14px; font-weight: 600;
-      cursor: pointer;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
-      text-decoration: none;
-      white-space: nowrap;
-      margin-bottom: -1px;
-    }
-    .nav-tab:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
-    .nav-tab.active {
-      color: var(--cp-accent);
-      border-bottom-color: var(--cp-accent);
-      background: transparent;
-    }
-
-    /* ── Nav dropdown ── */
-    .nav-dropdown {
-      position: relative;
-      display: inline-flex;
-      align-items: stretch;
-    }
-    .nav-dropdown-toggle { font-family: inherit; gap: 0.3rem; }
-    .nav-dropdown-caret {
-      font-size: 10px;
-      transition: transform 0.15s;
-    }
-    .nav-dropdown.open .nav-dropdown-caret { transform: rotate(180deg); }
-    .nav-dropdown-menu {
-      display: none;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      min-width: 220px;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.5rem;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-      z-index: 200;
-      padding: 0.35rem 0;
-      margin-top: 1px;
-    }
-    .nav-dropdown.open .nav-dropdown-menu { display: block; }
-    .nav-dropdown-item {
-      display: block;
-      padding: 0.5rem 1rem;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--cp-text);
-      text-decoration: none;
-      transition: background 0.15s, color 0.15s;
-    }
-    .nav-dropdown-item:hover {
-      background: var(--cp-surface-soft);
-      color: var(--cp-accent);
-    }
-    .nav-dropdown-item.active {
-      color: var(--cp-accent);
-      font-weight: 600;
-      background: var(--cp-accent-soft);
-    }
-
-    /* ── Hero ── */
-    .hero {
-      text-align: center;
-      padding: 3rem 1.5rem 2rem;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    .hero-icon {
-      display: inline-flex;
-      align-items: center; justify-content: center;
-      width: 64px; height: 64px;
-      margin-bottom: 1.25rem;
-    }
-    .hero-icon svg { width: 56px; height: 56px; }
-    .hero h1 {
-      font-size: 28px;
-      font-weight: 700;
-      color: var(--cp-text);
-      margin-bottom: 0.75rem;
-      letter-spacing: -0.01em;
-    }
-    .hero p {
-      font-size: 15px;
-      color: var(--cp-text-muted);
-      max-width: 600px;
-      margin: 0 auto;
-      line-height: 1.6;
-    }
-
-    /* ── Card grid ── */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 1.25rem;
-      padding: 0 2rem 3rem;
-      max-width: 1120px;
-      margin: 0 auto;
-      width: 100%;
-    }
-
-    .page-card {
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 12px;
-      padding: 1.75rem 1.5rem 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s;
-      text-decoration: none;
-      color: inherit;
-      position: relative;
-      overflow: hidden;
-    }
-    .page-card:hover {
-      border-color: var(--cp-accent);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-      transform: translateY(-2px);
-    }
-    .page-card::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 4px;
-      border-radius: 12px 12px 0 0;
-    }
-    .page-card[data-color="purple"]::before { background: #7B2FBE; }
-    .page-card[data-color="blue"]::before { background: #0078D4; }
-    .page-card[data-color="teal"]::before { background: #0E7A6A; }
-    .page-card[data-color="orange"]::before { background: #D73B02; }
-    .page-card[data-color="azure"]::before { background: #0078D4; }
-
-    .card-header {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .card-icon {
-      width: 40px; height: 40px;
-      flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .card-icon img {
-      width: 36px; height: 36px;
-      object-fit: contain;
-    }
-    .card-title {
-      font-size: 17px;
-      font-weight: 700;
-      color: var(--cp-text);
-      line-height: 1.3;
-    }
-    .card-desc {
-      font-size: 13px;
-      color: var(--cp-text-muted);
-      line-height: 1.55;
-      flex: 1;
-    }
-    .card-source {
-      font-size: 11px;
-      color: var(--cp-text-soft);
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin-top: 0.25rem;
-    }
-    .card-source-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .card-source-dot.green { background: var(--cp-success); }
-    .card-source-dot.blue { background: var(--cp-link); }
-    .card-source-dot.amber { background: var(--cp-warning); }
-    .card-cta {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--cp-accent);
-      margin-top: 0.25rem;
-    }
-    .card-cta svg {
-      width: 14px; height: 14px;
-      transition: transform 0.15s;
-    }
-    .page-card:hover .card-cta svg {
-      transform: translateX(3px);
-    }
-
-    /* ── Divider ── */
-    .section-divider {
-      max-width: 1120px;
-      margin: 0 auto 2rem;
-      padding: 0 2rem;
-    }
-    .section-divider hr {
-      border: none;
-      border-top: 1px solid var(--cp-border);
-    }
-    .section-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--cp-text-muted);
-      margin-bottom: 0.75rem;
-      padding: 0 2rem;
-      max-width: 1120px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    /* ── Footer ── */
-    .home-footer {
-      margin-top: auto;
-      padding: 1.5rem 2rem;
-      text-align: center;
-      font-size: 11px;
-      color: var(--cp-text-soft);
-      border-top: 1px solid var(--cp-border);
-    }
-    .home-footer a { color: var(--cp-text-muted); text-decoration: none; }
-    .home-footer a:hover { text-decoration: underline; }
-
-    /* ── Features row ── */
-    .features {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 2rem;
-      padding: 0 2rem 2.5rem;
-      max-width: 900px;
-      margin: 0 auto;
-    }
-    .feature {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.6rem;
-      max-width: 240px;
-    }
-    .feature-icon {
-      flex-shrink: 0;
-      width: 28px; height: 28px;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--cp-accent-soft);
-      border-radius: 6px;
-      color: var(--cp-accent);
-      margin-top: 1px;
-    }
-    .feature-icon svg { width: 16px; height: 16px; }
-    .feature-text { font-size: 12px; color: var(--cp-text-muted); line-height: 1.5; }
-    .feature-text strong { color: var(--cp-text); display: block; font-size: 13px; margin-bottom: 2px; }
-
-    /* ── Responsive ── */
-    @media (max-width: 720px) {
-      .card-grid { grid-template-columns: 1fr; padding: 0 1rem 2rem; }
-      .hero { padding: 2rem 1rem 1.5rem; }
-      .hero h1 { font-size: 22px; }
-      .features { padding: 0 1rem 2rem; gap: 1.25rem; }
-      .feature { max-width: 100%; }
-    }
-  </style>
+  <link rel="stylesheet" href="/static/common.css">
+  <link rel="stylesheet" href="/static/home.css">
 </head>
 <body>
   <!-- Header -->
@@ -412,6 +49,7 @@
         <a class="nav-dropdown-item" href="/azureservicehealth">Azure</a>
       </div>
     </div>
+    <a class="nav-tab" href="/guidedreport">Guided Report</a>
   </nav>
   <script>
     (() => {
@@ -478,93 +116,175 @@
   <!-- Section label -->
   <div class="section-label">Explore communication streams</div>
 
-  <!-- Card grid -->
-  <div class="card-grid">
-    <!-- Power Platform -->
-    <a class="page-card" href="/powerplatform" data-color="purple">
-      <div class="card-header">
-        <div class="card-icon"><img src="/public/PowerPlatform_scalable.svg" alt=""></div>
-        <div class="card-title">Power Platform Release Planner</div>
+  <!-- Group tiles -->
+  <div class="group-grid">
+    <!-- Tenant Health -->
+    <div class="group-card" data-color="orange" data-group="health" role="button" tabindex="0" aria-expanded="false">
+      <div class="group-card-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 12h3l3-6 4 12 3-6h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <div class="card-desc">Browse planned features and release timelines for Power Apps, Power Automate, Power BI, Copilot Studio, and the entire Power Platform ecosystem.</div>
-      <div class="card-source">
-        <span class="card-source-dot green"></span>
-        Public API — no credentials required
+      <div class="group-card-content">
+        <div class="group-card-title">Tenant Health</div>
+        <div class="group-card-desc">Service incidents &amp; advisories</div>
       </div>
-      <div class="card-cta">
-        Open Release Planner
-        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="group-card-badge">2</div>
+      <div class="group-card-chevron" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-    </a>
+    </div>
 
-    <!-- M365 Message Center -->
-    <a class="page-card" href="/messagecenter" data-color="blue">
-      <div class="card-header">
-        <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
-        <div class="card-title">Microsoft 365 Message Center</div>
+    <!-- Product Roadmaps -->
+    <div class="group-card" data-color="purple" data-group="roadmaps" role="button" tabindex="0" aria-expanded="false">
+      <div class="group-card-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 3v9l6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.24 7.76l1.42-1.42M19.07 12H21M16.24 16.24l1.42 1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </div>
-      <div class="card-desc">View tenant-specific advisory messages, feature rollouts, planned changes, and required admin actions from the Microsoft 365 Message Center.</div>
-      <div class="card-source">
-        <span class="card-source-dot blue"></span>
-        Microsoft Graph — requires app registration
+      <div class="group-card-content">
+        <div class="group-card-title">Product Roadmaps</div>
+        <div class="group-card-desc">Release plans &amp; feature timelines</div>
       </div>
-      <div class="card-cta">
-        Open Message Center
-        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="group-card-badge">4</div>
+      <div class="group-card-chevron" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-    </a>
+    </div>
 
-    <!-- M365 Roadmap -->
-    <a class="page-card" href="/m365updates" data-color="teal">
-      <div class="card-header">
-        <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
-        <div class="card-title">Microsoft 365 Roadmap</div>
+    <!-- Message Center -->
+    <div class="group-card" data-color="blue" data-group="messagecenter" role="button" tabindex="0" aria-expanded="false">
+      <div class="group-card-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <div class="card-desc">Track upcoming and recently launched features across Teams, Outlook, SharePoint, OneDrive, and other Microsoft 365 services via the public roadmap feed.</div>
-      <div class="card-source">
-        <span class="card-source-dot green"></span>
-        RSS feed — no credentials required
+      <div class="group-card-content">
+        <div class="group-card-title">Microsoft Message Center</div>
+        <div class="group-card-desc">Tenant advisories &amp; admin actions</div>
       </div>
-      <div class="card-cta">
-        Open M365 Roadmap
-        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="group-card-badge">1</div>
+      <div class="group-card-chevron" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-    </a>
-
-    <!-- Service Health -->
-    <a class="page-card" href="/servicehealth" data-color="orange">
-      <div class="card-header">
-        <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
-        <div class="card-title">Microsoft 365 Service Health</div>
-      </div>
-      <div class="card-desc">Monitor service incidents, advisories, and degradation events across Microsoft 365 services with real-time status from your tenant.</div>
-      <div class="card-source">
-        <span class="card-source-dot blue"></span>
-        Microsoft Graph — requires app registration
-      </div>
-      <div class="card-cta">
-        Open Service Health
-        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-    </a>
-
-    <!-- Azure Updates -->
-    <a class="page-card" href="/azureupdates" data-color="azure">
-      <div class="card-header">
-        <div class="card-icon"><img src="/public/Azure.svg" alt=""></div>
-        <div class="card-title">Azure Updates</div>
-      </div>
-      <div class="card-desc">Stay up to date with Azure service announcements, new features, retirements, and updates across all Azure products and regions.</div>
-      <div class="card-source">
-        <span class="card-source-dot green"></span>
-        RSS feed — no credentials required
-      </div>
-      <div class="card-cta">
-        Open Azure Updates
-        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-    </a>
+    </div>
   </div>
+
+  <!-- Sub-grids (hidden by default) -->
+  <div class="sub-grid-wrapper" data-for="health">
+    <div class="sub-grid">
+      <a class="sub-card" href="/servicehealth">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
+          <div class="card-title">Microsoft 365 Service Health</div>
+        </div>
+        <div class="card-desc">Monitor service incidents, advisories, and degradation events across Microsoft 365 services with real-time status from your tenant.</div>
+        <div class="card-source"><span class="card-source-dot blue"></span> Microsoft Graph — requires app registration</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+      <a class="sub-card" href="/azureservicehealth">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/Azure.svg" alt=""></div>
+          <div class="card-title">Azure Service Health</div>
+        </div>
+        <div class="card-desc">Track Azure service issues, planned maintenance, and health advisories across your subscriptions and regions.</div>
+        <div class="card-source"><span class="card-source-dot blue"></span> Microsoft Graph — requires app registration</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="sub-grid-wrapper" data-for="roadmaps">
+    <div class="sub-grid">
+      <a class="sub-card" href="/powerplatform">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/PowerPlatform_scalable.svg" alt=""></div>
+          <div class="card-title">Power Platform</div>
+        </div>
+        <div class="card-desc">Browse planned features and release timelines for Power Apps, Power Automate, Power BI, Copilot Studio, and more.</div>
+        <div class="card-source"><span class="card-source-dot green"></span> Public API — no credentials required</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+      <a class="sub-card" href="/fabricroadmap">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/fabric_48_color.svg" alt=""></div>
+          <div class="card-title">Fabric</div>
+        </div>
+        <div class="card-desc">Track Microsoft Fabric announcements, feature launches, and roadmap updates from the official blog feed.</div>
+        <div class="card-source"><span class="card-source-dot green"></span> Public RSS — no credentials required</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+      <a class="sub-card" href="/m365updates">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
+          <div class="card-title">Microsoft 365</div>
+        </div>
+        <div class="card-desc">Track upcoming and recently launched features across Teams, Outlook, SharePoint, OneDrive, and other M365 services.</div>
+        <div class="card-source"><span class="card-source-dot green"></span> RSS feed — no credentials required</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+      <a class="sub-card" href="/azureupdates">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/Azure.svg" alt=""></div>
+          <div class="card-title">Azure</div>
+        </div>
+        <div class="card-desc">Stay current with Azure service announcements, new features, retirements, and updates across all Azure products.</div>
+        <div class="card-source"><span class="card-source-dot green"></span> RSS feed — no credentials required</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="sub-grid-wrapper" data-for="messagecenter">
+    <div class="sub-grid">
+      <a class="sub-card" href="/messagecenter">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/m365.svg" alt=""></div>
+          <div class="card-title">Microsoft 365 Message Center</div>
+        </div>
+        <div class="card-desc">View tenant-specific advisory messages, feature rollouts, planned changes, and required admin actions from the Microsoft 365 Message Center.</div>
+        <div class="card-source"><span class="card-source-dot blue"></span> Microsoft Graph — requires app registration</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Group tile accordion -->
+  <script>
+    (() => {
+      const groups = document.querySelectorAll('.group-card');
+      function toggle(card) {
+        const groupId = card.dataset.group;
+        const wrapper = document.querySelector(`.sub-grid-wrapper[data-for="${groupId}"]`);
+        const isExpanded = card.classList.contains('expanded');
+
+        // Close all
+        groups.forEach(g => {
+          if (g !== card && g.classList.contains('expanded')) {
+            g.classList.remove('expanded');
+            g.setAttribute('aria-expanded', 'false');
+            const w = document.querySelector(`.sub-grid-wrapper[data-for="${g.dataset.group}"]`);
+            if (w) w.style.height = '0';
+          }
+        });
+
+        // Toggle clicked
+        if (isExpanded) {
+          card.classList.remove('expanded');
+          card.setAttribute('aria-expanded', 'false');
+          wrapper.style.height = '0';
+        } else {
+          card.classList.add('expanded');
+          card.setAttribute('aria-expanded', 'true');
+          wrapper.style.height = wrapper.scrollHeight + 'px';
+        }
+      }
+
+      groups.forEach(card => {
+        card.addEventListener('click', () => toggle(card));
+        card.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle(card);
+          }
+        });
+      });
+    })();
+  </script>
 
   <!-- Footer -->
   <footer class="home-footer">

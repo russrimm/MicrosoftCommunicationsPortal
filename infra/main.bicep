@@ -34,6 +34,7 @@ module web 'modules/appservice.bicep' = {
     runtimeName: 'node'
     runtimeVersion: '20-lts'
     appSettings: {
+      NODE_ENV: 'production'
       USE_MANAGED_IDENTITY: 'true'
       SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
     }

@@ -10,3 +10,9 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+### 2026-07-05: Deploy infrastructure audit — 4 issues found
+- NODE_ENV was missing from Bicep appSettings — production containers need this set to "production"
+- Dockerfile COPY without --chown meant files were owned by root, not the node user — security concern
+- HEALTHCHECK hardcoded port 3000 instead of using $PORT variable — would break if PORT env var changed
+- README references GHCR image (ghcr.io/...) that doesn't exist yet — advisory, needs CI pipeline to publish

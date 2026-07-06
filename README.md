@@ -6,6 +6,7 @@
 > details.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/russrimm/MicrosoftCommunicationsPortal)
 
 ## About
 
@@ -40,6 +41,66 @@ Every page supports light and dark themes. Pass `?clawpilotTheme=light` or
 `?clawpilotTheme=dark` on the URL, or click the theme toggle in the header.
 
 The site root (`/`) redirects to `/home`.
+
+## Quick Deploy
+
+Six of eight pages work with zero credentials. Only Message Center and Service Health need an Entra app registration.
+
+| Pages | Credentials needed? |
+|-------|--------------------|
+| Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap | None — works immediately |
+| Message Center, Service Health | Entra app registration (Graph API) |
+| Azure Service Health | Azure Management API credentials |
+| AI Insights (all pages) | Azure OpenAI, OpenAI, or GitHub Models key |
+
+### Option 1 — Azure Developer CLI *(recommended)*
+
+Two commands to deploy to Azure App Service:
+
+```bash
+azd init --template russrimm/MicrosoftCommunicationsPortal
+azd up
+```
+
+- The post-provision hook automatically offers to set up Graph permissions for Message Center and Service Health.
+- The other 6 pages work without any credentials.
+- **Prerequisites:** [Azure Developer CLI](https://aka.ms/azd) and [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) (for the Graph setup hook).
+
+### Option 2 — Docker
+
+Pull and run:
+
+```bash
+docker run -p 3000:3000 ghcr.io/russrimm/microsoft-communications-portal:latest
+```
+
+Or build locally:
+
+```bash
+docker build -t mcp .
+docker run -p 3000:3000 mcp
+```
+
+For Graph-backed pages (Message Center, Service Health), pass credentials:
+
+```bash
+docker run -p 3000:3000 \
+  -e M365_TENANT_ID=your-tenant-id \
+  -e M365_CLIENT_ID=your-client-id \
+  -e M365_CLIENT_SECRET=your-client-secret \
+  mcp
+```
+
+### Option 3 — Run locally *(development)*
+
+```bash
+git clone https://github.com/russrimm/MicrosoftCommunicationsPortal.git
+cd MicrosoftCommunicationsPortal
+npm install
+npm start
+```
+
+Open http://localhost:3000. For Graph-backed pages, copy `.env.example` to `.env` and fill in your Entra app credentials — or run `pwsh scripts/create-entra-app.ps1` to automate it.
 
 ## Screenshots
 
@@ -99,6 +160,8 @@ the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
 | ![Azure Service Health — light](screenshots/azure-service-health-light.png) | ![Azure Service Health — dark](screenshots/azure-service-health-dark.png) |
 
 ## Setup
+
+> **For a faster setup, see [Quick Deploy](#quick-deploy) above.**
 
 1. **Install dependencies:**
    ```bash

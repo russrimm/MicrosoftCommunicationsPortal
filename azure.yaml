@@ -1,6 +1,16 @@
 name: microsoft-communications-portal
 metadata:
   template: microsoft-communications-portal
+hooks:
+  postprovision:
+    shell: pwsh
+    run: |
+      Write-Host "Setting up Entra ID app registration for Microsoft Graph access..."
+      Write-Host "(Message Center and Service Health pages require this — other pages work without it.)"
+      Write-Host ""
+      ./scripts/create-entra-app.ps1
+    interactive: true
+    continueOnError: true
 services:
   web:
     project: .

@@ -1857,6 +1857,7 @@ const server = http.createServer((req, res) => {
     '/m365updates':   'm365updates.html',
     '/azureupdates':    'azureupdates.html',
     '/fabricroadmap':   'fabricroadmap.html',
+    '/guidedreport':  'guidedreport.html',
   };
   const htmlFile = pageMap[parsed.pathname];
   if (htmlFile) {

@@ -1,0 +1,30 @@
+node_modules
+.env
+.env.*
+.git
+.gitignore
+
+# Directories not needed at runtime
+screenshots/
+.squad/
+.repowise/
+.github/
+scripts/
+infra/
+.vscode/
+.idea/
+
+# Specific large markdown files
+README.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+CAPABILITIES-AUDIT-2026-07-04.md
+
+# Runtime cache / debug
+response.json
+empty-products.json
+npm-debug.log*
+
+# OS junk
+.DS_Store
+Thumbs.db
