@@ -101,8 +101,9 @@ function checkRateLimit(req, res, limit, windowMs) {
     }
   }
   const ip = clientIp(req);
-  const routePath = (req.url || '/').split('?')[0];
-  const key = `${ip}:${routePath}`;
+  // Key by IP only — including the full path allows attackers to exhaust the
+  // bucket map by spraying unique URLs, evicting entries for other IPs.
+  const key = ip;
   let bucket = rateLimitBuckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
     if (rateLimitBuckets.size >= RATE_LIMIT_MAX_BUCKETS) {
@@ -147,24 +148,31 @@ function sendJson(req, res, status, payload, extraHeaders) {
   const headers = Object.assign({
     'Content-Type': 'application/json; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
     'Vary': 'Accept-Encoding',
   }, extraHeaders || {});
   const accept = (req.headers['accept-encoding'] || '').toLowerCase();
   const buf = Buffer.from(json, 'utf8');
-  if (accept.includes('gzip') && buf.length > 1024) {
-    const gz = zlib.gzipSync(buf);
-    headers['Content-Encoding'] = 'gzip';
-    headers['Content-Length'] = gz.length;
-    res.writeHead(status, headers);
-    res.end(gz);
+  // Threshold raised from 1 KB to 4 KB to reduce event-loop blocking from
+  // synchronous gzip. Smaller payloads ship uncompressed (negligible gain).
+  if (accept.includes('gzip') && buf.length > 4096) {
+    zlib.gzip(buf, (err, gz) => {
+      if (err) { headers['Content-Length'] = buf.length; res.writeHead(status, headers); res.end(buf); return; }
+      headers['Content-Encoding'] = 'gzip';
+      headers['Content-Length'] = gz.length;
+      res.writeHead(status, headers);
+      res.end(gz);
+    });
     return;
   }
-  if (accept.includes('deflate') && buf.length > 1024) {
-    const df = zlib.deflateSync(buf);
-    headers['Content-Encoding'] = 'deflate';
-    headers['Content-Length'] = df.length;
-    res.writeHead(status, headers);
-    res.end(df);
+  if (accept.includes('deflate') && buf.length > 4096) {
+    zlib.deflate(buf, (err, df) => {
+      if (err) { headers['Content-Length'] = buf.length; res.writeHead(status, headers); res.end(buf); return; }
+      headers['Content-Encoding'] = 'deflate';
+      headers['Content-Length'] = df.length;
+      res.writeHead(status, headers);
+      res.end(df);
+    });
     return;
   }
   headers['Content-Length'] = buf.length;
@@ -187,6 +195,7 @@ function sendHtml(req, res, buf, _etag) {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
     // Inline scripts are authorized via per-request nonce (no 'unsafe-inline').
     // Inline styles remain allowed (style injection is far lower risk).
     'Content-Security-Policy':
@@ -206,20 +215,24 @@ function sendHtml(req, res, buf, _etag) {
       "form-action 'none'",
   };
   const accept = (req.headers['accept-encoding'] || '').toLowerCase();
-  if (accept.includes('gzip') && outBuf.length > 1024) {
-    const gz = zlib.gzipSync(outBuf);
-    headers['Content-Encoding'] = 'gzip';
-    headers['Content-Length'] = gz.length;
-    res.writeHead(200, headers);
-    res.end(gz);
+  if (accept.includes('gzip') && outBuf.length > 4096) {
+    zlib.gzip(outBuf, (err, gz) => {
+      if (err) { headers['Content-Length'] = outBuf.length; res.writeHead(200, headers); res.end(outBuf); return; }
+      headers['Content-Encoding'] = 'gzip';
+      headers['Content-Length'] = gz.length;
+      res.writeHead(200, headers);
+      res.end(gz);
+    });
     return;
   }
-  if (accept.includes('deflate') && outBuf.length > 1024) {
-    const df = zlib.deflateSync(outBuf);
-    headers['Content-Encoding'] = 'deflate';
-    headers['Content-Length'] = df.length;
-    res.writeHead(200, headers);
-    res.end(df);
+  if (accept.includes('deflate') && outBuf.length > 4096) {
+    zlib.deflate(outBuf, (err, df) => {
+      if (err) { headers['Content-Length'] = outBuf.length; res.writeHead(200, headers); res.end(outBuf); return; }
+      headers['Content-Encoding'] = 'deflate';
+      headers['Content-Length'] = df.length;
+      res.writeHead(200, headers);
+      res.end(df);
+    });
     return;
   }
   headers['Content-Length'] = outBuf.length;
@@ -1580,8 +1593,14 @@ const server = http.createServer((req, res) => {
       sendJson(req, res, 200, { selected: selectedSubscriptions });
       return;
     }
-    // POST — update selection
+    // POST — update selection (state-mutating; require ADMIN_TOKEN when set)
     if (req.method === 'POST') {
+      if (process.env.ADMIN_TOKEN) {
+        const auth = req.headers['authorization'] || '';
+        if (!timingSafeEqualStr(auth, `Bearer ${process.env.ADMIN_TOKEN}`)) {
+          return sendJson(req, res, 403, { error: 'Forbidden: valid ADMIN_TOKEN required for state mutations' });
+        }
+      }
       readJsonBody(req, (bodyErr, data) => {
         if (bodyErr) return sendJson(req, res, 400, { error: bodyErr.message });
         if (!Array.isArray(data.selected)) {
@@ -1832,6 +1851,11 @@ const server = http.createServer((req, res) => {
     const langCode  = parsed.searchParams.get('langCode')  || 'en-US';
     const force     = parsed.searchParams.get('refresh') === '1';
 
+    // Validate productId format (GUID) to prevent cache pollution via arbitrary strings.
+    if (productId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
+      return sendJson(req, res, 400, { error: 'Invalid productId — must be a GUID' }, corsHeaders(req));
+    }
+
     // Short-circuit IDs that recently returned 0 results — skip the upstream call entirely.
     if (productId && !force && isKnownEmpty(productId)) {
       res.writeHead(200, {
@@ -2024,7 +2048,7 @@ const server = http.createServer((req, res) => {
     let rel;
     try { rel = decodeURIComponent(parsed.pathname.slice('/public/'.length)); }
     catch { res.writeHead(400); res.end('Bad path'); return; }
-    if (!rel || rel.includes('..') || rel.includes('\\') || !/^[\w .+()-]+\.(svg|png|jpe?g|gif|webp|ico)$/i.test(rel)) {
+    if (!rel || rel.length > 256 || rel.includes('..') || rel.includes('\\') || !/^[\w .+()-]+\.(svg|png|jpe?g|gif|webp|ico)$/i.test(rel)) {
       res.writeHead(400); res.end('Bad path'); return;
     }
     const filePath = path.join(__dirname, 'public', rel);

@@ -7,7 +7,7 @@
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
-      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      const theme = (param === "dark" || param === "light") ? param : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -403,13 +403,17 @@
             if (!res.ok || data.error) {
               throw { authError: true, message: data.error || 'Authentication required' };
             }
-            const issues = data.value || [];
+            const services = data.services || data.value || [];
             const svcs = new Set();
-            issues.forEach(issue => {
-              if (issue.service) svcs.add(issue.service);
+            const flatIssues = [];
+            services.forEach(svc => {
+              if (svc.service) svcs.add(svc.service);
+              (svc.issues || []).forEach(issue => {
+                flatIssues.push({ ...issue, service: issue.service || svc.service });
+              });
             });
             items = [...svcs].sort().map(s => ({ id: s, name: s }));
-            state.fetchedData[key] = issues;
+            state.fetchedData[key] = flatIssues;
             break;
           }
         }
@@ -666,7 +670,7 @@
               if (!items) {
                 const r = await fetch('/api/messagecenter');
                 const d = await r.json();
-                items = d.value || d || [];
+                items = d.messages || d.value || [];
               }
               allData[key] = items.filter(msg => (msg.services || []).some(s => selected.has(s)));
               break;
@@ -676,7 +680,13 @@
               if (!items) {
                 const r = await fetch('/api/servicehealth');
                 const d = await r.json();
-                items = d.value || d || [];
+                const services = d.services || d.value || [];
+                items = [];
+                services.forEach(svc => {
+                  (svc.issues || []).forEach(issue => {
+                    items.push({ ...issue, service: issue.service || svc.service });
+                  });
+                });
               }
               allData[key] = items.filter(issue => selected.has(issue.service));
               break;
@@ -737,20 +747,20 @@
           case 'powerplatform':
             headers = ['Product', 'Feature', 'Status', 'GA Date', 'Type'];
             rows = items.map(f => [
-              f.productName || '',
-              (f.title || f.name || '').substring(0, 60),
-              f.publicPreviewDate ? 'Preview' : (f.gADate ? 'GA' : 'Planned'),
-              f.gADate ? new Date(f.gADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
-              f.cloudInstance || f.featureType || ''
+              f.productName || f.Product || '',
+              (f.FeatureName || f.title || '').substring(0, 60),
+              f.GAStatus || (f.PublicPreviewDate ? 'Preview' : (f.GADate ? 'GA' : 'Planned')),
+              f.GADate ? new Date(f.GADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
+              f.FeatureType || ''
             ]);
             break;
           case 'fabric':
             headers = ['Product', 'Feature', 'Release Type', 'Status'];
             rows = items.map(f => [
-              f.productName || '',
-              (f.title || f.name || '').substring(0, 60),
-              f.releaseType || f.type || '',
-              f.status || ''
+              f.productName || f.ProductName || '',
+              (f.FeatureName || f.title || '').substring(0, 60),
+              f.ReleaseType || f.releaseType || '',
+              f.ReleaseStatus || f.status || ''
             ]);
             break;
           case 'm365':

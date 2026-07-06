@@ -1,4 +1,5 @@
-FROM node:20-alpine
+# Pinned to a specific minor for reproducible builds; bump deliberately.
+FROM node:20.19-alpine
 
 ENV NODE_ENV=production
 # 0.0.0.0 here is scoped to the container's network namespace; actual exposure
