@@ -384,28 +384,33 @@
           case 'messagecenter': {
             const res = await fetch('/api/messagecenter');
             const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            const msgs = data.messages || data.value || [];
             const svcs = new Set();
-            (data.value || data || []).forEach(msg => {
+            msgs.forEach(msg => {
               (msg.services || []).forEach(s => svcs.add(s));
             });
             items = [...svcs].sort().map(s => ({ id: s, name: s }));
-            state.fetchedData[key] = data.value || data || [];
+            state.fetchedData[key] = msgs;
             break;
           }
           case 'servicehealth': {
             const res = await fetch('/api/servicehealth');
             const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            const issues = data.services || data.value || [];
             const svcs = new Set();
-            (data.value || data || []).forEach(issue => {
+            issues.forEach(issue => {
               if (issue.service) svcs.add(issue.service);
             });
             items = [...svcs].sort().map(s => ({ id: s, name: s }));
-            state.fetchedData[key] = data.value || data || [];
+            state.fetchedData[key] = issues;
             break;
           }
         }
-      } catch {
-        body.innerHTML = '<div class="product-loading" style="color:var(--cp-danger)">Failed to load. The source may require authentication.</div>';
+      } catch (err) {
+        const msg = err && err.message ? err.message : 'The source may require authentication.';
+        body.innerHTML = `<div class="product-loading" style="color:var(--cp-danger)">Failed to load. ${msg.replace(/</g, '&lt;')}</div>`;
         return;
       }
 
@@ -647,7 +652,7 @@
               if (!items) {
                 const r = await fetch('/api/messagecenter');
                 const d = await r.json();
-                items = d.value || d || [];
+                items = d.messages || d.value || [];
               }
               allData[key] = items.filter(msg => (msg.services || []).some(s => selected.has(s)));
               break;
@@ -657,7 +662,7 @@
               if (!items) {
                 const r = await fetch('/api/servicehealth');
                 const d = await r.json();
-                items = d.value || d || [];
+                items = d.services || d.value || [];
               }
               allData[key] = items.filter(issue => selected.has(issue.service));
               break;
