@@ -735,15 +735,59 @@ const ARM_RESOURCE = 'https://management.azure.com';
 const ARM_API_VERSION = '2025-04-01';
 const AZURE_SUBSCRIPTION_ID = process.env.AZURE_SUBSCRIPTION_ID || '';
 
-// ── Selected subscriptions (in-memory, defaults to env var if set) ──────────
-// Stores the user's subscription selection. Array of { id, displayName } objects.
-let selectedSubscriptions = AZURE_SUBSCRIPTION_ID
-  ? [{ id: AZURE_SUBSCRIPTION_ID, displayName: '' }]
-  : [];
+// ── Selected subscriptions (per-session, defaults to env var if set) ─────────
+// Each browser session gets its own subscription selection, keyed by a
+// cryptographically random session cookie.  This prevents one user from
+// mutating the view seen by every other user.
+const sessionSubscriptions = new Map(); // sessionId → { selected: [{id, displayName}], ts: epoch }
+const SESSION_COOKIE_NAME = 'mcp_session';
+const SESSION_MAX_AGE_MS  = 24 * 60 * 60 * 1000; // 24 h
+const SESSION_MAX_ENTRIES = 10_000;
+
+// Parse the session ID out of the Cookie header, or return null.
+function getSessionId(req) {
+  const hdr = req.headers.cookie || '';
+  const match = hdr.match(new RegExp('(?:^|;\\s*)' + SESSION_COOKIE_NAME + '=([^;]+)'));
+  if (!match) return null;
+  const val = match[1];
+  // Only accept well-formed UUIDs to prevent injection / cache-key abuse.
+  return SUBSCRIPTION_ID_RE.test(val) ? val : null;
+}
+
+// Ensure every response carries a session cookie.  Returns the session ID.
+function ensureSessionCookie(req, res) {
+  let sid = getSessionId(req);
+  if (!sid) {
+    sid = crypto.randomUUID();
+    // HttpOnly + SameSite=Strict — cookie is never accessible to page JS
+    // and is never sent cross-origin.  Secure is added when not localhost.
+    const secure = req.headers.host && !req.headers.host.startsWith('localhost') ? '; Secure' : '';
+    res.setHeader('Set-Cookie',
+      `${SESSION_COOKIE_NAME}=${sid}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400${secure}`);
+  }
+  return sid;
+}
+
+// Return the subscription selection for a given session (falls back to env).
+function getSessionSelection(sid) {
+  const entry = sid ? sessionSubscriptions.get(sid) : null;
+  if (entry) { entry.ts = Date.now(); return entry.selected; }
+  return AZURE_SUBSCRIPTION_ID ? [{ id: AZURE_SUBSCRIPTION_ID, displayName: '' }] : [];
+}
+
+// Periodic sweep: evict stale sessions (runs every 10 min).
+setInterval(() => {
+  const cutoff = Date.now() - SESSION_MAX_AGE_MS;
+  for (const [k, v] of sessionSubscriptions) {
+    if (v.ts < cutoff) sessionSubscriptions.delete(k);
+  }
+}, 10 * 60 * 1000).unref();
 
 // Helper: get the effective subscription IDs (for API calls that need one).
-function getSelectedSubscriptionIds() {
-  if (selectedSubscriptions.length > 0) return selectedSubscriptions.map(s => s.id);
+function getSelectedSubscriptionIds(req) {
+  const sid = getSessionId(req);
+  const sel = getSessionSelection(sid);
+  if (sel.length > 0) return sel.map(s => s.id);
   if (AZURE_SUBSCRIPTION_ID) return [AZURE_SUBSCRIPTION_ID];
   return [];
 }
@@ -1349,8 +1393,39 @@ function timingSafeEqualStr(a, b) {
 
 loadEmptyProducts();
 
+// ── App Service Easy Auth guard (defense-in-depth) ──────────────────────────
+// When running on Azure App Service (WEBSITE_INSTANCE_ID is set), sensitive API
+// routes require a validated X-MS-CLIENT-PRINCIPAL header — injected by Easy Auth
+// after Entra ID authentication. This prevents exposing tenant data or burning AI
+// spend if Easy Auth is accidentally misconfigured or disabled.
+const IS_APP_SERVICE = !!process.env.WEBSITE_INSTANCE_ID;
+const AUTH_EXEMPT_API_ROUTES = new Set([
+  '/api/ai-status',    // read-only config check
+  '/api/auth-check',   // read-only config check
+  '/api/m365updates',  // public RSS proxy
+  '/api/azureupdates', // public RSS proxy
+  '/api/fabricroadmap',// public feed proxy
+  '/api/empty-products', // static data
+]);
+
+function requireEasyAuth(req, res, pathname) {
+  if (!IS_APP_SERVICE) return true; // local dev — no guard
+  if (!pathname.startsWith('/api/')) return true; // non-API routes
+  if (AUTH_EXEMPT_API_ROUTES.has(pathname)) return true; // safe public endpoints
+  const principal = req.headers['x-ms-client-principal'];
+  if (principal) return true; // Easy Auth validated user
+  sendJson(req, res, 401, {
+    error: 'Authentication required. This endpoint is protected by Entra ID Easy Auth.',
+    code: 'AUTH_REQUIRED',
+  });
+  return false;
+}
+
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
+
+  // ── Easy Auth guard for sensitive API endpoints ─────────────────────────
+  if (!requireEasyAuth(req, res, parsed.pathname)) return;
 
   // ── Health check endpoint (no auth; generous rate limit for monitors) ────
   if (parsed.pathname === '/healthz' || parsed.pathname === '/health') {
@@ -1523,6 +1598,7 @@ const server = http.createServer((req, res) => {
 
   // ── Auth check endpoint (for UI to know what's configured) ──────────────
   if (parsed.pathname === '/api/auth-check') {
+    const sid = ensureSessionCookie(req, res);
     sendJson(req, res, 200, {
       graph: {
         required: true,
@@ -1534,7 +1610,7 @@ const server = http.createServer((req, res) => {
         required: false,
         configured: !!M365_AUTH_MODE,
         subscriptionId: AZURE_SUBSCRIPTION_ID ? AZURE_SUBSCRIPTION_ID.slice(0, 8) + '...' : null,
-        selectedSubscriptions: selectedSubscriptions,
+        selectedSubscriptions: getSessionSelection(sid),
         pages: ['azure-resource-health']
       },
       ai: {
@@ -1577,7 +1653,7 @@ const server = http.createServer((req, res) => {
         sendJson(req, res, status >= 400 ? status : 200, {
           value: subs,
           count: subs.length,
-          selected: selectedSubscriptions,
+          selected: getSessionSelection(ensureSessionCookie(req, res)),
           error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
         }, { 'Cache-Control': 'max-age=300' });
       });
@@ -1588,12 +1664,14 @@ const server = http.createServer((req, res) => {
   // ── Get/set selected subscriptions ──────────────────────────────────────
   if (parsed.pathname === '/api/subscriptions/selected') {
     if (!checkRateLimit(req, res, 30, 60_000)) return;
-    // GET — return current selection
+    const sid = ensureSessionCookie(req, res);
+    // GET — return current session's selection
     if (req.method === 'GET') {
-      sendJson(req, res, 200, { selected: selectedSubscriptions });
+      sendJson(req, res, 200, { selected: getSessionSelection(sid) });
       return;
     }
-    // POST — update selection (state-mutating; require ADMIN_TOKEN when set)
+    // POST — update selection (scoped to this session's cookie)
+    // When ADMIN_TOKEN is configured, additionally require it for defense-in-depth.
     if (req.method === 'POST') {
       if (process.env.ADMIN_TOKEN) {
         const auth = req.headers['authorization'] || '';
@@ -1634,9 +1712,14 @@ const server = http.createServer((req, res) => {
           });
         }
 
-        selectedSubscriptions = cleaned;
-        console.log(`[subscriptions] Selection updated: ${cleaned.length} subscription(s) — ${cleaned.map(s => s.displayName || s.id.slice(0, 8)).join(', ')}`);
-        sendJson(req, res, 200, { selected: selectedSubscriptions, count: selectedSubscriptions.length });
+        // Cap session map to prevent memory exhaustion
+        if (!sessionSubscriptions.has(sid) && sessionSubscriptions.size >= SESSION_MAX_ENTRIES) {
+          return sendJson(req, res, 503, { error: 'Too many active sessions. Please try again later.' });
+        }
+
+        sessionSubscriptions.set(sid, { selected: cleaned, ts: Date.now() });
+        console.log(`[subscriptions] Session ${sid.slice(0, 8)}… selection updated: ${cleaned.length} subscription(s) — ${cleaned.map(s => s.displayName || s.id.slice(0, 8)).join(', ')}`);
+        sendJson(req, res, 200, { selected: cleaned, count: cleaned.length });
       });
       return;
     }
@@ -2124,7 +2207,7 @@ const server = http.createServer((req, res) => {
 
     // ── Events (subscription-scoped) ──────────────────────────────────────
     if (subRoute === 'events') {
-      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds()[0] || '') || AZURE_SUBSCRIPTION_ID;
+      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds(req)[0] || '') || AZURE_SUBSCRIPTION_ID;
       if (!subscriptionId) {
         return sendJson(req, res, 400, {
           error: 'subscriptionId query parameter required (or select a subscription in the UI, or set AZURE_SUBSCRIPTION_ID in .env)'
@@ -2162,7 +2245,7 @@ const server = http.createServer((req, res) => {
 
     // ── Availability Statuses (subscription-scoped) ────────────────────────
     if (subRoute === 'availability-statuses') {
-      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds()[0] || '') || AZURE_SUBSCRIPTION_ID;
+      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds(req)[0] || '') || AZURE_SUBSCRIPTION_ID;
       if (!subscriptionId) {
         return sendJson(req, res, 400, {
           error: 'subscriptionId query parameter required (or select a subscription in the UI, or set AZURE_SUBSCRIPTION_ID in .env)'
@@ -2200,7 +2283,7 @@ const server = http.createServer((req, res) => {
 
     // ── Impacted Resources (subscription + eventTrackingId) ────────────────
     if (subRoute === 'impacted-resources') {
-      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds()[0] || '') || AZURE_SUBSCRIPTION_ID;
+      const subscriptionId = parsed.searchParams.get('subscriptionId') || (getSelectedSubscriptionIds(req)[0] || '') || AZURE_SUBSCRIPTION_ID;
       const eventTrackingId = parsed.searchParams.get('eventTrackingId') || '';
       if (!subscriptionId) {
         return sendJson(req, res, 400, {

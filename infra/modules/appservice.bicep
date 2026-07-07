@@ -22,8 +22,9 @@ param runtimeVersion string = '24-lts'
 @description('App settings key-value pairs')
 param appSettings object = {}
 
-@description('Entra ID (AAD) client ID for Easy Auth. Leave empty to skip auth configuration.')
-param authClientId string = ''
+@minLength(1)
+@description('Entra ID (AAD) client ID for Easy Auth. Required to protect tenant-specific API endpoints.')
+param authClientId string
 
 @description('Entra ID tenant ID for Easy Auth. Defaults to the deployment tenant.')
 param authTenantId string = tenant().tenantId
