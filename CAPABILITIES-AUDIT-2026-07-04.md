@@ -109,7 +109,7 @@
 | D12 | Screenshot script uses `BASE_URL` | (nowhere) | `process.env.BASE_URL` is read but not in `.env.example` or README | Add to `.env.example` under an "Optional / scripts" block |
 | D13 | Root redirect | README | `/` returns 302 (temporary) | Optional: mention it's a 302 |
 | D14 | Cold-cache warning | README Screenshots | Cold Power Platform load can be ~30–45 s (~20 upstream fan-out) — warned in Screenshots section but not on the Setup page | Move to Setup as "First load may take 30–45 s while the proxy warms upstream caches. This is expected." |
-| D15 | Charter says "Fail loudly at boot when required env is missing" | `.squad/agents/parker/charter.md` | Server starts fine with no Graph creds; only fails on demand | Either implement the boot check for M365_* vars, or update the charter |
+| D15 | Charter says "Fail loudly at boot when required env is missing" | `.squad/agents/parker/charter.md` | Server starts fine with no Graph creds; only fails on demand | Either implement the boot check for AZURE_* vars, or update the charter |
 | D16 | README API section | README | `/api/empty-products` (GET + DELETE) not listed | Add to the API endpoint table |
 
 ---
@@ -155,7 +155,7 @@ Things a reasonable user or operator would expect to exist but don't.
 
 | # | Behavior | Why it reads as a bug | Suggested remediation |
 |---|---|---|---|
-| P1 | Missing Graph creds → generic 502 on Message Center / Service Health | User has no idea whether it's a config problem or an outage | Return **503 "Not configured"** with an actionable message when M365_* vars are unset; keep 502 for real upstream errors. Add a `/api/auth-check` returning `{ required, configured }` so the UI can show "⚠️ Configure `.env` with M365_CLIENT_ID" |
+| P1 | Missing Graph creds → generic 502 on Message Center / Service Health | User has no idea whether it's a config problem or an outage | Return **503 "Not configured"** with an actionable message when AZURE_* vars are unset; keep 502 for real upstream errors. Add a `/api/auth-check` returning `{ required, configured }` so the UI can show "⚠️ Configure `.env` with AZURE_CLIENT_ID" |
 | P2 | Cold Power Platform load takes 30–45 s with only a "Loading…" banner | Looks hung; users hit refresh or close the tab | Add ETA text: "First load fans out ~20 upstream calls, this can take ~30 s." Consider a striped skeleton |
 | P3 | Empty-array response on a product with no release plan | Looks like broken filtering | Show "No release plans published for this product" instead of empty |
 | P4 | Upstream returns HTML/garbage → `/proxy` responds `{ results: [], recovered: true }` with no visible signal | Looks like data loss | Set an `X-Upstream-Recovered: true` response header; surface in a small "some upstream sources returned no data" note |

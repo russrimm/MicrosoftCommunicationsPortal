@@ -159,8 +159,8 @@ if ($isAzdDeploy) {
     Write-Host "  Skipped (azd deploy uses managed identity — no client secret needed)." -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "=== DONE ===" -ForegroundColor Green
-    Write-Host "M365_TENANT_ID = $tenantId"
-    Write-Host "M365_CLIENT_ID = $appId"
+    Write-Host "AZURE_TENANT_ID = $tenantId"
+    Write-Host "AZURE_CLIENT_ID = $appId"
     Write-Host "Azure deployment uses managed identity — no client secret created." -ForegroundColor Cyan
 } else {
     $endDate = (Get-Date).AddDays($SecretDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
@@ -176,23 +176,23 @@ if ($isAzdDeploy) {
     # 8. Report + write .env (in-place update, no .bak accumulation)
     Write-Host ""
     Write-Host "=== DONE ===" -ForegroundColor Green
-    Write-Host "M365_TENANT_ID    = $tenantId"
-    Write-Host "M365_CLIENT_ID    = $appId"
-    Write-Host "M365_CLIENT_SECRET = <written to .env>"
+    Write-Host "AZURE_TENANT_ID    = $tenantId"
+    Write-Host "AZURE_CLIENT_ID    = $appId"
+    Write-Host "AZURE_CLIENT_SECRET = <written to .env>"
 
     $envPath = Join-Path (Split-Path $PSScriptRoot -Parent) '.env'
     $envLines = @(
         "# Written by scripts/create-entra-app.ps1 on $(Get-Date -Format 'yyyy-MM-dd HH:mm')",
-        "M365_TENANT_ID=$tenantId",
-        "M365_CLIENT_ID=$appId",
-        "M365_CLIENT_SECRET=$clientSecret"
+        "AZURE_TENANT_ID=$tenantId",
+        "AZURE_CLIENT_ID=$appId",
+        "AZURE_CLIENT_SECRET=$clientSecret"
     )
 
     if (Test-Path $envPath) {
         # Read raw text split on common line endings to handle corrupted single-line files
         $raw = [System.IO.File]::ReadAllText($envPath)
         $lines = $raw -split '\r?\n'
-        $existing = $lines | Where-Object { $_ -notmatch '^(M365_TENANT_ID|M365_CLIENT_ID|M365_CLIENT_SECRET)=' -and $_ -notmatch '# Written by scripts/create-entra-app\.ps1' }
+        $existing = $lines | Where-Object { $_ -notmatch '^(AZURE_TENANT_ID|AZURE_CLIENT_ID|AZURE_CLIENT_SECRET)=' -and $_ -notmatch '# Written by scripts/create-entra-app\.ps1' }
         # Drop trailing blank lines to avoid stacking empties
         while ($existing.Count -gt 0 -and [string]::IsNullOrWhiteSpace($existing[-1])) {
             $existing = $existing[0..($existing.Count - 2)]

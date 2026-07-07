@@ -9,10 +9,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      # ── M365 Message Center & Service Health (Entra app registration) ──
-      # - M365_TENANT_ID=
-      # - M365_CLIENT_ID=
-      # - M365_CLIENT_SECRET=
+      # ── Message Center & Service Health (Entra app registration) ──
+      # - AZURE_TENANT_ID=
+      # - AZURE_CLIENT_ID=
+      # - AZURE_CLIENT_SECRET=
       # ── Azure Service Health ──
       # - AZURE_SUBSCRIPTION_ID=
       # ── AI summaries (pick one provider) ──

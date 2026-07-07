@@ -11,12 +11,12 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
+  <script src="/static/util.js" defer></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/azureservicehealth.css">
 </head>
 <body>
-  <script src="/static/nav.js"></script>
+  <script src="/static/nav.js" defer></script>
 
   <div class="page-content">
     <!-- Hero -->
@@ -605,6 +605,7 @@
     // ── Stat card sync (mirrors counts from panel headers to KPI tiles) ──
     (function initStatCards() {
       function sync() {
+        requestAnimationFrame(() => {
         // Emerging issues
         var emCount = document.getElementById('arh-emerging-count');
         var emStat = document.getElementById('sh-stat-emerging-val');
@@ -666,6 +667,7 @@
             updateHealthBar(data);
           }
         }
+        });
       }
       function updateHealthBar(data) {
         var wrap = document.getElementById('arh-health-bar-wrap');

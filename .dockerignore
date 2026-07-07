@@ -28,3 +28,6 @@ npm-debug.log*
 # OS junk
 .DS_Store
 Thumbs.db
+NOTICE.md
+linkedin-article.md
+docker-compose.yml

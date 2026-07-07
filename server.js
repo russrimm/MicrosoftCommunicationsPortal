@@ -144,13 +144,13 @@ function checkRateLimit(req, res, limit, windowMs) {
 // Build CORS headers by echoing an allow-listed Origin. CORS_ORIGINS is a
 // comma-separated list of exact origins; if unset, no CORS header is emitted
 // (same-origin only). Wildcards are not supported.
+const CORS_ALLOWED = new Set(
+  (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)
+);
 function corsHeaders(req) {
-  const raw = process.env.CORS_ORIGINS;
-  if (!raw) return {};
+  if (!CORS_ALLOWED.size) return {};
   const origin = req.headers.origin;
-  if (!origin) return {};
-  const allowed = raw.split(',').map(s => s.trim()).filter(Boolean);
-  if (!allowed.includes(origin)) return {};
+  if (!origin || !CORS_ALLOWED.has(origin)) return {};
   return { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' };
 }
 
@@ -254,6 +254,7 @@ function sendHtml(req, res, buf, _etag) {
 
 // In-memory cache of static HTML files: { etag, buf, mtimeMs }.
 const htmlFileCache = new Map();
+const staticFileCache = new Map();  // filePath -> { buf, etag, contentType, gz, mtimeMs }
 function getHtmlFile(filePath, done) {
   fs.stat(filePath, (err, st) => {
     if (err) return done(err);
@@ -502,21 +503,21 @@ const SYSTEM_DIGEST =
 //      for Azure deployments. Selected when USE_MANAGED_IDENTITY=true, or when an
 //      IDENTITY_ENDPOINT is present and no client secret is configured.
 //   2. Client secret — classic app-registration client-credentials flow.
-const M365_CLIENT_ID     = process.env.M365_CLIENT_ID;
-const M365_CLIENT_SECRET = process.env.M365_CLIENT_SECRET;
-const M365_TENANT_ID     = process.env.M365_TENANT_ID;
+const AZURE_CLIENT_ID     = process.env.AZURE_CLIENT_ID;
+const AZURE_CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET;
+const AZURE_TENANT_ID     = process.env.AZURE_TENANT_ID;
 const GRAPH_RESOURCE     = 'https://graph.microsoft.com';
 // Optional user-assigned managed identity client id (omit for system-assigned).
-const MI_CLIENT_ID       = process.env.AZURE_CLIENT_ID || process.env.M365_MANAGED_IDENTITY_CLIENT_ID || '';
+const MI_CLIENT_ID       = process.env.AZURE_MI_CLIENT_ID || process.env.M365_MANAGED_IDENTITY_CLIENT_ID || '';
 
-function detectM365AuthMode() {
+function detectAzureAuthMode() {
   const wantMI = process.env.USE_MANAGED_IDENTITY === 'true' ||
-                 (!!process.env.IDENTITY_ENDPOINT && !M365_CLIENT_SECRET);
+                 (!!process.env.IDENTITY_ENDPOINT && !AZURE_CLIENT_SECRET);
   if (wantMI) return 'managed-identity';
-  if (M365_CLIENT_ID && M365_CLIENT_SECRET && M365_TENANT_ID) return 'client-secret';
+  if (AZURE_CLIENT_ID && AZURE_CLIENT_SECRET && AZURE_TENANT_ID) return 'client-secret';
   return null;
 }
-const M365_AUTH_MODE = detectM365AuthMode();
+const AZURE_AUTH_MODE = detectAzureAuthMode();
 
 let m365AccessToken      = null;
 let m365TokenExpiresAt   = 0;
@@ -583,15 +584,15 @@ function fetchManagedIdentityToken(done) {
 // Acquire a Graph token via the app-registration client-credentials flow.
 function fetchClientSecretToken(done) {
   const postData = new URLSearchParams({
-    client_id: M365_CLIENT_ID,
-    client_secret: M365_CLIENT_SECRET,
+    client_id: AZURE_CLIENT_ID,
+    client_secret: AZURE_CLIENT_SECRET,
     grant_type: 'client_credentials',
     scope: `${GRAPH_RESOURCE}/.default`,
   }).toString();
 
   const options = {
     hostname: 'login.microsoftonline.com',
-    path: `/${M365_TENANT_ID}/oauth2/v2.0/token`,
+    path: `/${AZURE_TENANT_ID}/oauth2/v2.0/token`,
     method: 'POST',
     agent: keepAliveAgent,
     headers: {
@@ -646,8 +647,8 @@ function getM365AccessToken(done) {
     }
   };
 
-  if (!M365_AUTH_MODE) {
-    finish(new Error('M365 auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.'));
+  if (!AZURE_AUTH_MODE) {
+    finish(new Error('Entra ID auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.'));
     return;
   }
 
@@ -658,7 +659,7 @@ function getM365AccessToken(done) {
     finish(null, m365AccessToken);
   };
 
-  if (M365_AUTH_MODE === 'managed-identity') fetchManagedIdentityToken(onToken);
+  if (AZURE_AUTH_MODE === 'managed-identity') fetchManagedIdentityToken(onToken);
   else fetchClientSecretToken(onToken);
 }
 
@@ -914,15 +915,15 @@ function fetchManagedIdentityArmToken(done) {
 // Acquire an ARM token via client-credentials flow.
 function fetchClientSecretArmToken(done) {
   const postData = new URLSearchParams({
-    client_id: M365_CLIENT_ID,
-    client_secret: M365_CLIENT_SECRET,
+    client_id: AZURE_CLIENT_ID,
+    client_secret: AZURE_CLIENT_SECRET,
     grant_type: 'client_credentials',
     scope: `${ARM_RESOURCE}/.default`,
   }).toString();
 
   const options = {
     hostname: 'login.microsoftonline.com',
-    path: `/${M365_TENANT_ID}/oauth2/v2.0/token`,
+    path: `/${AZURE_TENANT_ID}/oauth2/v2.0/token`,
     method: 'POST',
     agent: keepAliveAgent,
     headers: {
@@ -973,8 +974,8 @@ function getArmAccessToken(done) {
     }
   };
 
-  if (!M365_AUTH_MODE) {
-    return finish(new Error('Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.'));
+  if (!AZURE_AUTH_MODE) {
+    return finish(new Error('Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.'));
   }
 
   const onToken = (err, result) => {
@@ -984,7 +985,7 @@ function getArmAccessToken(done) {
     finish(null, armAccessToken);
   };
 
-  if (M365_AUTH_MODE === 'managed-identity') fetchManagedIdentityArmToken(onToken);
+  if (AZURE_AUTH_MODE === 'managed-identity') fetchManagedIdentityArmToken(onToken);
   else fetchClientSecretArmToken(onToken);
 }
 
@@ -1477,7 +1478,7 @@ const server = http.createServer((req, res) => {
       status: 'ok',
       version: require('./package.json').version,
       uptime: Math.floor(process.uptime()),
-      graph: M365_AUTH_MODE || 'not-configured'
+      graph: AZURE_AUTH_MODE || 'not-configured'
     });
     return;
   }
@@ -1528,7 +1529,7 @@ const server = http.createServer((req, res) => {
           console.error('[summarize] error:', e2.message);
           return sendJson(req, res, 502, { error: e2.message, summaries: [] });
         }
-        sendJson(req, res, 200, result, { 'Cache-Control': 'max-age=300' });
+        sendJson(req, res, 200, result, { 'Cache-Control': 'max-age=300, stale-while-revalidate=600' });
       });
     }, 256 * 1024); // 256KB is ample for 20 items; limits unauthenticated DoS surface
     return;
@@ -1580,7 +1581,7 @@ const server = http.createServer((req, res) => {
           topItems: top,
           windowDays,
           generatedAt: new Date().toISOString(),
-        }, { 'Cache-Control': 'max-age=600' });
+        }, { 'Cache-Control': 'max-age=600, stale-while-revalidate=1200' });
       });
     };
 
@@ -1590,9 +1591,9 @@ const server = http.createServer((req, res) => {
     } else if (source === 'm365') {
       fetchM365Updates((e, r) => finish(e ? [] : (r.items || [])));
     } else if (source === 'messagecenter') {
-      if (!M365_AUTH_MODE) {
+      if (!AZURE_AUTH_MODE) {
         return sendJson(req, res, 503, {
-          error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+          error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.',
           code: 'AUTH_NOT_CONFIGURED',
           topItems: []
         });
@@ -1602,9 +1603,9 @@ const server = http.createServer((req, res) => {
         fetchMessageCenterMessages(token, (e2, r) => finish(e2 ? [] : ((r && r.body && r.body.value) || [])));
       });
     } else if (source === 'servicehealth') {
-      if (!M365_AUTH_MODE) {
+      if (!AZURE_AUTH_MODE) {
         return sendJson(req, res, 503, {
-          error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+          error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.',
           code: 'AUTH_NOT_CONFIGURED',
           topItems: []
         });
@@ -1650,12 +1651,12 @@ const server = http.createServer((req, res) => {
     sendJson(req, res, 200, {
       graph: {
         required: true,
-        configured: !!M365_AUTH_MODE,
+        configured: !!AZURE_AUTH_MODE,
         pages: ['messagecenter', 'servicehealth']
       },
       arm: {
         required: false,
-        configured: !!M365_AUTH_MODE,
+        configured: !!AZURE_AUTH_MODE,
         selectedSubscriptions: getSessionSelection(sid),
         pages: ['azure-resource-health']
       },
@@ -1670,9 +1671,9 @@ const server = http.createServer((req, res) => {
   // ── List Azure subscriptions the service principal can access ────────────
   if (parsed.pathname === '/api/subscriptions') {
     if (!checkRateLimit(req, res, 30, 60_000)) return;
-    if (!M365_AUTH_MODE) {
+    if (!AZURE_AUTH_MODE) {
       sendJson(req, res, 503, {
-        error: 'Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+        error: 'Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.',
         code: 'AUTH_NOT_CONFIGURED'
       });
       return;
@@ -1700,7 +1701,7 @@ const server = http.createServer((req, res) => {
           count: subs.length,
           selected: getSessionSelection(ensureSessionCookie(req, res)),
           error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
-        }, { 'Cache-Control': 'max-age=300' });
+        }, { 'Cache-Control': 'max-age=300, stale-while-revalidate=600' });
       });
     });
     return;
@@ -1775,9 +1776,9 @@ const server = http.createServer((req, res) => {
   // ── Message Center API endpoint ──────────────────────────────────────────
   if (parsed.pathname === '/api/messagecenter' || parsed.pathname === '/api/servicemessages' || parsed.pathname === '/servicemessages') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
-    if (!M365_AUTH_MODE) {
+    if (!AZURE_AUTH_MODE) {
       sendJson(req, res, 503, {
-        error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+        error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.',
         code: 'AUTH_NOT_CONFIGURED'
       });
       return;
@@ -1785,16 +1786,14 @@ const server = http.createServer((req, res) => {
     getM365AccessToken((err, token) => {
       if (err) {
         console.error('[messagecenter] token error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ messages: [], error: err.message }));
+        sendJson(req, res, 502, { messages: [], error: err.message });
         return;
       }
 
       fetchMessageCenterMessages(token, (err, result) => {
         if (err) {
           console.error('[messagecenter] fetch error:', err.message);
-          res.writeHead(502, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ messages: [], error: err.message }));
+          sendJson(req, res, 502, { messages: [], error: err.message });
           return;
         }
 
@@ -1803,16 +1802,11 @@ const server = http.createServer((req, res) => {
           ? describeGraphError(status, body.error, 'ServiceMessage.Read.All')
           : null;
         if (error) console.error('[messagecenter] graph error:', status, error);
-        res.writeHead(status, {
-          'Content-Type': 'application/json; charset=utf-8',
-          'X-Content-Type-Options': 'nosniff',
-          'Cache-Control': 'max-age=60',
-        });
-        res.end(JSON.stringify({
+        sendJson(req, res, status, {
           messages: body.value || [],
           count: (body.value || []).length,
           error,
-        }));
+        }, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
       });
     });
     return;
@@ -1821,9 +1815,9 @@ const server = http.createServer((req, res) => {
   // ── Service Health API endpoint ───────────────────────────────────────────
   if (parsed.pathname === '/api/servicehealth') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
-    if (!M365_AUTH_MODE) {
+    if (!AZURE_AUTH_MODE) {
       sendJson(req, res, 503, {
-        error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.',
+        error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.',
         code: 'AUTH_NOT_CONFIGURED'
       });
       return;
@@ -1831,64 +1825,54 @@ const server = http.createServer((req, res) => {
     getM365AccessToken((err, token) => {
       if (err) {
         console.error('[servicehealth] token error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ services: [], error: err.message }));
+        sendJson(req, res, 502, { services: [], error: err.message });
         return;
       }
 
-      fetchServiceHealth(token, (err, result) => {
-        if (err) {
-          console.error('[servicehealth] fetch error:', err.message);
-          res.writeHead(502, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ services: [], error: err.message }));
-          return;
+      // Fire both Graph queries in parallel
+      let pending = 2, healthResult = null, issuesResult = null;
+      function tryFinishServiceHealth() {
+        if (--pending > 0) return;
+        if (healthResult.err) {
+          console.error('[servicehealth] fetch error:', healthResult.err.message);
+          return sendJson(req, res, 502, { services: [], error: healthResult.err.message });
         }
-
-        const { status, body } = result;
+        const { status, body } = healthResult.result;
         const error = body && body.error
           ? describeGraphError(status, body.error, 'ServiceHealth.Read.All')
           : null;
         if (error) console.error('[servicehealth] graph error:', status, error);
 
-        // Also fetch all issues (including resolved + PIRs) to enrich the response.
-        fetchServiceHealthIssues(token, (err2, issuesResult) => {
-          let allIssues = [];
-          if (!err2 && issuesResult && issuesResult.body && issuesResult.body.value) {
-            allIssues = issuesResult.body.value;
+        let allIssues = [];
+        if (!issuesResult.err && issuesResult.result && issuesResult.result.body && issuesResult.result.body.value) {
+          allIssues = issuesResult.result.body.value;
+        }
+
+        const services = body.value || [];
+        const serviceMap = new Map(services.map(s => [s.service || s.id, s]));
+        for (const issue of allIssues) {
+          const svcName = issue.service || 'Unknown Service';
+          let svc = serviceMap.get(svcName);
+          if (!svc) {
+            svc = { service: svcName, id: svcName, status: 'serviceOperational', issues: [] };
+            serviceMap.set(svcName, svc);
+            services.push(svc);
           }
-
-          // Merge resolved/PIR issues into the services array so the frontend gets everything.
-          const services = body.value || [];
-          const serviceMap = new Map(services.map(s => [s.service || s.id, s]));
-
-          for (const issue of allIssues) {
-            const svcName = issue.service || 'Unknown Service';
-            let svc = serviceMap.get(svcName);
-            if (!svc) {
-              svc = { service: svcName, id: svcName, status: 'serviceOperational', issues: [] };
-              serviceMap.set(svcName, svc);
-              services.push(svc);
-            }
-            if (!svc.issues) svc.issues = [];
-            // Add issue only if not already present (avoid duplicates with healthOverviews)
-            const existingIds = new Set(svc.issues.map(i => i.id));
-            if (!existingIds.has(issue.id)) {
-              svc.issues.push(issue);
-            }
+          if (!svc.issues) svc.issues = [];
+          const existingIds = new Set(svc.issues.map(i => i.id));
+          if (!existingIds.has(issue.id)) {
+            svc.issues.push(issue);
           }
+        }
 
-          res.writeHead(status, {
-            'Content-Type': 'application/json; charset=utf-8',
-            'X-Content-Type-Options': 'nosniff',
-            'Cache-Control': 'max-age=60',
-          });
-          res.end(JSON.stringify({
-            services,
-            count: services.length,
-            error,
-          }));
-        });
-      });
+        sendJson(req, res, status, {
+          services,
+          count: services.length,
+          error,
+        }, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
+      }
+      fetchServiceHealth(token, (err, r) => { healthResult = { err, result: r }; tryFinishServiceHealth(); });
+      fetchServiceHealthIssues(token, (err, r) => { issuesResult = { err, result: r }; tryFinishServiceHealth(); });
     });
     return;
   }
@@ -1908,7 +1892,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300',
+        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
         ...corsHeaders(req),
       });
       res.end(JSON.stringify({ items, count: items.length, error: error || null }));
@@ -1931,7 +1915,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300',
+        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
         ...corsHeaders(req),
       });
       res.end(JSON.stringify({ items, count: items.length, error: error || null }));
@@ -1962,7 +1946,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300',
+        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
         ...corsHeaders(req),
       });
       res.end(JSON.stringify({ items, count: items.length, products: FABRIC_PRODUCTS }));
@@ -1988,7 +1972,7 @@ const server = http.createServer((req, res) => {
     if (productId && !force && isKnownEmpty(productId)) {
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'max-age=300',
+        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
         'X-Empty-Cache': 'hit',
         ...corsHeaders(req),
       });
@@ -2030,7 +2014,7 @@ const server = http.createServer((req, res) => {
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
             'X-Content-Type-Options': 'nosniff',
-            'Cache-Control': 'max-age=300',
+            'Cache-Control': 'max-age=300, stale-while-revalidate=600',
             ...corsHeaders(req),
           });
           res.end(body);
@@ -2038,7 +2022,7 @@ const server = http.createServer((req, res) => {
           // Malformed upstream but clearly empty — return clean JSON.
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
-            'Cache-Control': 'max-age=300',
+            'Cache-Control': 'max-age=300, stale-while-revalidate=600',
             'X-Empty-Cache': 'recovered',
             ...corsHeaders(req),
           });
@@ -2144,29 +2128,65 @@ const server = http.createServer((req, res) => {
     const filePath = path.join(__dirname, 'static', rel);
     const root = path.join(__dirname, 'static') + path.sep;
     if (!filePath.startsWith(root)) { res.writeHead(400); res.end('Bad path'); return; }
+
+    const cached = staticFileCache.get(filePath);
+    if (cached) {
+      if (req.headers['if-none-match'] === cached.etag) {
+        res.writeHead(304, { ETag: cached.etag }); res.end(); return;
+      }
+      const headers = {
+        'Content-Type': cached.contentType,
+        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+        'ETag': cached.etag,
+        'X-Content-Type-Options': 'nosniff',
+        'Vary': 'Accept-Encoding',
+      };
+      const accept = (req.headers['accept-encoding'] || '').toLowerCase();
+      if (accept.includes('gzip') && cached.gz) {
+        headers['Content-Encoding'] = 'gzip';
+        headers['Content-Length'] = cached.gz.length;
+        res.writeHead(200, headers); res.end(cached.gz); return;
+      }
+      headers['Content-Length'] = cached.buf.length;
+      res.writeHead(200, headers); res.end(cached.buf); return;
+    }
+
     fs.readFile(filePath, (err, buf) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       const ext = path.extname(filePath).toLowerCase();
       const types = { '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
                       '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json; charset=utf-8' };
+      const contentType = types[ext] || 'application/octet-stream';
       const etag = '"' + crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16) + '"';
-      if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag }); res.end(); return; }
-      const headers = {
-        'Content-Type': types[ext] || 'application/octet-stream',
-        'Cache-Control': 'no-cache',
-        'ETag': etag,
-        'X-Content-Type-Options': 'nosniff',
-        'Vary': 'Accept-Encoding',
+      // Pre-compute gzipped version for text assets > 4KB
+      const shouldGzip = buf.length > 4096 && /\.(js|css|svg|json)$/i.test(ext);
+      const finalize = (gz) => {
+        const entry = { buf, etag, contentType, gz: gz || null, mtimeMs: Date.now() };
+        staticFileCache.set(filePath, entry);
+        if (req.headers['if-none-match'] === etag) {
+          res.writeHead(304, { ETag: etag }); res.end(); return;
+        }
+        const headers = {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+          'ETag': etag,
+          'X-Content-Type-Options': 'nosniff',
+          'Vary': 'Accept-Encoding',
+        };
+        const accept = (req.headers['accept-encoding'] || '').toLowerCase();
+        if (accept.includes('gzip') && gz) {
+          headers['Content-Encoding'] = 'gzip';
+          headers['Content-Length'] = gz.length;
+          res.writeHead(200, headers); res.end(gz); return;
+        }
+        headers['Content-Length'] = buf.length;
+        res.writeHead(200, headers); res.end(buf);
       };
-      const accept = (req.headers['accept-encoding'] || '').toLowerCase();
-      if (accept.includes('gzip') && buf.length > 1024) {
-        const gz = zlib.gzipSync(buf);
-        headers['Content-Encoding'] = 'gzip';
-        headers['Content-Length'] = gz.length;
-        res.writeHead(200, headers); res.end(gz); return;
+      if (shouldGzip) {
+        zlib.gzip(buf, (err, gz) => finalize(err ? null : gz));
+      } else {
+        finalize(null);
       }
-      headers['Content-Length'] = buf.length;
-      res.writeHead(200, headers); res.end(buf);
     });
     return;
   }
@@ -2198,11 +2218,14 @@ const server = http.createServer((req, res) => {
         'Vary': 'Accept-Encoding',
       };
       const accept = (req.headers['accept-encoding'] || '').toLowerCase();
-      if (ext === '.svg' && accept.includes('gzip') && buf.length > 1024) {
-        const gz = zlib.gzipSync(buf);
-        headers['Content-Encoding'] = 'gzip';
-        headers['Content-Length'] = gz.length;
-        res.writeHead(200, headers); res.end(gz); return;
+      if (ext === '.svg' && accept.includes('gzip') && buf.length > 4096) {
+        zlib.gzip(buf, (err, gz) => {
+          if (err) { headers['Content-Length'] = buf.length; res.writeHead(200, headers); res.end(buf); return; }
+          headers['Content-Encoding'] = 'gzip';
+          headers['Content-Length'] = gz.length;
+          res.writeHead(200, headers); res.end(gz);
+        });
+        return;
       }
       headers['Content-Length'] = buf.length;
       res.writeHead(200, headers); res.end(buf);
@@ -2211,7 +2234,7 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Azure Resource Health API endpoints ───────────────────────────────────
-  // All under /api/azure-resource-health/*. Requires M365_AUTH_MODE (same app
+  // All under /api/azure-resource-health/*. Requires AZURE_AUTH_MODE (same app
   // registration with Azure RBAC Reader role on the subscription).
   const ARM_ROUTE_PREFIX = '/api/azure-resource-health/';
 
@@ -2219,9 +2242,9 @@ const server = http.createServer((req, res) => {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
     const subRoute = parsed.pathname.slice(ARM_ROUTE_PREFIX.length);
 
-    if (!M365_AUTH_MODE) {
+    if (!AZURE_AUTH_MODE) {
       sendJson(req, res, 503, {
-        error: 'Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env. The app also needs Reader RBAC role on the target subscription.',
+        error: 'Azure auth not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env. The app also needs Reader RBAC role on the target subscription.',
         code: 'AUTH_NOT_CONFIGURED'
       });
       return;
@@ -2244,7 +2267,7 @@ const server = http.createServer((req, res) => {
             value: (body && body.value) || [],
             count: ((body && body.value) || []).length,
             error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120' });
+          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2282,7 +2305,7 @@ const server = http.createServer((req, res) => {
             count: ((body && body.value) || []).length,
             subscriptionId,
             error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120' });
+          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2320,7 +2343,7 @@ const server = http.createServer((req, res) => {
             count: ((body && body.value) || []).length,
             subscriptionId,
             error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120' });
+          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2361,7 +2384,7 @@ const server = http.createServer((req, res) => {
             subscriptionId,
             eventTrackingId,
             error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120' });
+          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2396,7 +2419,7 @@ const server = http.createServer((req, res) => {
             count: ((body && body.value) || []).length,
             resourceUri,
             error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120' });
+          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2432,7 +2455,7 @@ const server = http.createServer((req, res) => {
             count: ((body && body.value) || []).length,
             resourceUri,
             error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120' });
+          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2463,7 +2486,7 @@ const server = http.createServer((req, res) => {
             return sendJson(req, res, 502, { error: err2.message });
           }
           const { status, body } = result;
-          sendJson(req, res, status >= 400 ? status : 200, body || {}, { 'Cache-Control': 'max-age=60' });
+          sendJson(req, res, status >= 400 ? status : 200, body || {}, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
         });
       });
       return;
@@ -2492,7 +2515,7 @@ const HOST = process.env.HOST || '127.0.0.1';
 const IS_LOOPBACK = HOST === '127.0.0.1' || HOST === '::1';
 if (!IS_LOOPBACK) {
   const risks = [
-    M365_AUTH_MODE === 'managed-identity'
+    AZURE_AUTH_MODE === 'managed-identity'
       ? 'can obtain Microsoft Graph tokens via the host managed identity'
       : 'holds a Microsoft Graph client_secret in memory/env',
     'calls billed LLM APIs (Azure OpenAI / OpenAI / GitHub Models)',
@@ -2514,14 +2537,18 @@ if (!IS_LOOPBACK) {
   console.warn('\x1b[31mOnly do this behind an authenticated reverse proxy on a trusted network.\x1b[0m\n');
 }
 
+// Align with common reverse-proxy idle timeouts to prevent premature connection drops.
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+
 server.listen(PORT, HOST, () => {
   console.log(`\n  Microsoft Communications Portal`);
   console.log(`  → http://${IS_LOOPBACK ? 'localhost' : HOST}:${PORT}`);
-  if (M365_AUTH_MODE) {
-    console.log(`  → Graph auth: ${M365_AUTH_MODE}${M365_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ' (user-assigned)' : ''}`);
+  if (AZURE_AUTH_MODE) {
+    console.log(`  → Graph auth: ${AZURE_AUTH_MODE}${AZURE_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ' (user-assigned)' : ''}`);
   } else {
     console.warn('[startup] \u26a0 Microsoft Graph not configured \u2014 Message Center and Service Health pages will return 503.');
-    console.warn('[startup]   Set USE_MANAGED_IDENTITY=true or M365_CLIENT_ID/M365_CLIENT_SECRET/M365_TENANT_ID in .env.');
+    console.warn('[startup]   Set USE_MANAGED_IDENTITY=true or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.');
   }
   if (AZURE_SUBSCRIPTION_ID) {
     console.log(`  → Resource Health: subscription ${AZURE_SUBSCRIPTION_ID.slice(0, 8)}...`);

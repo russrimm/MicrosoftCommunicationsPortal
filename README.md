@@ -136,9 +136,9 @@ environment variables:
 
 ```bash
 docker run -p 127.0.0.1:3000:3000 \
-  -e M365_TENANT_ID=your-tenant-id \
-  -e M365_CLIENT_ID=your-client-id \
-  -e M365_CLIENT_SECRET=your-client-secret \
+  -e AZURE_TENANT_ID=your-tenant-id \
+  -e AZURE_CLIENT_ID=your-client-id \
+  -e AZURE_CLIENT_SECRET=your-client-secret \
   mcp
 ```
 
@@ -386,7 +386,7 @@ already exists, it reuses it (safe to re-run).
    pwsh .\scripts\create-entra-app.ps1
    ```
 
-3. The script writes `M365_TENANT_ID`, `M365_CLIENT_ID`, and `M365_CLIENT_SECRET`
+3. The script writes `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`
    into `.env`. You're done — skip ahead to [Step 3](#step-3--configure-azure-service-health).
 
 **Optional overrides** (set before running):
@@ -419,8 +419,8 @@ PowerShell / Azure CLI.
      (app-to-app authentication), so no redirect is needed.
 4. Click **Register**.
 5. On the **Overview** blade, copy these two values — you'll paste them into `.env` later:
-   - **Application (client) ID** → this becomes `M365_CLIENT_ID`
-   - **Directory (tenant) ID** → this becomes `M365_TENANT_ID`
+   - **Application (client) ID** → this becomes `AZURE_CLIENT_ID`
+   - **Directory (tenant) ID** → this becomes `AZURE_TENANT_ID`
 
 **Step 2b — Add Microsoft Graph API permissions**
 
@@ -450,7 +450,7 @@ prove its identity when calling Microsoft Graph.
    Shorter is more secure but means you'll need to rotate it sooner.
 3. Click **Add**.
 4. **Immediately copy the secret's `Value`** (not the "Secret ID") — it's only shown
-   once. This is your `M365_CLIENT_SECRET`. If you navigate away before copying it,
+   once. This is your `AZURE_CLIENT_SECRET`. If you navigate away before copying it,
    delete it and create a new one.
 
 **Step 2d — Create your `.env` file**
@@ -465,9 +465,9 @@ prove its identity when calling Microsoft Graph.
    ```
 2. Open `.env` in any text editor and paste in the three values you collected:
    ```
-   M365_CLIENT_ID=00000000-0000-0000-0000-000000000000
-   M365_CLIENT_SECRET=your-client-secret-value
-   M365_TENANT_ID=00000000-0000-0000-0000-000000000000
+   AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000000
+   AZURE_CLIENT_SECRET=your-client-secret-value
+   AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000
    ```
 
 </details>
