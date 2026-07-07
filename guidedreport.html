@@ -16,63 +16,7 @@
   <link rel="stylesheet" href="/static/guidedreport.css">
 </head>
 <body>
-  <!-- Header -->
-  <header class="header">
-    <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
-    <div>
-      <div class="header-title">Microsoft Communications Portal</div>
-      <div class="header-subtitle">A tool not officially supported by Microsoft, but officially created by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect, to help customers keep up with the pace of change.</div>
-    </div>
-    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" data-act="toggleTheme">🌙 Dark</button>
-  </header>
-
-  <nav class="page-tabs" aria-label="Primary">
-    <a class="nav-tab" href="/home">Home</a>
-    <div class="nav-dropdown">
-      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Roadmaps <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
-      <div class="nav-dropdown-menu">
-        <a class="nav-dropdown-item" href="/powerplatform">Power Platform</a>
-        <a class="nav-dropdown-item" href="/fabricroadmap">Fabric</a>
-        <a class="nav-dropdown-item" href="/azureupdates">Azure</a>
-        <a class="nav-dropdown-item" href="/m365updates">Microsoft 365</a>
-      </div>
-    </div>
-    <div class="nav-dropdown">
-      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Microsoft 365 <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
-      <div class="nav-dropdown-menu">
-        <a class="nav-dropdown-item" href="/messagecenter">Message Center</a>
-      </div>
-    </div>
-    <div class="nav-dropdown">
-      <button class="nav-tab nav-dropdown-toggle" type="button" aria-expanded="false" aria-haspopup="true">Service Health <span class="nav-dropdown-caret" aria-hidden="true">▾</span></button>
-      <div class="nav-dropdown-menu">
-        <a class="nav-dropdown-item" href="/servicehealth">Microsoft 365</a>
-        <a class="nav-dropdown-item" href="/azureservicehealth">Azure</a>
-      </div>
-    </div>
-    <a class="nav-tab active" href="/guidedreport" aria-current="page">Guided Report</a>
-  </nav>
-  <script>
-    (() => {
-      document.querySelectorAll('.nav-dropdown-toggle').forEach(btn => {
-        btn.addEventListener('click', e => {
-          e.stopPropagation();
-          const dd = btn.closest('.nav-dropdown');
-          document.querySelectorAll('.nav-dropdown.open').forEach(d => {
-            if (d !== dd) { d.classList.remove('open'); d.querySelector('.nav-dropdown-toggle').setAttribute('aria-expanded', 'false'); }
-          });
-          const open = dd.classList.toggle('open');
-          btn.setAttribute('aria-expanded', open);
-        });
-      });
-      document.addEventListener('click', () => {
-        document.querySelectorAll('.nav-dropdown.open').forEach(d => {
-          d.classList.remove('open');
-          d.querySelector('.nav-dropdown-toggle').setAttribute('aria-expanded', 'false');
-        });
-      });
-    })();
-  </script>
+  <script src="/static/nav.js"></script>
 
   <!-- Live region for screen reader announcements -->
   <div id="wizard-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>

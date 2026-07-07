@@ -45,3 +45,21 @@
 - No JS rendering logic touched
 - All element IDs preserved — JS bindings intact
 - Dark/light theme variables untouched
+
+## 2026-07-06 – Shared Nav, Mobile, Focus Traps, State Helpers
+
+**Files created:** `static/nav.js`
+**Files modified:** `static/util.js`, `static/common.css`, all 9 HTML pages
+
+### What was done:
+1. **Shared nav (`nav.js`):** Single IIFE injects header/nav/dropdown into all pages. Theme toggle via `data-act="toggleTheme"` + CPActions. Eliminated ~360 lines of copy-pasted markup.
+2. **Mobile responsive:** `@media` breakpoints at 768px and 480px in `common.css` for header, nav tabs (horizontal scroll), modal.
+3. **Focus traps:** `trapFocus(modalEl)` and `releaseFocus()` added to `util.js`. Wired into 6 modal pages (powerplatform, m365updates, azureupdates, fabricroadmap, messagecenter, servicehealth).
+4. **State helpers:** `CPUtil.renderLoading()`, `renderError()`, `renderEmpty()` in `util.js` + `.cp-state` CSS classes. For new code — existing page states untouched.
+5. **Home theme fix:** `home.html` now loads `util.js`, removed ad-hoc theme toggle script.
+
+### Learnings:
+- Nav link to Azure Service Health was inconsistent (`/servicehealth#arh-section` vs `/azureservicehealth`) — standardized to `/azureservicehealth`
+- `servicehealth.html` has a `window.toggleTheme` wrapper for chart re-render that must be preserved even when using CPActions
+- FOUC-prevention IIFE in `<head>` must stay — `nav.js` runs after DOM, so the theme class is already set
+- `util.js` must load before `nav.js` in script order

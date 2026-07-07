@@ -174,6 +174,67 @@
     }
   }
 
+  // ── Focus trap for modals ────────────────────────────────────────────────
+  var FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  var _focusTrapState = null;
+
+  function trapFocus(modalEl, returnFocusEl) {
+    _focusTrapState = { modal: modalEl, returnTo: returnFocusEl || document.activeElement };
+    var focusable = modalEl.querySelectorAll(FOCUSABLE_SELECTOR);
+    if (!focusable.length) return;
+
+    function handleTab(e) {
+      if (e.key !== 'Tab') return;
+      var els = modalEl.querySelectorAll(FOCUSABLE_SELECTOR);
+      if (!els.length) return;
+      var f = els[0], l = els[els.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === f) { e.preventDefault(); l.focus(); }
+      } else {
+        if (document.activeElement === l) { e.preventDefault(); f.focus(); }
+      }
+    }
+
+    modalEl._trapHandler = handleTab;
+    modalEl.addEventListener('keydown', handleTab);
+    focusable[0].focus();
+  }
+
+  function releaseFocus() {
+    if (!_focusTrapState) return;
+    var modal = _focusTrapState.modal;
+    var returnTo = _focusTrapState.returnTo;
+    if (modal._trapHandler) {
+      modal.removeEventListener('keydown', modal._trapHandler);
+      delete modal._trapHandler;
+    }
+    _focusTrapState = null;
+    if (returnTo && returnTo.focus) {
+      try { returnTo.focus(); } catch (_) {}
+    }
+  }
+
+  // ── Standard loading / error / empty state helpers ─────────────────────
+  function renderLoading(message) {
+    return '<div class="cp-state cp-state-loading" role="status" aria-live="polite">' +
+      '<div class="spinner" aria-hidden="true"></div>' +
+      '<span>' + escapeHtml(message || 'Loading\u2026') + '</span>' +
+      '</div>';
+  }
+  function renderError(message, retryLabel) {
+    return '<div class="cp-state cp-state-error" role="alert">' +
+      '<span class="cp-state-icon" aria-hidden="true">\u26A0\uFE0F</span>' +
+      '<span>' + escapeHtml(message || 'Something went wrong.') + '</span>' +
+      (retryLabel ? ' <button class="cp-state-retry" data-act="retry">' + escapeHtml(retryLabel) + '</button>' : '') +
+      '</div>';
+  }
+  function renderEmpty(message) {
+    return '<div class="cp-state cp-state-empty" role="status">' +
+      '<span class="cp-state-icon" aria-hidden="true">\uD83D\uDCED</span>' +
+      '<span>' + escapeHtml(message || 'No results found.') + '</span>' +
+      '</div>';
+  }
+
   // Export globals.
   window.escapeHtml = escapeHtml;
   window.safeUrl = safeUrl;
@@ -181,6 +242,8 @@
   window.stripHtml = stripHtml;
   window.toggleTheme = toggleTheme;
   window.applyThemeButtonLabel = applyThemeButtonLabel;
+  window.trapFocus = trapFocus;
+  window.releaseFocus = releaseFocus;
   // Namespaced accessors — safe to call even when a page defines its own
   // top-level function named sanitizeHtml/safeUrl (which would otherwise shadow
   // the window globals above and cause recursion).
@@ -188,7 +251,10 @@
     escapeHtml: escapeHtml,
     safeUrl: safeUrl,
     sanitizeHtml: sanitizeHtml,
-    stripHtml: stripHtml
+    stripHtml: stripHtml,
+    renderLoading: renderLoading,
+    renderError: renderError,
+    renderEmpty: renderEmpty
   };
 
   // ── Event delegation (replaces inline on* handlers for CSP compliance) ──────

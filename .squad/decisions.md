@@ -52,3 +52,8 @@
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+### 2026-07-06T12:00:00-05:00: UX/Maintainability – Shared Nav, Mobile, Focus Traps, State Helpers
+**By:** Lambert (Frontend Developer)
+**What:** Five fixes in one pass: (1) Created `static/nav.js` — shared IIFE replacing ~360 lines of copy-pasted header/nav across 9 HTML pages. Theme toggle unified via `data-act="toggleTheme"` through CPActions delegation. (2) Added mobile responsive `@media` breakpoints (768px, 480px) to `common.css`. (3) Added `trapFocus()`/`releaseFocus()` to `util.js`, wired into 6 modal pages for accessibility. (4) Added `CPUtil.renderLoading/renderError/renderEmpty` state helpers to `util.js` + `.cp-state` CSS. (5) Fixed `home.html` theme persistence (added `util.js`, removed ad-hoc toggle). Standardized Azure Service Health nav link to `/azureservicehealth`.
+**Why:** Code duplication was the #1 maintainability risk from the capabilities audit. Shared nav eliminates 9× copy-paste. Focus traps and mobile support are accessibility prerequisites. State helpers standardize loading/error/empty patterns for future development.
