@@ -159,10 +159,26 @@
     applyThemeButtonLabel();
   }
 
+  // ── Safe HTML-to-text extraction ────────────────────────────────────────────
+  // Uses DOMParser so the untrusted HTML is parsed in an inert document that
+  // will NOT load sub-resources (<img src>, <script>, etc.) — unlike the legacy
+  // detached-div approach (document.createElement + innerHTML) which triggers
+  // resource loads in the live document context.
+  function stripHtml(html) {
+    if (!html) return '';
+    try {
+      var doc = new DOMParser().parseFromString(String(html), 'text/html');
+      return (doc.body ? doc.body.textContent : '').trim();
+    } catch (_e) {
+      return '';
+    }
+  }
+
   // Export globals.
   window.escapeHtml = escapeHtml;
   window.safeUrl = safeUrl;
   window.sanitizeHtml = sanitizeHtml;
+  window.stripHtml = stripHtml;
   window.toggleTheme = toggleTheme;
   window.applyThemeButtonLabel = applyThemeButtonLabel;
   // Namespaced accessors — safe to call even when a page defines its own
@@ -171,7 +187,8 @@
   window.CPUtil = {
     escapeHtml: escapeHtml,
     safeUrl: safeUrl,
-    sanitizeHtml: sanitizeHtml
+    sanitizeHtml: sanitizeHtml,
+    stripHtml: stripHtml
   };
 
   // ── Event delegation (replaces inline on* handlers for CSP compliance) ──────

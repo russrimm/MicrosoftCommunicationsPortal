@@ -8,12 +8,12 @@
 #
 # Optional overrides:
 #   $env:APP_NAME    = 'Microsoft Communications Portal'
-#   $env:SECRET_YEARS = '2'   # client secret lifetime in years (default 2)
+#   $env:SECRET_DAYS = '180'  # client secret lifetime in days (default 180, local dev only)
 
 [CmdletBinding()]
 param(
     [string]$AppName    = ($env:APP_NAME    ?? 'Microsoft Communications Portal'),
-    [int]   $SecretYears = ([int]($env:SECRET_YEARS ?? '2'))
+    [int]   $SecretDays = ([int]($env:SECRET_DAYS ?? '180'))
 )
 
 $ErrorActionPreference = 'Stop'
@@ -79,14 +79,25 @@ foreach ($role in @(
 }
 
 # 5. Grant tenant-wide admin consent (requires admin role)
+#    Skipped for azd deployments — the managed identity gets direct app-role
+#    assignments below, so the app registration's SP doesn't need standing
+#    Graph access. This avoids duplicate permission grants.
 Write-Host ""
 Write-Host "[4/6] Admin consent" -ForegroundColor Yellow
-try {
-    az ad app permission admin-consent --id $appId --only-show-errors 2>&1 | Out-Null
-    Write-Host "  Consent granted." -ForegroundColor Green
-} catch {
-    Write-Warning "  Could not grant consent automatically. Grant it manually in the portal:"
-    Write-Warning "  https://entra.microsoft.com -> Applications -> App registrations -> $AppName -> API permissions -> Grant admin consent"
+$webAppName = $env:SERVICE_WEB_NAME
+$azdEnvName = $env:AZURE_ENV_NAME
+$isAzdDeploy = $webAppName -and $azdEnvName
+
+if ($isAzdDeploy) {
+    Write-Host "  Skipped (azd deploy detected — MI-only Graph access)." -ForegroundColor DarkGray
+} else {
+    try {
+        az ad app permission admin-consent --id $appId --only-show-errors 2>&1 | Out-Null
+        Write-Host "  Consent granted." -ForegroundColor Green
+    } catch {
+        Write-Warning "  Could not grant consent automatically. Grant it manually in the portal:"
+        Write-Warning "  https://entra.microsoft.com -> Applications -> App registrations -> $AppName -> API permissions -> Grant admin consent"
+    }
 }
 
 # 6. Grant Graph app-role assignments to the App Service managed identity
@@ -94,9 +105,7 @@ try {
 #    from Bicep outputs, and the App Service has a system-assigned managed identity).
 Write-Host ""
 Write-Host "[5/6] Managed identity Graph permissions" -ForegroundColor Yellow
-$webAppName = $env:SERVICE_WEB_NAME
-$azdEnvName = $env:AZURE_ENV_NAME
-if ($webAppName -and $azdEnvName) {
+if ($isAzdDeploy) {
     $rgName = "rg-$azdEnvName"
     Write-Host "  App Service : $webAppName (RG: $rgName)"
     $miObjectId = az webapp identity show --name $webAppName -g $rgName --query principalId -o tsv --only-show-errors 2>$null
@@ -143,54 +152,57 @@ if ($webAppName -and $azdEnvName) {
     Write-Host "  to the App Service managed identity. See README.md -> Setup -> Option A." -ForegroundColor DarkGray
 }
 
-# 7. Create client secret
+# 7. Create client secret (local dev only — skipped for azd deployments that use MI)
 Write-Host ""
-Write-Host "[6/6] Client secret (valid $SecretYears years)" -ForegroundColor Yellow
-$cred = az ad app credential reset `
-    --id $appId `
-    --display-name "portal-$(Get-Date -Format 'yyyyMMdd')" `
-    --years $SecretYears `
-    --append `
-    --only-show-errors | ConvertFrom-Json
-$clientSecret = $cred.password
-
-# 8. Report + write .env
-Write-Host ""
-Write-Host "=== DONE ===" -ForegroundColor Green
-Write-Host "M365_TENANT_ID    = $tenantId"
-Write-Host "M365_CLIENT_ID    = $appId"
-Write-Host "M365_CLIENT_SECRET = <written to .env>"
-
-$envPath = Join-Path (Split-Path $PSScriptRoot -Parent) '.env'
-$envLines = @(
-    "# Written by scripts/create-entra-app.ps1 on $(Get-Date -Format 'yyyy-MM-dd HH:mm')",
-    "M365_TENANT_ID=$tenantId",
-    "M365_CLIENT_ID=$appId",
-    "M365_CLIENT_SECRET=$clientSecret"
-)
-
-if (Test-Path $envPath) {
-    $backup = "$envPath.bak-$(Get-Date -Format 'yyyyMMddHHmmss')"
-    Copy-Item $envPath $backup
+if ($isAzdDeploy) {
+    Write-Host "[6/6] Client secret" -ForegroundColor Yellow
+    Write-Host "  Skipped (azd deploy uses managed identity — no client secret needed)." -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host "Existing .env backed up to: $backup" -ForegroundColor Yellow
-    # Read raw text split on common line endings to handle corrupted single-line files
-    $raw = [System.IO.File]::ReadAllText($envPath)
-    $lines = $raw -split '\r?\n'
-    $existing = $lines | Where-Object { $_ -notmatch '^(M365_TENANT_ID|M365_CLIENT_ID|M365_CLIENT_SECRET)=' -and $_ -notmatch '# Written by scripts/create-entra-app\.ps1' }
-    # Drop trailing blank lines to avoid stacking empties
-    while ($existing.Count -gt 0 -and [string]::IsNullOrWhiteSpace($existing[-1])) {
-        $existing = $existing[0..($existing.Count - 2)]
-    }
-    ($existing + '' + $envLines) | Set-Content $envPath -Encoding UTF8
+    Write-Host "=== DONE ===" -ForegroundColor Green
+    Write-Host "M365_TENANT_ID = $tenantId"
+    Write-Host "M365_CLIENT_ID = $appId"
+    Write-Host "Azure deployment uses managed identity — no client secret created." -ForegroundColor Cyan
 } else {
-    $envLines | Set-Content $envPath -Encoding UTF8
-}
-Write-Host ""
-Write-Host ".env updated (for local dev). Restart the server:  npm start" -ForegroundColor Cyan
-if ($webAppName) {
+    $endDate = (Get-Date).AddDays($SecretDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
+    Write-Host "[6/6] Client secret (valid $SecretDays days, expires $(($endDate).Substring(0,10)))" -ForegroundColor Yellow
+    # Reset (not --append) so old secrets are revoked, preventing secret accumulation.
+    $cred = az ad app credential reset `
+        --id $appId `
+        --display-name "portal-$(Get-Date -Format 'yyyyMMdd')" `
+        --end-date $endDate `
+        --only-show-errors | ConvertFrom-Json
+    $clientSecret = $cred.password
+
+    # 8. Report + write .env (in-place update, no .bak accumulation)
     Write-Host ""
-    Write-Host "Azure deployment uses managed identity — the .env client secret is for local dev only." -ForegroundColor Cyan
+    Write-Host "=== DONE ===" -ForegroundColor Green
+    Write-Host "M365_TENANT_ID    = $tenantId"
+    Write-Host "M365_CLIENT_ID    = $appId"
+    Write-Host "M365_CLIENT_SECRET = <written to .env>"
+
+    $envPath = Join-Path (Split-Path $PSScriptRoot -Parent) '.env'
+    $envLines = @(
+        "# Written by scripts/create-entra-app.ps1 on $(Get-Date -Format 'yyyy-MM-dd HH:mm')",
+        "M365_TENANT_ID=$tenantId",
+        "M365_CLIENT_ID=$appId",
+        "M365_CLIENT_SECRET=$clientSecret"
+    )
+
+    if (Test-Path $envPath) {
+        # Read raw text split on common line endings to handle corrupted single-line files
+        $raw = [System.IO.File]::ReadAllText($envPath)
+        $lines = $raw -split '\r?\n'
+        $existing = $lines | Where-Object { $_ -notmatch '^(M365_TENANT_ID|M365_CLIENT_ID|M365_CLIENT_SECRET)=' -and $_ -notmatch '# Written by scripts/create-entra-app\.ps1' }
+        # Drop trailing blank lines to avoid stacking empties
+        while ($existing.Count -gt 0 -and [string]::IsNullOrWhiteSpace($existing[-1])) {
+            $existing = $existing[0..($existing.Count - 2)]
+        }
+        ($existing + '' + $envLines) | Set-Content $envPath -Encoding UTF8
+    } else {
+        $envLines | Set-Content $envPath -Encoding UTF8
+    }
+    Write-Host ""
+    Write-Host ".env updated (for local dev). Restart the server:  npm start" -ForegroundColor Cyan
 }
 Write-Host ""
 Write-Host "NOTE: Message Center + Service Health data can take up to ~1 hour to appear" -ForegroundColor DarkGray

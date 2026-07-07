@@ -216,9 +216,7 @@
     }
 
     function stripHtml(html) {
-      const tmp = document.createElement('div');
-      tmp.innerHTML = html || '';
-      return (tmp.textContent || tmp.innerText || '').trim();
+      return window.CPUtil ? window.CPUtil.stripHtml(html) : '';
     }
 
     async function loadFabricRoadmap() {

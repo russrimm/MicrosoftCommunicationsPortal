@@ -84,7 +84,7 @@
 
     <!-- Dashboard layout -->
     <div class="sh-page-stack">
-      <!-- Top row: left column (overview + breakdown), right column (trend chart) -->
+      <!-- Top row: left column (overview + breakdown), right column (activity + heatmap) -->
       <div class="sh-top-row">
         <div class="sh-top-left">
           <section class="sh-panel">
@@ -142,32 +142,18 @@
         </div>
 
         <div class="sh-top-right">
-        <section class="sh-panel">
-          <div class="sh-panel-head">
-            <div class="sh-panel-title">
-              <span class="sh-panel-title-icon" aria-hidden="true" style="color:var(--cp-success)">📈</span>
-              <span>30-Day Health Trend</span>
-            </div>
-            <div class="sh-trend-toggle" id="sh-trend-toggle" role="group" aria-label="Trend range">
-              <button type="button" data-range="7" aria-pressed="false" aria-label="7 days">7d</button>
-              <button type="button" data-range="14" aria-pressed="false" aria-label="14 days">14d</button>
-              <button type="button" data-range="30" class="active" aria-pressed="true" aria-label="30 days">30d</button>
-            </div>
-          </div>
-          <svg class="sh-trend-svg" id="sh-trend-svg" viewBox="0 0 800 90" preserveAspectRatio="none" role="img" aria-label="30-day health trend chart"></svg>
-          <div class="sh-trend-legend">
-            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-danger)"></span>Active issues</span>
-            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-warning)"></span>Affected services</span>
-            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-success)"></span>Operational services</span>
-          </div>
-        </section>
-
         <section class="sh-panel sh-panel-flex">
           <div class="sh-panel-head">
             <div class="sh-panel-title">
               <span>Recent Activity</span>
               <span class="sh-panel-title-count" id="sh-activity-total">—</span>
             </div>
+          </div>
+          <div class="sh-severity-legend">
+            <span class="sh-severity-legend-item"><span class="sh-severity-legend-dot" style="background:var(--cp-danger)"></span>Incident</span>
+            <span class="sh-severity-legend-item"><span class="sh-severity-legend-dot" style="background:var(--cp-warning)"></span>Advisory</span>
+            <span class="sh-severity-legend-item"><span class="sh-severity-legend-dot" style="background:var(--cp-purple)"></span>Extended</span>
+            <span class="sh-severity-legend-item"><span class="sh-severity-legend-dot" style="background:var(--cp-link)"></span>Investigating</span>
           </div>
           <div class="sh-activity" id="sh-activity">
             <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
@@ -192,6 +178,27 @@
         </div>
       </div>
 
+      <!-- Trend chart — full width for better readability -->
+      <section class="sh-panel">
+        <div class="sh-panel-head">
+          <div class="sh-panel-title">
+            <span class="sh-panel-title-icon" aria-hidden="true" style="color:var(--cp-success)">📈</span>
+            <span>30-Day Health Trend</span>
+          </div>
+          <div class="sh-trend-toggle" id="sh-trend-toggle" role="group" aria-label="Trend range">
+            <button type="button" data-range="7" aria-pressed="false" aria-label="7 days">7d</button>
+            <button type="button" data-range="14" aria-pressed="false" aria-label="14 days">14d</button>
+            <button type="button" data-range="30" class="active" aria-pressed="true" aria-label="30 days">30d</button>
+          </div>
+        </div>
+        <svg class="sh-trend-svg" id="sh-trend-svg" viewBox="0 0 800 90" preserveAspectRatio="none" role="img" aria-label="30-day health trend chart"></svg>
+        <div class="sh-trend-legend">
+          <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-danger)"></span>Active issues</span>
+          <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-warning)"></span>Affected services</span>
+          <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-success)"></span>Operational services</span>
+        </div>
+      </section>
+
       <!-- Current Issues — fills remaining height, scrolls internally -->
       <section class="sh-panel sh-issues-panel">
         <div class="sh-panel-head">
@@ -204,6 +211,12 @@
             <button class="ghost-btn" id="sh-expand-btn" type="button" aria-expanded="false">Show all</button>
             <button class="ghost-btn" id="sh-pause-btn" type="button" aria-pressed="false">Pause</button>
           </div>
+        </div>
+        <div class="sh-severity-legend">
+          <span class="sh-severity-legend-item"><span class="sh-severity-legend-bar" style="background:var(--cp-danger)"></span>Incident</span>
+          <span class="sh-severity-legend-item"><span class="sh-severity-legend-bar" style="background:var(--cp-warning)"></span>Advisory</span>
+          <span class="sh-severity-legend-item"><span class="sh-severity-legend-bar" style="background:var(--cp-purple)"></span>Extended</span>
+          <span class="sh-severity-legend-item"><span class="sh-severity-legend-bar" style="background:var(--cp-link)"></span>Investigating</span>
         </div>
         <div class="sh-issues-list" id="sh-sidebar-list">
           <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>

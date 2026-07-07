@@ -34,6 +34,8 @@ module web 'modules/appservice.bicep' = {
     tags: tags
     appServicePlanName: '${abbrs.webServerFarms}${resourceToken}'
     appServiceName: '${abbrs.webSitesAppService}${resourceToken}'
+    logAnalyticsName: 'log-${resourceToken}'
+    appInsightsName: 'appi-${resourceToken}'
     planSku: planSku
     runtimeName: 'node'
     runtimeVersion: '24-lts'
@@ -47,6 +49,9 @@ module web 'modules/appservice.bicep' = {
       // where ALLOW_REMOTE_BIND is set by default — deliberate opt-in.
       HOST: '0.0.0.0'
       ALLOW_REMOTE_BIND: 'true'
+      // App Service is a reverse proxy — enable proxy-header trust so the
+      // rate limiter sees real client IPs instead of the single proxy IP.
+      TRUST_PROXY: 'true'
     }
   }
 }

@@ -11,7 +11,7 @@
 
 ## What I Own
 
-- The five HTML pages: `index.html` (Power Platform), `m365updates.html`, `azureupdates.html`, `messagecenter.html`, `servicehealth.html`
+- The five HTML pages: `powerplatform.html` (Power Platform), `m365updates.html`, `azureupdates.html`, `messagecenter.html`, `servicehealth.html`
 - Static assets under `public/` and `static/`
 - Light/dark theme toggle and `?clawpilotTheme=` query-param behavior
 - Client-side data fetching, rendering, filtering, and empty/loading/error states

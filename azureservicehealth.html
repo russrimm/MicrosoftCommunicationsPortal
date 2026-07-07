@@ -296,10 +296,7 @@
       }
 
       function stripHtml(html) {
-        if (!html) return '';
-        var tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        return (tmp.textContent || tmp.innerText || '').trim();
+        return window.CPUtil ? window.CPUtil.stripHtml(html) : '';
       }
 
       function relTime(iso) {

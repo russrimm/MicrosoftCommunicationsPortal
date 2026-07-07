@@ -29,7 +29,7 @@ tenant-side incidents in one place.
 | Page | Route | Source file | Backend |
 |---|---|---|---|
 | Home | `/home` | `home.html` | — (dashboard/landing page) |
-| Power Platform Release Planner | `/powerplatform` | `index.html` | `releaseplans.microsoft.com` (proxied) |
+| Power Platform Release Planner | `/powerplatform` | `powerplatform.html` | `releaseplans.microsoft.com` (proxied) |
 | Microsoft 365 Roadmap | `/m365updates` | `m365updates.html` | M365 Roadmap RSS |
 | Azure Updates | `/azureupdates` | `azureupdates.html` | Azure Updates RSS |
 | Microsoft Fabric Roadmap | `/fabricroadmap` | `fabricroadmap.html` | `roadmap.fabric.microsoft.com` (proxied) |
@@ -720,7 +720,7 @@ Static `/public/` icons are sent with a 24-hour `Cache-Control` and an ETag, and
 
 ```
 home.html                        Home / dashboard landing page
-index.html                       Power Platform Release Planner UI
+powerplatform.html               Power Platform Release Planner UI
 m365updates.html                 M365 Roadmap UI
 azureupdates.html                Azure Updates UI
 fabricroadmap.html               Microsoft Fabric Roadmap UI
