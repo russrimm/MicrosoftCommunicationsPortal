@@ -113,7 +113,7 @@ deploying on-premises where Azure isn't available.
 Pull and run:
 
 ```bash
-docker run -p 127.0.0.1:3000:3000 ghcr.io/russrimm/microsoft-communications-portal:latest
+docker run -p 127.0.0.1:3000:3000 ghcr.io/russrimm/microsoftcommunicationsportal:latest
 ```
 
 Or build from source:
@@ -312,7 +312,7 @@ USE_MANAGED_IDENTITY=true
   it to one or more resources. Useful if you want to share one identity across
   multiple apps. If you use this type, also add its client ID to `.env`:
   ```
-  AZURE_CLIENT_ID=<managed-identity-client-id>
+  AZURE_MI_CLIENT_ID=<managed-identity-client-id>
   ```
 
 No client secret is needed — the platform issues the token automatically. On
@@ -706,7 +706,7 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth\|fabricroadmap&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider | 10/min |
 | `GET /api/empty-products` | List product IDs cached as known-empty by the `/proxy` route | Loopback + `ADMIN_TOKEN` | — |
 | `DELETE /api/empty-products` | Clear the entire known-empty cache | Loopback + `ADMIN_TOKEN` | — |
-| `GET /static/<file>` | Shared client JS (`util.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`, `subscription-picker.js`) and other static assets | None | — |
+| `GET /static/<file>` | Shared client JS (`util.js`, `nav.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`, `subscription-picker.js`) and CSS (`common.css`, page-specific stylesheets) | None | — |
 | `GET /public/<file>` | Microsoft product / service SVG icons | None | — |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
@@ -731,6 +731,8 @@ guidedreport.html                Guided Report wizard (multi-source report build
 server.js                        Node HTTP server, static file host, API proxy, AI endpoints
 static/
   util.js                        Shared client-side utilities (escapeHtml, sanitizeHtml, safeUrl, theme toggle, event delegation)
+  nav.js                         Shared navigation header and dropdown menu (injected into every page)
+  common.css                     Shared CSS (nav dropdowns, header, layout primitives)
   ai-insights.js                 Shared client-side AI helper (digest panel + per-item summarize)
   product-icons.js               Shared client-side product-icon resolver (alias map + fuzzy matcher)
   outlook-export.js              Shared client-side Outlook-friendly HTML exporter (inline styles + bgcolor)

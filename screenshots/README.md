@@ -22,8 +22,8 @@ using Playwright + headless Chromium.
 # 1. Start the portal
 node server.js
 
-# 2. From another shell, install Playwright (one-time) and run the capture
-npm install --no-save playwright
+# 2. From another shell, install dependencies (including Playwright) and run the capture
+npm install
 npx playwright install chromium
 node scripts/capture-screenshots.js
 ```

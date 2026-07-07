@@ -8,6 +8,35 @@
 
 ---
 
+> **Post-audit status (2026-07-07):** Many findings below have been addressed in
+> subsequent commits. Items marked ✅ are resolved; the original text is preserved
+> for traceability.
+>
+> | Finding | Status | Resolution |
+> |---------|--------|------------|
+> | D2 — No Azure Management API code | ✅ Fixed | Azure Service Health page implemented with full ARM API endpoints (events, availability-statuses, impacted-resources, emerging-issues, resource-events, resource-availability, resource-status) |
+> | D3 — Playwright not in `package.json` | ✅ Fixed | Added to `devDependencies` |
+> | D7 — No `engines` field | ✅ Fixed | `"engines": { "node": ">=24.0.0" }` added |
+> | D11 — `util.js` omitted from project structure | ✅ Fixed | Listed in README project structure |
+> | G1 — No health check endpoint | ✅ Fixed | `/healthz` and `/health` endpoints added |
+> | G2 — No rate limiting on AI endpoints | ✅ Fixed | 5/min on `/api/summarize`, 10/min on `/api/impact-digest` |
+> | G5 — No auth on `DELETE /api/empty-products` | ✅ Fixed | Loopback + `ADMIN_TOKEN` bearer auth (constant-time compare) |
+> | P1 — Generic 502 when Graph creds missing | ✅ Fixed | Returns 503 "Not configured" with actionable message; `/api/auth-check` endpoint added |
+> | P5 — Root `/` redirects to `/powerplatform` | ✅ Fixed | Now redirects to `/home` (dashboard landing page) |
+> | Top 10 #1 — Playwright in devDependencies | ✅ Fixed | See D3 |
+> | Top 10 #2 — Remove Canvas App / Azure Management API claims | ✅ Fixed | Azure Service Health fully implemented; Canvas App mention removed from intro |
+> | Top 10 #5 — Return 503 + add `/api/auth-check` | ✅ Fixed | See P1 |
+> | Top 10 #8 — Add `/healthz` endpoint | ✅ Fixed | See G1 |
+> | Top 10 #9 — Rate limit AI endpoints | ✅ Fixed | See G2 |
+> | Top 10 #10 — Auth on `DELETE /api/empty-products` | ✅ Fixed | See G5 |
+>
+> Additionally, the navigation was refactored into a shared `static/nav.js`
+> component with dropdown menus, eliminating ~40 lines of duplicated header HTML
+> per page. The project structure and API documentation in the README have been
+> updated to reflect this.
+
+---
+
 ## 1. Executive Summary
 
 **What works well**
