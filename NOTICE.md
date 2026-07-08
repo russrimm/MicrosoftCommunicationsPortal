@@ -20,8 +20,10 @@ This portal is intended as a reference architecture and accelerator to help
 customers build their own unified Microsoft communications dashboard. It
 demonstrates patterns for:
 
-- Proxying Microsoft public APIs (Release Plans, RSS feeds)
-- Authenticating with Microsoft Graph using managed identity or the client credentials flow
+- Proxying Microsoft public APIs and Azure Management APIs (Release Plans, RSS
+  feeds, Azure Resource Manager endpoints)
+- Authenticating with Microsoft Graph and Azure Resource Manager using managed
+  identity or the client credentials flow
 - Aggregating multiple Microsoft update streams into a single UI
 - Optional AI-powered summarization of announcements
 - Security hardening (nonce-based CSP, allow-list HTML sanitization, rate limiting,

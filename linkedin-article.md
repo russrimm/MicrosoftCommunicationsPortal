@@ -16,7 +16,7 @@ I've been a Cloud Solution Architect at Microsoft for a while now, and the same 
 
 **Portal fatigue.** Between the M365 Admin Center, Azure Portal, Power Platform Admin Center, the M365 Roadmap site, Azure Updates, and the Fabric Roadmap — that's 6+ surfaces you're supposed to monitor just to stay informed. Nobody has time for that.
 
-**Imporant updates get missed.** A breaking change buried in 50 Message Center posts? A service retirement that lands during a busy week? You don't find out until someone in finance asks "why did this stop working?" and now you're in reactive mode. After all, it's Murphy's #1 Law.
+**Important updates get missed.** A breaking change buried in 50 Message Center posts? A service retirement that lands during a busy week? You don't find out until someone in finance asks "why did this stop working?" and now you're in reactive mode. Murphy's Law is undefeated.
 
 **Teams working in silos.** Your infra team watches Azure Service Health. Your collab team watches M365 updates. Your app dev folks track Power Platform releases. Nobody has the cross-cutting view — and nobody can brief leadership with a coherent story because the data lives in six different places.
 
@@ -56,7 +56,7 @@ Every page has an export button that generates an inline-styled HTML table — t
 Outlook HTML, Markdown, PDF, Word-compatible docs, PowerPoint — the Guided Report Builder lets you filter by date range and product before exporting. Pick your format and go.
 
 **Works without credentials (mostly).**
-Seven of nine pages work with zero setup — just deploy and go. Only Message Center and Service Health need an Entra app registration for tenant-specific data. You can stand it up in minutes to kick the tires.
+Six of nine pages work with zero setup — just deploy and go. Message Center, Service Health, and Azure Service Health need an Entra app registration for tenant-specific data. You can stand it up in minutes to kick the tires.
 
 **Deploy however you want.**
 - `azd up` gets you to Azure App Service in two commands

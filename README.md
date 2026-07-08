@@ -14,10 +14,11 @@ This project grew out of a recurring request from customers: they wanted a **sin
 pane of glass** to see all the Microsoft updates that affect them — Power Platform
 release plans, the Microsoft 365 roadmap, Azure announcements, tenant-specific
 Message Center posts, and Service Health incidents — without bouncing between half a
-dozen portals, RSS feeds, and admin centers. Just like the https://www.mspulse360.app site I created, but something they could run internally as a Canvas App (Code app type) or on an app server in Azure. The Microsoft Communications Portal
+dozen portals, RSS feeds, and admin centers. Something they could deploy internally
+on their own infrastructure or host in Azure. The Microsoft Communications Portal
 brings those streams together into one filterable, dark-mode-friendly UI backed by
-a small local Node.js server that proxies the upstream APIs and handles Microsoft
-Graph authentication.
+a small Node.js server that proxies the upstream APIs and handles Microsoft Graph
+authentication.
 
 If you wire up the Azure Management API as well, this same portal can surface
 **Azure Service Health** and **Azure Resource Health events** alongside the
@@ -45,14 +46,14 @@ The site root (`/`) redirects to `/home`.
 
 ## Quick Deploy
 
-Seven of nine pages work with **zero credentials** — you can be up and running in
-under a minute. Only a few pages need extra setup, and each is optional:
+Six of nine pages work with **zero credentials** — you can be up and running in
+under a minute. The remaining pages need extra setup, and each is optional:
 
 | Pages | What you need | Who should care |
 |-------|--------------|-----------------|
-| Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap, Guided Report | **Nothing** — works immediately | Everyone |
+| Home, Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap, Guided Report | **Nothing** — works immediately | Everyone |
 | Message Center, Service Health | An **Entra app registration** that can read your tenant's Microsoft Graph data (see [Setup step 2](#setup)) | IT admins who want tenant-specific M365 announcements and incident reports |
-| Azure Service Health | The same Entra credentials **plus** an Azure role assignment (see [Setup step 3](#setup)) | Teams who also monitor Azure subscription-level health events |
+| Azure Service Health | The same Entra credentials **plus** an Azure role assignment (see [Setup step 3](#setup)) | Teams that also monitor Azure subscription-level health events |
 | AI Insights (available on all pages) | An API key from **Azure OpenAI**, **OpenAI**, or **GitHub Models** (see [AI summarization](#ai-summarization-optional)) | Anyone who wants AI-generated summaries and "top 5 most impactful changes" digests |
 
 > **Not sure where to start?** Pick the deployment option below that matches your
@@ -123,10 +124,10 @@ docker build -t mcp .
 docker run -p 127.0.0.1:3000:3000 mcp
 ```
 
-Open http://localhost:3000. Seven pages work immediately.
+Open http://localhost:3000. Six pages work immediately — no credentials needed.
 
-> **Security note:** The examples above bind to `127.0.0.1` (loopback), which means
-> only your local machine can reach the portal. Using `-p 3000:3000` instead exposes
+> **Security note:** The examples above bind to `127.0.0.1` (loopback), so only
+> your local machine can reach the portal. Using `-p 3000:3000` instead exposes
 > it on all network interfaces — only do that behind an authenticated reverse proxy
 > on a trusted network, since the app can hold Graph credentials and call billed
 > LLM APIs.
@@ -178,7 +179,7 @@ npm start            # production mode
 npm run dev           # watch mode — auto-restarts on file changes
 ```
 
-Open http://localhost:3000. Seven of nine pages work immediately with no credentials.
+Open http://localhost:3000. Six of nine pages work immediately with no credentials.
 
 For Graph-backed pages (Message Center, Service Health), copy `.env.example` to `.env` and fill in your Entra app credentials — or run `pwsh scripts/create-entra-app.ps1` to automate it.
 
@@ -260,8 +261,8 @@ server can start.
 
 ### Step 2 — Configure Microsoft Graph authentication
 
-*(Required only for the Message Center and Service Health pages. Skip this step
-if you only need the other seven pages.)*
+*(Required only for the Message Center and Service Health pages. Skip this if
+you only need the other six pages.)*
 
 The Message Center and Service Health pages pull data from
 [Microsoft Graph](https://learn.microsoft.com/graph/overview) — Microsoft's API
@@ -596,39 +597,98 @@ configured data sources so you can confirm which pages are working.
   and items requiring admin action. See [AI summarization](#ai-summarization-optional) below.
 
 ### Security hardening
-- **Entra ID Easy Auth** — the Bicep infrastructure supports enabling Entra ID
-  authentication on the App Service via the `authClientId` parameter. When set,
-  all requests require an Entra ID sign-in before reaching the app — protecting
-  tenant-sensitive Graph data, Azure Resource Health endpoints, and billed LLM
-  API calls from unauthenticated access. See [Quick Deploy](#quick-deploy).
-- **Strict Content Security Policy** — inline scripts are authorized via a per-request
-  cryptographic nonce (`script-src 'self' 'nonce-…'`); `'unsafe-inline'` is **not** used.
-  Additional directives: `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'none'`,
-  `object-src 'none'`, `frame-src 'none'`.
-- **Allow-list HTML sanitizer** — a single hardened sanitizer in
-  [`static/util.js`](static/util.js) is shared across all pages. It parses untrusted
-  feed / Graph HTML via `DOMParser`, keeps only an explicit allow-list of safe tags and
-  attributes (links forced to `target="_blank" rel="noopener noreferrer"`), and drops
-  everything else — including `<script>`, `<style>`, `<iframe>`, `<math>`, `<template>`,
-  `<svg>`, event-handler attributes, `javascript:` / `data:` / `blob:` URLs, and `style`
-  attributes. This resists mutation-XSS far better than the deny-list approach.
-- **Event delegation (no inline handlers)** — all user-facing event handlers use a
-  `data-act` delegation system in `util.js`. No `onclick=`, `onchange=`, or other
-  inline handler attributes appear anywhere in the markup, so the CSP nonce policy is
-  fully enforceable.
-- **Per-IP rate limiting** on every API endpoint (AI, Graph, RSS, and proxy), with a
-  `TRUST_PROXY` option for correct client-IP extraction behind a reverse proxy.
-- **Managed identity support** — preferred for Azure deployments; eliminates the
-  client secret entirely. See [Setup → Option A](#setup).
-- **Redirect-following restricted to Microsoft hosts** — the RSS and release-plan
-  fetchers only follow redirects to `*.microsoft.com` / `*.azure.com` over HTTPS.
-  Graph bearer tokens are never sent to any host other than `graph.microsoft.com`.
-- **Admin endpoint auth** — the `/api/empty-products` endpoint is restricted to
-  loopback and, when `ADMIN_TOKEN` is set, requires a bearer token compared in
-  constant time (`crypto.timingSafeEqual`).
-- **Prototype pollution guard** — the JSON body parser strips `__proto__`,
-  `constructor`, and `prototype` keys before they reach application code.
-- **`X-Content-Type-Options: nosniff`** on all HTML, JSON, and static-asset responses.
+
+The portal is built with defense-in-depth security suitable for enterprise
+environments. Every feature below is **implemented and active by default** —
+no additional configuration required unless noted. For the full security policy
+and vulnerability reporting instructions, see [SECURITY.md](SECURITY.md).
+
+#### Authentication & authorization
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **Entra ID Easy Auth** | The Bicep infrastructure supports enabling Entra ID authentication on the App Service via the `authClientId` parameter. When set, all requests require an organizational sign-in before reaching the app. See [Quick Deploy](#quick-deploy). | Unauthorized access to tenant-sensitive Graph data, Azure Resource Health endpoints, and billed LLM API calls. |
+| **Managed identity support** | Preferred for Azure deployments (`USE_MANAGED_IDENTITY=true`). Azure issues and rotates tokens automatically — no client secret stored anywhere. See [Setup → Option A](#setup). | Credential leakage, secret sprawl, and manual rotation failures. |
+| **Admin endpoint auth** | The `/api/empty-products` endpoint is restricted to loopback addresses (`127.0.0.1`, `::1`). When `ADMIN_TOKEN` is set, a bearer token is additionally required for both reads and mutations, compared using `crypto.timingSafeEqual`. | Unauthorized cache manipulation and timing side-channel attacks on token comparison. |
+| **Graph token isolation** | OAuth bearer tokens for Microsoft Graph are **never** sent to any host other than `graph.microsoft.com`. If an `@odata.nextLink` points at a different host, the request is rejected. | Token exfiltration via open-redirect or DNS rebinding on upstream APIs. |
+
+#### Cross-site scripting (XSS) prevention
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **Strict Content Security Policy (CSP) with nonce** | Every HTML response includes a CSP header. Inline `<script>` tags are authorized via a per-request cryptographic nonce (`script-src 'self' 'nonce-…'`); **`'unsafe-inline'` is not used**. Additional directives: `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'none'`, `object-src 'none'`, `frame-src 'none'`, `media-src 'none'`, `worker-src 'none'`. | Injected scripts, clickjacking (`frame-ancestors`), base-tag hijacking (`base-uri`), form-action redirection, and plugin/embed-based attacks. |
+| **Allow-list HTML sanitizer** | A single hardened sanitizer in [`static/util.js`](static/util.js) is shared across all pages. It parses untrusted feed / Graph HTML via `DOMParser` (which does not execute scripts), keeps only an explicit allow-list of safe tags and attributes (links forced to `target="_blank" rel="noopener noreferrer"`), and drops everything else — including `<script>`, `<style>`, `<iframe>`, `<math>`, `<template>`, `<svg>`, `<noscript>`, event-handler attributes, `javascript:` / `data:` / `blob:` URLs, and `style` attributes. | Stored XSS and mutation-XSS from upstream Microsoft feed data and Graph API responses. The allow-list approach is far more resilient than deny-lists. |
+| **Event delegation (no inline handlers)** | All user-facing event handlers use a `data-act` delegation system in [`static/util.js`](static/util.js). No `onclick=`, `onchange=`, or other inline handler attributes appear anywhere in the markup. | Inline-handler injection that would bypass CSP. Ensures the nonce-based CSP policy is fully enforceable with no exceptions. |
+
+#### Server-Side Request Forgery (SSRF) & redirect safety
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **Redirect-following restricted to Microsoft hosts** | The RSS and release-plan fetchers only follow HTTP redirects to `*.microsoft.com` and `*.azure.com` over HTTPS, up to a maximum of 5 hops. Redirects to any other host are rejected with a logged error. | SSRF attacks where a compromised or malicious upstream redirects the server to internal network resources or attacker-controlled hosts. |
+| **UUID validation on inputs** | Product IDs and other identifiers passed via query parameters are validated as well-formed UUIDs before being interpolated into upstream API paths. | Path injection and cache-key abuse through malformed identifiers. |
+
+#### Injection prevention
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **Prototype pollution guard** | The JSON body parser uses a reviver function that strips `__proto__`, `constructor`, and `prototype` keys before they reach application code. | Prototype pollution attacks that could modify object behavior, bypass validation, or escalate to remote code execution. |
+| **Path traversal protection** | The `/static/` and `/public/` file-serving routes reject `..`, `\`, and any resolved path that escapes the intended root directory using `path.normalize()` checks. | Directory traversal attacks that could read arbitrary files from the server filesystem (e.g., `.env`, `/etc/passwd`). |
+| **1 MB request body limit** | JSON POST bodies (e.g., `/api/summarize`) are capped at 1 MB. Oversized payloads destroy the socket immediately. | Memory exhaustion and denial-of-service via large request bodies. |
+
+#### Rate limiting & abuse prevention
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **Per-IP rate limiting on every endpoint** | All API endpoints enforce per-IP fixed-window rate limits. Set `TRUST_PROXY=true` when running behind a reverse proxy so the limiter reads the client IP correctly (Azure App Service `X-Azure-ClientIP` header preferred, then the last `X-Forwarded-For` hop — not the first, which is client-spoofable). | Denial-of-service, brute-force abuse, and billed API cost runaway. |
+| **Rate limit tiers** | AI summarize: **5/min**. AI digest: **10/min**. Graph + RSS endpoints: **60/min**. Proxy: **600/min**. Subscription endpoints: **30/min**. Exceeded requests receive HTTP 429 with a `Retry-After` header. | Proportional protection — tighter limits on expensive AI calls, looser on read-only feeds. |
+| **Daily LLM budget cap** | A global daily limit (default **200 calls/day**, configurable via `LLM_DAILY_LIMIT`) caps total LLM invocations per UTC day regardless of how many clients are hitting the endpoint. | Runaway AI API spend from automated abuse, misconfigured clients, or compromised deployments. |
+| **Cache size caps** | The upstream response cache and rate-limit bucket map are both hard-capped (500 and 10,000 entries respectively). Expired entries are evicted first, then oldest-inserted. | Memory exhaustion from clients spraying unique cache keys or URLs to grow internal maps without bound. |
+
+#### Transport & network security
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **Loopback-only binding by default** | The server binds to `127.0.0.1` and **refuses to start** on a non-loopback host unless `ALLOW_REMOTE_BIND=true` is explicitly set. When overridden, a prominent warning is logged listing the specific risks (Graph tokens, billed LLM APIs, admin endpoints). | Accidental exposure of credential-bearing services to untrusted networks. |
+| **HSTS (HTTP Strict Transport Security)** | All JSON and HTML responses include `Strict-Transport-Security: max-age=31536000; includeSubDomains`. | Protocol downgrade attacks and SSL-stripping when deployed behind a TLS-terminating reverse proxy. |
+| **CORS allow-list** | Cross-origin requests are only permitted for origins explicitly listed in the `CORS_ORIGINS` environment variable (comma-separated). If unset, no `Access-Control-Allow-Origin` header is emitted (same-origin only). Wildcard (`*`) is not supported. | Cross-site data theft from unauthorized origins. |
+| **Upstream request timeouts** | All outbound HTTP requests enforce timeouts: 15 seconds for Graph/RSS/proxy calls, 30 seconds for AI calls. | Hung sockets and resource exhaustion from slow or unresponsive upstreams. |
+| **Keep-alive connection pooling** | A shared `https.Agent` with `keepAlive: true` and `maxSockets: 32` reuses TLS connections to upstream hosts. | Socket exhaustion and excessive TLS handshake overhead under load. |
+
+#### Response security headers
+
+All responses include defense-in-depth headers:
+
+| Header | Value | What it prevents |
+|--------|-------|-----------------|
+| `X-Content-Type-Options` | `nosniff` | MIME-type sniffing that could reinterpret a response as executable script. |
+| `X-Frame-Options` | `DENY` | Clickjacking via `<iframe>` embedding (defense-in-depth alongside CSP `frame-ancestors`). |
+| `Referrer-Policy` | `no-referrer` | Leaking sensitive URL parameters (e.g., tokens, subscription IDs) to external sites via the `Referer` header. |
+| `Cache-Control` | `no-store` (HTML) | Prevents caching of HTML pages that may contain nonces or tenant-specific data. |
+| `Content-Security-Policy` | Full policy (see above) | Comprehensive XSS, clickjacking, and resource-loading restrictions. |
+
+#### AI-specific security
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **Prompt injection defenses** | Both the summarize and digest system prompts include explicit instructions to ignore any directives, prompts, or instructions embedded in feed item titles or descriptions. The LLM is instructed to only analyze factual content and never change its output format, role, or behavior based on item content. | Indirect prompt injection via malicious content in upstream Microsoft feeds (e.g., a crafted Azure Update title designed to hijack the LLM). |
+| **Strict JSON output format** | All LLM calls request structured JSON responses with a fixed schema. Responses are parsed and validated before being returned to clients. | Output manipulation that could inject malicious content into the UI through LLM responses. |
+| **AI provider auto-detection** | The server detects the AI provider in priority order (Azure OpenAI → OpenAI → GitHub Models). When no provider is configured, AI features are cleanly disabled — `/api/summarize` returns 503, and the UI silently omits AI panels. | Misconfiguration errors and confused failure modes when AI is not set up. |
+
+#### Credential & secret management
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **`.env` excluded from source control** | The `.gitignore` file excludes `.env` and other secret-bearing files. | Accidental commit of API keys, client secrets, or tokens to a public or shared repository. |
+| **No secrets in code** | All credentials are loaded exclusively from environment variables or Azure managed identity. No secrets are hardcoded. | Credential exposure through source code inspection or repository access. |
+| **Client secret rotation guidance** | The setup documentation includes expiration guidance and rotation instructions for Entra ID client secrets. | Expired or compromised credentials going unnoticed. |
+
+#### Supply chain & dependency minimization
+
+| Feature | What it does | What it prevents |
+|---------|-------------|-----------------|
+| **Single runtime dependency** | The server depends only on `dotenv`. All HTTP, HTTPS, crypto, compression, and file-serving functionality uses Node.js built-in modules. | Supply chain attacks via compromised npm packages. A minimal dependency tree means a minimal attack surface. |
+| **No native add-ons** | The server uses no native C/C++ modules — pure JavaScript only. | Build-time supply chain attacks and binary compatibility issues across platforms. |
+| **Node.js 24 LTS** | The `engines` field in `package.json` enforces Node.js 24+, ensuring the latest security patches and built-in API improvements. | Running on outdated runtimes with known vulnerabilities. |
 
 ## AI summarization (optional)
 

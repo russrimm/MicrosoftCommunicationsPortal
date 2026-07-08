@@ -1,6 +1,6 @@
 # Capabilities Audit — 2026-07-04
 
-> Full team review of Microsoft Communications Portal v1.1.0. Verifies what the app actually does vs what's documented, then flags gaps and behaviors likely to be perceived as bugs.
+> Full team review of Microsoft Communications Portal v1.1.0. Verifies what the app actually does against what's documented, then flags gaps and behaviors likely to be reported as bugs.
 
 **Audit team:** Ripley (Lead), Lambert (Frontend), Parker (Backend), Kane (Docs-truth)
 **Requested by:** Russ Rimmerman
@@ -224,7 +224,7 @@ Ordered by user impact. Owner column is who should implement.
 
 ## 7. Notes for Follow-Up
 
-- The frontend has substantial code duplication (multi-select dropdowns, modals, HTML sanitization, date formatting) across the 5 pages — ~200+ lines per page of largely identical logic. A `/static/multiselect.js`, `/static/modal.js`, `/static/html-sanitize.js`, `/static/date-formats.js` refactor would pay for itself immediately and lock in consistency (Lambert can lead).
+- The frontend has substantial code duplication (multi-select dropdowns, modals, HTML sanitization, date formatting) across the 5 pages — 200+ lines per page of largely identical logic. A `/static/multiselect.js`, `/static/modal.js`, `/static/html-sanitize.js`, `/static/date-formats.js` refactor would pay for itself immediately and lock in consistency (Lambert can lead).
 - Accessibility: modals lack focus trap; multi-selects lack live-region "N of M selected" announcements; some interactive elements are color-only (severity). All fixable, none critical, all worth queuing.
 - `SECURITY.md` doesn't currently mention the CSP header set or the path-traversal protection — worth adding since they're real strengths of the current implementation.
 
