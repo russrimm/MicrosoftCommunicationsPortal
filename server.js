@@ -1437,29 +1437,64 @@ function timingSafeEqualStr(a, b) {
 
 loadEmptyProducts();
 
-// ── App Service Easy Auth guard (defense-in-depth) ──────────────────────────
-// When running on Azure App Service (WEBSITE_INSTANCE_ID is set), sensitive API
-// routes require a validated X-MS-CLIENT-PRINCIPAL header — injected by Easy Auth
-// after Entra ID authentication. This prevents exposing tenant data or burning AI
-// spend if Easy Auth is accidentally misconfigured or disabled.
+// ── Universal API authentication guard ───────────────────────────────────────
+// Sensitive API routes are gated by one of three mechanisms (checked in order):
+//   1. Azure App Service Easy Auth — X-MS-CLIENT-PRINCIPAL header (injected by
+//      the platform after Entra ID authentication).
+//   2. API_AUTH_TOKEN — a shared bearer token configured via environment variable.
+//      Requests must supply `Authorization: Bearer <token>`. Works in any hosting
+//      environment (Docker, VM, local dev with remote bind).
+//   3. Loopback-only access — when HOST is 127.0.0.1/::1 AND no token is set,
+//      all local requests are allowed (safe default for solo local dev).
+//
+// If none of the above pass, the request is rejected with 401.
 const IS_APP_SERVICE = !!process.env.WEBSITE_INSTANCE_ID;
+const API_AUTH_TOKEN = process.env.API_AUTH_TOKEN || '';
 const AUTH_EXEMPT_API_ROUTES = new Set([
   '/api/ai-status',    // read-only config check
   '/api/auth-check',   // read-only config check
   '/api/m365updates',  // public RSS proxy
   '/api/azureupdates', // public RSS proxy
   '/api/fabricroadmap',// public feed proxy
-  '/api/empty-products', // static data
+  '/api/empty-products', // static data (GET only; DELETE still requires ADMIN_TOKEN)
 ]);
 
-function requireEasyAuth(req, res, pathname) {
-  if (!IS_APP_SERVICE) return true; // local dev — no guard
-  if (!pathname.startsWith('/api/')) return true; // non-API routes
-  if (AUTH_EXEMPT_API_ROUTES.has(pathname)) return true; // safe public endpoints
-  const principal = req.headers['x-ms-client-principal'];
-  if (principal) return true; // Easy Auth validated user
+function requireAuth(req, res, pathname) {
+  // Non-API routes (HTML pages, static assets) are always public.
+  if (!pathname.startsWith('/api/')) return true;
+  // Exempt routes are safe without authentication.
+  if (AUTH_EXEMPT_API_ROUTES.has(pathname)) return true;
+
+  // 1. App Service Easy Auth — platform-injected header after Entra ID login.
+  if (IS_APP_SERVICE) {
+    const principal = req.headers['x-ms-client-principal'];
+    if (principal) return true;
+    sendJson(req, res, 401, {
+      error: 'Authentication required. This endpoint is protected by Entra ID Easy Auth.',
+      code: 'AUTH_REQUIRED',
+    });
+    return false;
+  }
+
+  // 2. Bearer token — API_AUTH_TOKEN configured in env.
+  if (API_AUTH_TOKEN) {
+    const auth = req.headers['authorization'] || '';
+    const supplied = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (supplied && timingSafeEqualStr(supplied, API_AUTH_TOKEN)) return true;
+    sendJson(req, res, 401, {
+      error: 'Authentication required. Supply a valid Authorization: Bearer <API_AUTH_TOKEN> header.',
+      code: 'AUTH_REQUIRED',
+    });
+    return false;
+  }
+
+  // 3. No token configured — allow only if server is bound to loopback.
+  const bindHost = process.env.HOST || '127.0.0.1';
+  if (bindHost === '127.0.0.1' || bindHost === '::1') return true;
+
+  // Non-loopback binding without any auth — reject.
   sendJson(req, res, 401, {
-    error: 'Authentication required. This endpoint is protected by Entra ID Easy Auth.',
+    error: 'Authentication required. Set API_AUTH_TOKEN in your environment to secure this server, or use Easy Auth on Azure App Service.',
     code: 'AUTH_REQUIRED',
   });
   return false;
@@ -1468,8 +1503,8 @@ function requireEasyAuth(req, res, pathname) {
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
 
-  // ── Easy Auth guard for sensitive API endpoints ─────────────────────────
-  if (!requireEasyAuth(req, res, parsed.pathname)) return;
+  // ── Universal auth guard for sensitive API endpoints ─────────────────────
+  if (!requireAuth(req, res, parsed.pathname)) return;
 
   // ── Health check endpoint (no auth; generous rate limit for monitors) ────
   if (parsed.pathname === '/healthz' || parsed.pathname === '/health') {
@@ -2528,6 +2563,14 @@ if (!IS_LOOPBACK) {
     console.error('Set ALLOW_REMOTE_BIND=true to override (only behind an authenticated reverse proxy on a trusted network).\n');
     process.exit(1);
   }
+  // Refuse to start on a remote-accessible interface without any auth mechanism.
+  if (!IS_APP_SERVICE && !API_AUTH_TOKEN) {
+    console.error('\n\x1b[31mFATAL: refusing to bind to non-loopback host "' + HOST + '" without authentication.\x1b[0m');
+    console.error('Sensitive API routes would be publicly accessible without credentials.');
+    console.error('Fix: set API_AUTH_TOKEN=<long-random-secret> in your environment, or deploy');
+    console.error('     on Azure App Service with Easy Auth enabled.\n');
+    process.exit(1);
+  }
   const bar = '='.repeat(72);
   console.warn('\n\x1b[41m\x1b[97m' + bar + '\x1b[0m');
   console.warn('\x1b[41m\x1b[97m  WARNING: BINDING TO NON-LOOPBACK HOST "' + HOST + '"' + ' '.repeat(Math.max(0, 72 - 42 - HOST.length)) + '\x1b[0m');
@@ -2544,6 +2587,14 @@ server.headersTimeout = 66000;
 server.listen(PORT, HOST, () => {
   console.log(`\n  Microsoft Communications Portal`);
   console.log(`  → http://${IS_LOOPBACK ? 'localhost' : HOST}:${PORT}`);
+  // Log API auth mode
+  if (IS_APP_SERVICE) {
+    console.log('  → API auth: Azure App Service Easy Auth (Entra ID)');
+  } else if (API_AUTH_TOKEN) {
+    console.log('  → API auth: Bearer token (API_AUTH_TOKEN)');
+  } else if (IS_LOOPBACK) {
+    console.log('  → API auth: loopback-only (no token required on localhost)');
+  }
   if (AZURE_AUTH_MODE) {
     console.log(`  → Graph auth: ${AZURE_AUTH_MODE}${AZURE_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ' (user-assigned)' : ''}`);
   } else {
