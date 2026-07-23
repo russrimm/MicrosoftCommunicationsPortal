@@ -8,6 +8,10 @@ ENV NODE_ENV=production
 # this container publicly behind an authenticated reverse proxy.
 ENV HOST=0.0.0.0
 ENV ALLOW_REMOTE_BIND=true
+# IMPORTANT: When deploying outside Azure App Service (which uses Easy Auth),
+# you MUST set API_AUTH_TOKEN to a strong random secret. The server will refuse
+# to start on a non-loopback interface without authentication configured.
+# ENV API_AUTH_TOKEN=change-me
 
 RUN mkdir -p /app && chown node:node /app
 WORKDIR /app
