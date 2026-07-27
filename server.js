@@ -1438,68 +1438,39 @@ function timingSafeEqualStr(a, b) {
 loadEmptyProducts();
 
 // ── Universal API authentication guard ───────────────────────────────────────
-// Sensitive API routes are gated by one of three mechanisms (checked in order):
-//   1. Azure App Service Easy Auth — X-MS-CLIENT-PRINCIPAL header (injected by
-//      the platform after Entra ID authentication).
-//   2. API_AUTH_TOKEN — a shared bearer token configured via environment variable.
-//      Requests must supply `Authorization: Bearer <token>`. Works in any hosting
-//      environment (Docker, VM, local dev with remote bind).
-//   3. Loopback-only access — when HOST is 127.0.0.1/::1 AND no token is set,
-//      all local requests are allowed (safe default for solo local dev).
-//
-// If none of the above pass, the request is rejected with 401.
+// Auth logic lives in ./auth.js so it can be unit-tested without booting the
+// HTTP server. See auth.js for the full description of AUTH_MODE and the
+// principal-validation rules.
+const {
+  AUTH_MODE_EASYAUTH,
+  AUTH_MODE_REVERSE_PROXY,
+  AUTH_MODE_NONE_LOOPBACK,
+  resolveAuthMode,
+  makeRequireAuth,
+} = require('./auth.js');
+
 const IS_APP_SERVICE = !!process.env.WEBSITE_INSTANCE_ID;
 const API_AUTH_TOKEN = process.env.API_AUTH_TOKEN || '';
-const AUTH_EXEMPT_API_ROUTES = new Set([
-  '/api/ai-status',    // read-only config check
-  '/api/auth-check',   // read-only config check
-  '/api/m365updates',  // public RSS proxy
-  '/api/azureupdates', // public RSS proxy
-  '/api/fabricroadmap',// public feed proxy
-  '/api/empty-products', // static data (GET only; DELETE still requires ADMIN_TOKEN)
-]);
 
-function requireAuth(req, res, pathname) {
-  // Non-API routes (HTML pages, static assets) are always public.
-  if (!pathname.startsWith('/api/')) return true;
-  // Exempt routes are safe without authentication.
-  if (AUTH_EXEMPT_API_ROUTES.has(pathname)) return true;
-
-  // 1. App Service Easy Auth — platform-injected header after Entra ID login.
-  if (IS_APP_SERVICE) {
-    const principal = req.headers['x-ms-client-principal'];
-    if (principal) return true;
-    sendJson(req, res, 401, {
-      error: 'Authentication required. This endpoint is protected by Entra ID Easy Auth.',
-      code: 'AUTH_REQUIRED',
-    });
-    return false;
+// Resolve auth mode once at startup. Fail fast with a clear message rather
+// than coming up in a fail-open configuration.
+let RESOLVED_AUTH_MODE;
+try {
+  const resolved = resolveAuthMode(process.env);
+  RESOLVED_AUTH_MODE = resolved.mode;
+  for (const w of resolved.warnings) {
+    console.warn('\x1b[33m[auth] WARNING: ' + w + '\x1b[0m');
   }
-
-  // 2. Bearer token — API_AUTH_TOKEN configured in env.
-  if (API_AUTH_TOKEN) {
-    const auth = req.headers['authorization'] || '';
-    const supplied = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (supplied && timingSafeEqualStr(supplied, API_AUTH_TOKEN)) return true;
-    sendJson(req, res, 401, {
-      error: 'Authentication required. Supply a valid Authorization: Bearer <API_AUTH_TOKEN> header.',
-      code: 'AUTH_REQUIRED',
-    });
-    return false;
-  }
-
-  // 3. No token configured — allow only if server is bound to loopback.
-  const bindHost = process.env.HOST || '127.0.0.1';
-  if (bindHost === '127.0.0.1' || bindHost === '::1') return true;
-
-  // Non-loopback binding without any auth — reject.
-  sendJson(req, res, 401, {
-    error: 'Authentication required. Set API_AUTH_TOKEN in your environment to secure this server, or use Easy Auth on Azure App Service.',
-    code: 'AUTH_REQUIRED',
-  });
-  return false;
+} catch (err) {
+  console.error('\n\x1b[31mFATAL: ' + err.message + '\x1b[0m\n');
+  process.exit(1);
 }
 
+const requireAuth = makeRequireAuth({
+  mode: RESOLVED_AUTH_MODE,
+  apiAuthToken: API_AUTH_TOKEN,
+  sendJson,
+});
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
 
@@ -2549,6 +2520,10 @@ const server = http.createServer((req, res) => {
 const HOST = process.env.HOST || '127.0.0.1';
 const IS_LOOPBACK = HOST === '127.0.0.1' || HOST === '::1';
 if (!IS_LOOPBACK) {
+  // Consistency: resolveAuthMode already refused to start on a non-loopback
+  // HOST when AUTH_MODE=none-loopback-only, and refused reverse-proxy mode
+  // without an API_AUTH_TOKEN. Reaching this point means the operator has
+  // explicitly opted into a network-facing bind under a known auth mode.
   const risks = [
     AZURE_AUTH_MODE === 'managed-identity'
       ? 'can obtain Microsoft Graph tokens via the host managed identity'
@@ -2563,21 +2538,13 @@ if (!IS_LOOPBACK) {
     console.error('Set ALLOW_REMOTE_BIND=true to override (only behind an authenticated reverse proxy on a trusted network).\n');
     process.exit(1);
   }
-  // Refuse to start on a remote-accessible interface without any auth mechanism.
-  if (!IS_APP_SERVICE && !API_AUTH_TOKEN) {
-    console.error('\n\x1b[31mFATAL: refusing to bind to non-loopback host "' + HOST + '" without authentication.\x1b[0m');
-    console.error('Sensitive API routes would be publicly accessible without credentials.');
-    console.error('Fix: set API_AUTH_TOKEN=<long-random-secret> in your environment, or deploy');
-    console.error('     on Azure App Service with Easy Auth enabled.\n');
-    process.exit(1);
-  }
   const bar = '='.repeat(72);
   console.warn('\n\x1b[41m\x1b[97m' + bar + '\x1b[0m');
   console.warn('\x1b[41m\x1b[97m  WARNING: BINDING TO NON-LOOPBACK HOST "' + HOST + '"' + ' '.repeat(Math.max(0, 72 - 42 - HOST.length)) + '\x1b[0m');
   console.warn('\x1b[41m\x1b[97m' + bar + '\x1b[0m');
   console.warn('\x1b[31mThis process:\x1b[0m');
   for (const r of risks) console.warn('\x1b[31m  ! ' + r + '\x1b[0m');
-  console.warn('\x1b[31mOnly do this behind an authenticated reverse proxy on a trusted network.\x1b[0m\n');
+  console.warn('\x1b[31mResolved AUTH_MODE=' + RESOLVED_AUTH_MODE + '. Only do this behind an authenticated reverse proxy on a trusted network.\x1b[0m\n');
 }
 
 // Align with common reverse-proxy idle timeouts to prevent premature connection drops.
@@ -2588,13 +2555,12 @@ server.listen(PORT, HOST, () => {
   console.log(`\n  Microsoft Communications Portal`);
   console.log(`  → http://${IS_LOOPBACK ? 'localhost' : HOST}:${PORT}`);
   // Log API auth mode
-  if (IS_APP_SERVICE) {
-    console.log('  → API auth: Azure App Service Easy Auth (Entra ID)');
-  } else if (API_AUTH_TOKEN) {
-    console.log('  → API auth: Bearer token (API_AUTH_TOKEN)');
-  } else if (IS_LOOPBACK) {
-    console.log('  → API auth: loopback-only (no token required on localhost)');
-  }
+  console.log('  → API auth: AUTH_MODE=' + RESOLVED_AUTH_MODE +
+    (RESOLVED_AUTH_MODE === AUTH_MODE_EASYAUTH
+      ? ' (Azure App Service Easy Auth / Entra ID)'
+      : RESOLVED_AUTH_MODE === AUTH_MODE_REVERSE_PROXY
+        ? ' (Bearer token behind authenticating reverse proxy)'
+        : ' (loopback-only; no auth required on localhost)'));
   if (AZURE_AUTH_MODE) {
     console.log(`  → Graph auth: ${AZURE_AUTH_MODE}${AZURE_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ' (user-assigned)' : ''}`);
   } else {
