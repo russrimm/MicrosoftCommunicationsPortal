@@ -127,10 +127,12 @@ docker run -p 127.0.0.1:3000:3000 mcp
 Open http://localhost:3000. Six pages work immediately — no credentials needed.
 
 > **Security note:** The examples above bind to `127.0.0.1` (loopback), so only
-> your local machine can reach the portal. Using `-p 3000:3000` instead exposes
-> it on all network interfaces — only do that behind an authenticated reverse proxy
-> on a trusted network, since the app can hold Graph credentials and call billed
-> LLM APIs.
+> your local machine can reach the portal, and `AUTH_MODE` is auto-inferred as
+> `none-loopback-only`. Using `-p 3000:3000` (or any non-loopback publish) instead
+> exposes the container on all network interfaces — the server will **refuse to
+> start** unless you also set `AUTH_MODE=reverse-proxy` (or `easyauth`) plus
+> `API_AUTH_TOKEN` and `ALLOW_REMOTE_BIND=true`. See [Authentication modes](#authentication-modes)
+> for the full matrix.
 
 For Graph-backed pages (Message Center, Service Health), pass credentials as
 environment variables:
@@ -603,6 +605,34 @@ environments. Every feature below is **implemented and active by default** —
 no additional configuration required unless noted. For the full security policy
 and vulnerability reporting instructions, see [SECURITY.md](SECURITY.md).
 
+#### Authentication modes
+
+The server refuses to start in a "fail-open" configuration. On every deployment
+you must resolve to one of three explicit authentication modes, selected via
+the `AUTH_MODE` environment variable (auto-inferred when it can be done safely):
+
+| `AUTH_MODE` | When to use | What it enforces |
+|-------------|-------------|------------------|
+| `easyauth` | Azure App Service with Entra ID Easy Auth enabled. **Auto-inferred** when `WEBSITE_INSTANCE_ID` is present. | Every `/api/*` request must carry a valid `X-MS-CLIENT-PRINCIPAL` header. The server base64-decodes the header, JSON-parses it, and requires `auth_typ=aad` plus an `oid` claim that matches the platform-injected `X-MS-CLIENT-PRINCIPAL-ID` header. **Header presence alone is not sufficient.** Additionally, the server warns at startup if `WEBSITE_AUTH_ENABLED` is not `True`. |
+| `reverse-proxy` | Docker / VM / on-prem behind an authenticating reverse proxy (nginx, Traefik, Azure Front Door, etc.) on a trusted network. | Every `/api/*` request must carry `Authorization: Bearer <API_AUTH_TOKEN>`. `API_AUTH_TOKEN` is **required** — the server refuses to start without it. Compared in constant time. This is defense-in-depth between the proxy and the app: even if the proxy misroutes an unauthenticated request, the token still gates access. |
+| `none-loopback-only` | Local development on `127.0.0.1`/`::1`. **Auto-inferred** when `HOST` is loopback. | No token required. The server refuses to start under this mode if `HOST` is non-loopback. |
+
+**Fail-fast behavior.** The server calls `process.exit(1)` at startup on any of
+these misconfigurations:
+
+- `AUTH_MODE` is unset AND `HOST` is non-loopback AND `WEBSITE_INSTANCE_ID` is unset (no safe inference possible).
+- `AUTH_MODE=none-loopback-only` with a non-loopback `HOST`.
+- `AUTH_MODE=reverse-proxy` with no `API_AUTH_TOKEN`.
+- `AUTH_MODE` is set to any value other than the three listed above.
+- Binding to a non-loopback host without `ALLOW_REMOTE_BIND=true` (defense in depth against accidental exposure).
+
+**Migration from earlier versions.** Older builds accepted a `HOST=0.0.0.0`
+container as long as `API_AUTH_TOKEN` was set. That still works, but you must
+now *also* set `AUTH_MODE=reverse-proxy` explicitly (or `easyauth` on App
+Service). The old header-presence Easy Auth check has been replaced with a
+proper cryptographic-style header validator: spoofed values like
+`X-MS-CLIENT-PRINCIPAL: x` no longer bypass the guard.
+
 #### Authentication & authorization
 
 | Feature | What it does | What it prevents |
@@ -648,7 +678,7 @@ and vulnerability reporting instructions, see [SECURITY.md](SECURITY.md).
 
 | Feature | What it does | What it prevents |
 |---------|-------------|-----------------|
-| **Loopback-only binding by default** | The server binds to `127.0.0.1` and **refuses to start** on a non-loopback host unless `ALLOW_REMOTE_BIND=true` is explicitly set. When overridden, a prominent warning is logged listing the specific risks (Graph tokens, billed LLM APIs, admin endpoints). | Accidental exposure of credential-bearing services to untrusted networks. |
+| **Loopback-only binding by default** | The server binds to `127.0.0.1` and **refuses to start** on a non-loopback host unless `ALLOW_REMOTE_BIND=true` AND a suitable `AUTH_MODE` are explicitly set. When overridden, a prominent warning is logged listing the specific risks (Graph tokens, billed LLM APIs, admin endpoints) and the resolved `AUTH_MODE`. See [Authentication modes](#authentication-modes) for the full matrix. | Accidental exposure of credential-bearing services to untrusted networks. |
 | **HSTS (HTTP Strict Transport Security)** | All JSON and HTML responses include `Strict-Transport-Security: max-age=31536000; includeSubDomains`. | Protocol downgrade attacks and SSL-stripping when deployed behind a TLS-terminating reverse proxy. |
 | **CORS allow-list** | Cross-origin requests are only permitted for origins explicitly listed in the `CORS_ORIGINS` environment variable (comma-separated). If unset, no `Access-Control-Allow-Origin` header is emitted (same-origin only). Wildcard (`*`) is not supported. | Cross-site data theft from unauthorized origins. |
 | **Upstream request timeouts** | All outbound HTTP requests enforce timeouts: 15 seconds for Graph/RSS/proxy calls, 30 seconds for AI calls. | Hung sockets and resource exhaustion from slow or unresponsive upstreams. |
