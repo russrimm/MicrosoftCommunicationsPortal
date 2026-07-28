@@ -576,9 +576,10 @@ configured data sources so you can confirm which pages are working.
   even after Outlook's compose surface strips `<style>` blocks, CSS variables,
   and `@media` rules. Outlook's built-in dark-mode rendering handles the dark
   conversion automatically.
-- **🛠 Generate Full Export** — opens a modal that lets you build a focused export by date range
-  (the right date axis for the page — GA Date, Published, Started, etc.) plus a
-  checklist of products / services with select-all, clear, and search. A live counter
+- **🛠 Generate Full Export** — opens a modal preloaded with the page's current filters,
+  then lets you further focus the export by date range (the right date axis for the page —
+  GA Date, Published, Started, etc.) plus a checklist of products / services with
+  select-all, clear, and search. A live counter
   shows how many items match before you generate. Items that don't carry a product /
   service field appear under an `(Unclassified)` bucket (pinned to the bottom of the
   list) so they can still be included or excluded explicitly. The output is the same

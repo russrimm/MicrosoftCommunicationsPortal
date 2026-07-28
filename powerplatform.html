@@ -1069,7 +1069,7 @@
     // GENERATE EXPORT MODAL
     // ════════════════════════════════════════════════
     const EXPORT_MODAL_CONFIG = {
-      getAllRows:  () => allFeatures || [],
+      getAllRows:  () => currentFiltered || [],
       getProducts: (f) => [f && f.Product].filter(Boolean),
       getDate:     (f) => {
         if (f && typeof f.GADateValue === 'number') return f.GADateValue;
