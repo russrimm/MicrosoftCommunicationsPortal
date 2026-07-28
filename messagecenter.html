@@ -539,7 +539,7 @@
     // GENERATE EXPORT MODAL
     // ════════════════════════════════════════════════
     const EXPORT_MODAL_CONFIG = {
-      getAllRows:  () => allMessages || [],
+      getAllRows:  () => currentFiltered || [],
       getProducts: (m) => (m && m.services || []).map(s => (typeof getServiceName === 'function' ? getServiceName(s) : '')).filter(Boolean),
       getDate:     (m) => { const d = Date.parse((m && (m.startDateTime || m.lastModifiedDateTime)) || ''); return isNaN(d) ? null : d; },
       runExport:   (rows, format) => exportMessagesToHtml(rows, format),
@@ -568,8 +568,8 @@
           return `<label data-product="${safe.toLowerCase()}"><input type="checkbox" value="${safe}" checked> ${safe}</label>`;
         }).join('');
       }
-      document.getElementById('gen-from-date').value = '';
-      document.getElementById('gen-to-date').value = '';
+      document.getElementById('gen-from-date').value = document.getElementById('mc-date-from').value;
+      document.getElementById('gen-to-date').value = document.getElementById('mc-date-to').value;
       document.getElementById('gen-product-search').value = '';
       filterExportProductSearch();
       updateExportCount();
@@ -655,6 +655,7 @@
       };
 
       const tableRows = rows.map(msg => {
+        const messageId = String(msg.id || '').trim();
         const tags = (msg.tags || []).map(t => String(t).toLowerCase());
         const isUpdated = tags.some(t => t.includes('updated'));
         const isMajor = !!msg.isMajorChange || tags.some(t => t.includes('major'));
@@ -669,7 +670,13 @@
           .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         const statusHtml = window.OutlookExport.escapeHtml(status) + (isMajor ? ' <strong>(Major)</strong>' : '');
         return [
-          { html: messageLink, nowrap: true },
+          {
+            html: window.OutlookExport.link(
+              messageId ? 'https://www.mspulse360.app/message/' + encodeURIComponent(messageId) : '',
+              messageId
+            ),
+            nowrap: true,
+          },
           services,
           msg.title || '—',
           msg.category || '—',
@@ -686,6 +693,7 @@
         title:    'Microsoft 365 Message Center',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' message' + (rows.length !== 1 ? 's' : ''),
         filename: 'messagecenter-export-' + new Date().toISOString().slice(0,10) + '.html',
+        baseFilename: 'messagecenter-export-' + new Date().toISOString().slice(0,10),
         columns:  ['Message ID', 'Product / Service', 'Title', 'Category', 'Severity', 'Status',
                    'Published', 'Last Modified', 'Summary'],
         rows: tableRows,
