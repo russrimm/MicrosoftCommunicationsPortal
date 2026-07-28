@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azure Service Health – Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <script src="/static/util.js" defer></script>
+  <link rel="stylesheet" href="/static/common.css">
+  <link rel="stylesheet" href="/static/azureservicehealth.css">
+</head>
+<body>
+  <script src="/static/nav.js" defer></script>
+
+  <div class="page-content">
+    <!-- Hero -->
+    <div class="sh-hero">
+      <div>
+        <div class="sh-hero-title">Azure Service Health</div>
+        <div class="sh-hero-sub">Real-time monitoring of Azure resource health, emerging issues, and service events</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <div class="arh-sub-filter" id="arh-sub-filter">
+          <button class="arh-sub-filter-btn" id="arh-sub-filter-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="arh-sub-filter-icon" aria-hidden="true">🔑</span>
+            <span id="arh-sub-filter-label">Subscriptions</span>
+            <span class="arh-sub-filter-count" id="arh-sub-filter-count" style="display:none">0</span>
+            <span class="arh-sub-filter-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="arh-sub-filter-menu" id="arh-sub-filter-menu" role="menu"></div>
+        </div>
+        <span class="sh-live">Live Monitoring</span>
+      </div>
+    </div>
+
+    <!-- Status Summary + Dashboard Grid -->
+    <div class="arh-section" id="arh-section">
+
+      <!-- Status Summary Row -->
+      <div class="sh-status-row">
+        <div class="sh-stat-card" id="sh-stat-emerging-card">
+          <div class="sh-stat-icon" aria-hidden="true">🔥</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-emerging-val">—</div>
+            <div class="sh-stat-label">Emerging Issues</div>
+          </div>
+        </div>
+        <div class="sh-stat-card" id="sh-stat-events-card">
+          <div class="sh-stat-icon" aria-hidden="true">⚡</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-events-val">—</div>
+            <div class="sh-stat-label">Service Events</div>
+          </div>
+        </div>
+        <div class="sh-stat-card" id="sh-stat-avail-card">
+          <div class="sh-stat-icon" aria-hidden="true">💚</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-avail-val">—</div>
+            <div class="sh-stat-label">Resources Healthy</div>
+          </div>
+        </div>
+        <div class="sh-stat-card sh-stat-pct" id="sh-stat-pct-card">
+          <div class="sh-stat-icon" aria-hidden="true">📊</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-pct-val">—</div>
+            <div class="sh-stat-label">Availability %</div>
+          </div>
+        </div>
+        <div class="sh-stat-card sh-stat-ts" id="sh-stat-ts-card">
+          <div class="sh-stat-icon" aria-hidden="true">🕐</div>
+          <div class="sh-stat-body">
+            <div class="sh-stat-value" id="sh-stat-ts-val">—</div>
+            <div class="sh-stat-label">Last Updated</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Grid -->
+      <div class="sh-dashboard-grid">
+        <!-- Main Column: Resource Availability (most data, gets widest column) -->
+        <div class="sh-dashboard-main">
+          <section class="sh-panel arh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span class="sh-panel-title-icon" aria-hidden="true">💚</span>
+                <span>Resource Availability</span>
+                <span class="sh-panel-title-count" id="arh-avail-count" style="display:none">0</span>
+              </div>
+              <div style="display:flex;gap:0.4rem;align-items:center;">
+                <select class="arh-filter-select" id="arh-avail-filter" aria-label="Filter availability">
+                  <option value="">All</option>
+                  <option value="Unavailable">Unavailable</option>
+                  <option value="Degraded">Degraded</option>
+                  <option value="Available">Available</option>
+                  <option value="Unknown">Unknown</option>
+                </select>
+                <button class="export-btn" id="arh-avail-refresh" type="button" aria-label="Refresh availability"><span aria-hidden="true">↻</span></button>
+              </div>
+            </div>
+            <!-- Health breakdown bar -->
+            <div class="arh-health-bar-wrap" id="arh-health-bar-wrap" style="display:none">
+              <div class="arh-health-bar" id="arh-health-bar"></div>
+              <div class="arh-health-legend" id="arh-health-legend"></div>
+            </div>
+            <div class="arh-list" id="arh-avail-list">
+              <div class="arh-no-sub" id="arh-avail-nosub">Select a subscription above to view resource availability.</div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Sidebar: Service Events + Emerging Issues -->
+        <div class="sh-dashboard-sidebar">
+          <section class="sh-panel arh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span class="sh-panel-title-icon" aria-hidden="true">⚡</span>
+                <span>Service Health Events</span>
+                <span class="sh-panel-title-count" id="arh-events-count" style="display:none">0</span>
+              </div>
+              <button class="export-btn" id="arh-events-refresh" type="button" aria-label="Refresh events"><span aria-hidden="true">↻</span></button>
+            </div>
+            <div class="arh-list" id="arh-events-list">
+              <div class="arh-no-sub" id="arh-events-nosub">Select a subscription above to view events.</div>
+            </div>
+          </section>
+
+          <section class="sh-panel arh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span class="sh-panel-title-icon" aria-hidden="true">🔥</span>
+                <span>Emerging Issues</span>
+                <span class="sh-panel-title-count" id="arh-emerging-count" style="display:none">0</span>
+              </div>
+              <button class="export-btn" id="arh-emerging-refresh" type="button" aria-label="Refresh emerging issues"><span aria-hidden="true">↻</span></button>
+            </div>
+            <div class="arh-list" id="arh-emerging-list">
+              <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ════════════════════════════════════════════════
+    // AZURE RESOURCE HEALTH — uses subscription picker
+    // ════════════════════════════════════════════════
+    (function initAzureResourceHealth() {
+      const SECTION = document.getElementById('arh-section');
+      if (!SECTION) return;
+
+      // ── Helpers ──────────────────────────────────────
+      // Relative time: "3d ago", "2h ago", "5m ago"; if future=true: "in 2h"
+      function relativeTime(isoStr, future) {
+        var d = new Date(isoStr);
+        if (isNaN(d.getTime())) return '';
+        var now = new Date();
+        var diffMs = future ? (d - now) : (now - d);
+        if (diffMs < 0) diffMs = -diffMs;
+        var sec = Math.floor(diffMs / 1000);
+        if (sec < 60) return future ? 'in <1m' : '<1m ago';
+        var min = Math.floor(sec / 60);
+        if (min < 60) return future ? ('in ' + min + 'm') : (min + 'm ago');
+        var hr = Math.floor(min / 60);
+        if (hr < 24) return future ? ('in ' + hr + 'h') : (hr + 'h ago');
+        var day = Math.floor(hr / 24);
+        if (day < 30) return future ? ('in ' + day + 'd') : (day + 'd ago');
+        var mo = Math.floor(day / 30);
+        return future ? ('in ' + mo + 'mo') : (mo + 'mo ago');
+      }
+
+      function getSubId() {
+        if (window.SubscriptionPicker) {
+          const ids = SubscriptionPicker.getSelectedIds();
+          if (ids.length > 0) return ids[0];
+        }
+        // Fallback: read localStorage directly (picker script may not have loaded yet)
+        try {
+          var cached = localStorage.getItem('azure-selected-subscriptions');
+          if (cached) {
+            var parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed[0].id;
+          }
+        } catch (e) { /* ignore */ }
+        return '';
+      }
+
+      function updateSubBadge() {
+        var selected = [];
+        if (window.SubscriptionPicker) {
+          selected = SubscriptionPicker.getSelected();
+        }
+        if (!selected || selected.length === 0) {
+          try {
+            var cached = localStorage.getItem('azure-selected-subscriptions');
+            if (cached) selected = JSON.parse(cached) || [];
+          } catch (e) { selected = []; }
+        }
+        var countEl = document.getElementById('arh-sub-filter-count');
+        var menuEl = document.getElementById('arh-sub-filter-menu');
+        var labelEl = document.getElementById('arh-sub-filter-label');
+        if (selected.length > 0) {
+          countEl.textContent = selected.length;
+          countEl.style.display = '';
+          labelEl.textContent = selected.length === 1
+            ? (selected[0].displayName || 'Subscription')
+            : 'Subscriptions';
+          var html = '';
+          for (var i = 0; i < selected.length; i++) {
+            var s = selected[i];
+            html += '<div class="arh-sub-filter-item">';
+            html += '<div class="arh-sub-filter-item-dot"></div>';
+            html += '<div style="min-width:0;flex:1;">';
+            html += '<div class="arh-sub-filter-item-name">' + escapeHtml(s.displayName || 'Unnamed') + '</div>';
+            html += '<div class="arh-sub-filter-item-id">' + escapeHtml(s.id) + '</div>';
+            html += '</div></div>';
+          }
+          html += '<button class="arh-sub-filter-change" type="button">Change subscriptions…</button>';
+          menuEl.innerHTML = html;
+          menuEl.querySelector('.arh-sub-filter-change').addEventListener('click', function() {
+            document.getElementById('arh-sub-filter').classList.remove('open');
+            if (window.SubscriptionPicker) SubscriptionPicker.open();
+          });
+        } else {
+          countEl.style.display = 'none';
+          labelEl.textContent = 'Subscriptions';
+          menuEl.innerHTML = '<div class="arh-sub-filter-empty">No subscriptions selected</div>'
+            + '<button class="arh-sub-filter-change" type="button">Select subscriptions…</button>';
+          menuEl.querySelector('.arh-sub-filter-change').addEventListener('click', function() {
+            document.getElementById('arh-sub-filter').classList.remove('open');
+            if (window.SubscriptionPicker) SubscriptionPicker.open();
+          });
+        }
+      }
+
+      function stripHtml(html) {
+        return window.CPUtil ? window.CPUtil.stripHtml(html) : '';
+      }
+
+      function relTime(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d)) return '';
+        var diff = Date.now() - d.getTime();
+        if (diff < 3600000) return Math.max(1, Math.round(diff / 60000)) + 'm ago';
+        if (diff < 86400000) return Math.round(diff / 3600000) + 'h ago';
+        return Math.round(diff / 86400000) + 'd ago';
+      }
+
+      // ── Emerging Issues ──────────────────────────────
+      async function loadEmergingIssues() {
+        var list = document.getElementById('arh-emerging-list');
+        var countEl = document.getElementById('arh-emerging-count');
+        list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
+        try {
+          var res = await fetch('/api/azure-resource-health/emerging-issues');
+          var data = await res.json();
+          if (data.error) {
+            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            return;
+          }
+          var items = data.value || [];
+          // Flatten to active events + banners from all entries
+          var activeEvents = [];
+          var banners = [];
+          for (var i = 0; i < items.length; i++) {
+            var props = items[i].properties || items[i];
+            if (props.statusActiveEvents) activeEvents.push.apply(activeEvents, props.statusActiveEvents);
+            if (props.statusBanners) banners.push.apply(banners, props.statusBanners);
+          }
+          var total = activeEvents.length + banners.length;
+          countEl.textContent = total;
+          countEl.style.display = total > 0 ? '' : 'none';
+          if (total === 0) {
+            list.innerHTML = '<div class="arh-empty">\u2705 No emerging issues</div>';
+            return;
+          }
+          var html = '';
+          for (var a = 0; a < activeEvents.length; a++) {
+            var ev = activeEvents[a];
+            var sevClass = (ev.severity || '').toLowerCase() === 'error' ? 'sev-error' :
+                           (ev.severity || '').toLowerCase() === 'warning' ? 'sev-warning' : '';
+            html += '<div class="arh-emerging-card">';
+            html += '<div class="arh-emerging-title">' + escapeHtml(ev.title || 'Untitled') + '</div>';
+            html += '<div class="arh-emerging-meta">';
+            if (ev.severity) html += '<span class="arh-tag ' + sevClass + '">' + escapeHtml(ev.severity) + '</span>';
+            if (ev.stage) html += '<span>' + escapeHtml(ev.stage) + '</span>';
+            if (ev.trackingId) html += '<span>' + escapeHtml(ev.trackingId) + '</span>';
+            if (ev.startTime) html += '<span>' + relTime(ev.startTime) + '</span>';
+            html += '</div>';
+            if (ev.description) {
+              var desc = stripHtml(ev.description);
+              html += '<div class="arh-emerging-desc">' + escapeHtml(desc.length > 300 ? desc.slice(0, 300) + '…' : desc) + '</div>';
+            }
+            if (ev.impacts && ev.impacts.length > 0) {
+              html += '<div class="arh-emerging-impacts">';
+              for (var j = 0; j < ev.impacts.length; j++) {
+                html += '<span class="arh-tag">' + escapeHtml(ev.impacts[j].name || ev.impacts[j].id || '') + '</span>';
+              }
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+          for (var b = 0; b < banners.length; b++) {
+            var bn = banners[b];
+            html += '<div class="arh-emerging-card">';
+            html += '<div class="arh-emerging-title">' + escapeHtml(bn.title || 'Banner') + '</div>';
+            html += '<div class="arh-emerging-meta">';
+            html += '<span class="arh-tag">Banner</span>';
+            if (bn.lastModifiedTime) html += '<span>' + relTime(bn.lastModifiedTime) + '</span>';
+            html += '</div>';
+            if (bn.message) {
+              var msg = stripHtml(bn.message);
+              html += '<div class="arh-emerging-desc">' + escapeHtml(msg.length > 300 ? msg.slice(0, 300) + '…' : msg) + '</div>';
+            }
+            html += '</div>';
+          }
+          list.innerHTML = html;
+        } catch (err) {
+          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        }
+      }
+
+      // ── Service Health Events ────────────────────────
+      async function loadEvents() {
+        var subId = getSubId();
+        var list = document.getElementById('arh-events-list');
+        var countEl = document.getElementById('arh-events-count');
+        list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
+        try {
+          var url = '/api/azure-resource-health/events';
+          if (subId) url += '?subscriptionId=' + encodeURIComponent(subId);
+          var res = await fetch(url);
+          var data = await res.json();
+          if (res.status === 400 && !subId) {
+            list.innerHTML = '<div class="arh-no-sub">Select a subscription above to view events.</div>';
+            countEl.style.display = 'none';
+            return;
+          }
+          if (data.error) {
+            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            return;
+          }
+          var events = data.value || [];
+          countEl.textContent = events.length;
+          countEl.style.display = events.length > 0 ? '' : 'none';
+          if (events.length === 0) {
+            list.innerHTML = '<div class="arh-empty">\u2705 No active service health events</div>';
+            return;
+          }
+          // Sort: Active first, then by lastUpdateTime desc
+          events.sort(function(a, b) {
+            var ap = a.properties || a, bp = b.properties || b;
+            var aActive = (ap.status || '') === 'Active' ? 0 : 1;
+            var bActive = (bp.status || '') === 'Active' ? 0 : 1;
+            if (aActive !== bActive) return aActive - bActive;
+            return new Date(bp.lastUpdateTime || 0) - new Date(ap.lastUpdateTime || 0);
+          });
+          var html = '';
+          for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var p = ev.properties || ev;
+            var eventType = p.eventType || '';
+            var status = p.status || '';
+            html += '<div class="arh-event-card">';
+            html += '<div class="arh-event-header">';
+            html += '<span class="arh-status-dot ' + escapeHtml(status) + '" title="' + escapeHtml(status) + '"></span>';
+            html += '<div class="arh-event-title">' + escapeHtml(p.title || ev.name || 'Untitled') + '</div>';
+            if (eventType !== 'ServiceIssue') {
+              html += '<span class="arh-event-type ' + escapeHtml(eventType) + '">' + escapeHtml(eventType) + '</span>';
+            }
+            html += '</div>';
+            html += '<div class="arh-event-meta">';
+            if (status) html += '<span>' + escapeHtml(status) + '</span>';
+            if (p.eventLevel) html += '<span>' + escapeHtml(p.eventLevel) + '</span>';
+            if (ev.name) html += '<span>' + escapeHtml(ev.name) + '</span>';
+            if (p.lastUpdateTime) html += '<span>Updated ' + relTime(p.lastUpdateTime) + '</span>';
+            if (p.impactStartTime) html += '<span>Started ' + relTime(p.impactStartTime) + '</span>';
+            html += '</div>';
+            if (p.summary) {
+              var summary = stripHtml(p.summary);
+              html += '<div class="arh-event-summary">' + escapeHtml(summary.length > 400 ? summary.slice(0, 400) + '…' : summary) + '</div>';
+            }
+            if (p.impact && p.impact.length > 0) {
+              html += '<div class="arh-event-services">';
+              for (var j = 0; j < p.impact.length; j++) {
+                html += '<span class="arh-tag">' + escapeHtml(p.impact[j].impactedService || '') + '</span>';
+              }
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+          list.innerHTML = html;
+        } catch (err) {
+          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        }
+      }
+
+      // ── Availability Statuses ────────────────────────
+      var currentAvailFilter = '';
+      async function loadAvailability() {
+        var subId = getSubId();
+        var list = document.getElementById('arh-avail-list');
+        var countEl = document.getElementById('arh-avail-count');
+        list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
+        try {
+          var url = '/api/azure-resource-health/availability-statuses';
+          if (subId) url += '?subscriptionId=' + encodeURIComponent(subId);
+          var res = await fetch(url);
+          var data = await res.json();
+          if (res.status === 400 && !subId) {
+            list.innerHTML = '<div class="arh-no-sub">Select a subscription above to view resource availability.</div>';
+            countEl.style.display = 'none';
+            return;
+          }
+          if (data.error) {
+            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            return;
+          }
+          var items = data.value || [];
+          window._arhAvailData = items; // cache for filtering
+          renderAvailability(items);
+        } catch (err) {
+          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        }
+      }
+
+      function renderAvailability(items) {
+        var list = document.getElementById('arh-avail-list');
+        var countEl = document.getElementById('arh-avail-count');
+        var filterVal = currentAvailFilter;
+        var filtered = items;
+        if (filterVal) {
+          filtered = items.filter(function(it) {
+            var state = (it.properties || {}).availabilityState || '';
+            return state === filterVal;
+          });
+        }
+        countEl.textContent = filtered.length;
+        countEl.style.display = filtered.length > 0 ? '' : 'none';
+        if (filtered.length === 0) {
+          list.innerHTML = '<div class="arh-empty">' +
+            (filterVal ? 'No resources with status "' + escapeHtml(filterVal) + '"' : '\u2705 No resources found') +
+            '</div>';
+          return;
+        }
+        // Sort: Unavailable first, then Degraded, then Unknown, then Available
+        var order = { 'Unavailable': 0, 'Degraded': 1, 'Unknown': 2, 'Available': 3 };
+        filtered.sort(function(a, b) {
+          var sa = (a.properties || {}).availabilityState || 'Unknown';
+          var sb = (b.properties || {}).availabilityState || 'Unknown';
+          return (order[sa] != null ? order[sa] : 9) - (order[sb] != null ? order[sb] : 9);
+        });
+        // Cap at 200 to keep DOM manageable
+        var capped = filtered.length > 200;
+        var show = capped ? filtered.slice(0, 200) : filtered;
+        var html = '';
+        for (var i = 0; i < show.length; i++) {
+          var it = show[i];
+          var p = it.properties || {};
+          var state = p.availabilityState || 'Unknown';
+          var isNonAvail = state !== 'Available';
+          // Extract resource name from ARM id
+          var resourceName = (it.id || '').split('/providers/Microsoft.ResourceHealth/')[0];
+          var parts = resourceName.split('/');
+          var shortName = parts[parts.length - 1] || resourceName;
+          var resourceType = '';
+          if (parts.length >= 2) resourceType = parts[parts.length - 2];
+          // Extract resource group from ARM path
+          var rgMatch = resourceName.match(/\/resourceGroups\/([^\/]+)/i);
+          var rgName = rgMatch ? rgMatch[1] : '';
+          // Location
+          var location = it.location || '';
+          // Time since last state change
+          var agoText = '';
+          if (p.occuredTime) {
+            agoText = relativeTime(p.occuredTime);
+          }
+          // Detailed status (prefer over summary — more specific)
+          var detail = p.detailedStatus || p.summary || '';
+          // Reason info for non-available
+          var reasonLabel = '';
+          if (isNonAvail && p.reasonType) {
+            reasonLabel = p.reasonType;
+          } else if (isNonAvail && p.context) {
+            reasonLabel = p.context;
+          }
+          // Resolution ETA
+          var etaText = '';
+          if (p.resolutionETA) {
+            var etaDate = new Date(p.resolutionETA);
+            if (!isNaN(etaDate.getTime())) {
+              var now = new Date();
+              if (etaDate > now) {
+                etaText = 'ETA: ' + relativeTime(p.resolutionETA, true);
+              } else {
+                etaText = 'ETA passed: ' + etaDate.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+              }
+            }
+          }
+          // Recommended actions
+          var actions = p.recommendedActions || [];
+
+          html += '<div class="arh-avail-card' + (isNonAvail ? ' arh-non-available ' + escapeHtml(state) : '') + '">';
+          html += '<div class="arh-avail-status ' + escapeHtml(state) + '" title="' + escapeHtml(state) + '"></div>';
+          html += '<div class="arh-avail-info">';
+          html += '<div class="arh-avail-name" title="' + escapeHtml(it.id || '') + '">' + escapeHtml(shortName) + '</div>';
+          // Meta badges row: resource type, location, resource group, reason, ETA
+          html += '<div class="arh-avail-meta">';
+          if (resourceType) html += '<span class="arh-avail-badge">' + escapeHtml(resourceType) + '</span>';
+          if (location) html += '<span class="arh-avail-badge" title="Region">📍 ' + escapeHtml(location) + '</span>';
+          if (rgName) html += '<span class="arh-avail-badge" title="Resource Group">📦 ' + escapeHtml(rgName) + '</span>';
+          if (reasonLabel) html += '<span class="arh-avail-badge arh-badge-reason">' + escapeHtml(reasonLabel) + '</span>';
+          if (etaText) html += '<span class="arh-avail-badge arh-badge-eta">⏱ ' + escapeHtml(etaText) + '</span>';
+          html += '</div>';
+          // Detailed status
+          if (detail) {
+            html += '<div class="arh-avail-detail">' + escapeHtml(detail) + '</div>';
+          }
+          // Recommended actions (show up to 2 for non-available resources)
+          if (isNonAvail && actions.length > 0) {
+            html += '<div class="arh-avail-actions">';
+            var maxActions = Math.min(actions.length, 2);
+            for (var a = 0; a < maxActions; a++) {
+              var act = actions[a];
+              if (act.actionUrl) {
+                html += '<a class="arh-avail-action-link" href="' + escapeHtml(act.actionUrl) + '" target="_blank" rel="noopener noreferrer">→ ' + escapeHtml(act.actionUrlText || act.action || 'View recommendation') + '</a>';
+              } else if (act.action) {
+                html += '<span class="arh-avail-action-link" style="color:var(--cp-text-muted);cursor:default">→ ' + escapeHtml(act.action) + '</span>';
+              }
+            }
+            html += '</div>';
+          }
+          html += '</div>';
+          // Right column: state label + time ago
+          html += '<div class="arh-avail-right">';
+          html += '<span class="arh-avail-state-label ' + escapeHtml(state) + '">' + escapeHtml(state) + '</span>';
+          if (agoText) html += '<span class="arh-avail-ago" title="Since ' + escapeHtml(p.occuredTime || '') + '">' + escapeHtml(agoText) + '</span>';
+          html += '</div>';
+          html += '</div>';
+        }
+        if (capped) {
+          html += '<div class="arh-empty">Showing 200 of ' + filtered.length + ' resources</div>';
+        }
+        list.innerHTML = html;
+      }
+
+      // ── Filter ──────────────────────────────────────
+      document.getElementById('arh-avail-filter').addEventListener('change', function(e) {
+        currentAvailFilter = e.target.value;
+        if (window._arhAvailData) renderAvailability(window._arhAvailData);
+      });
+
+      // ── Refresh buttons ──────────────────────────────
+      document.getElementById('arh-emerging-refresh').addEventListener('click', loadEmergingIssues);
+      document.getElementById('arh-events-refresh').addEventListener('click', loadEvents);
+      document.getElementById('arh-avail-refresh').addEventListener('click', loadAvailability);
+
+      // ── Load all + react to subscription changes ─────
+      function loadAll() {
+        window._arhLastRefresh = new Date();
+        updateSubBadge();
+        loadEmergingIssues();
+        loadEvents();
+        loadAvailability();
+      }
+
+      // React to subscription picker changes
+      window.addEventListener('subscriptions-changed', function() {
+        loadAll();
+      });
+
+      // Wire subscription filter dropdown toggle
+      (function() {
+        var filterBtn = document.getElementById('arh-sub-filter-btn');
+        var filterEl = document.getElementById('arh-sub-filter');
+        filterBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var isOpen = filterEl.classList.toggle('open');
+          filterBtn.setAttribute('aria-expanded', isOpen);
+        });
+        document.addEventListener('click', function(e) {
+          if (!filterEl.contains(e.target)) {
+            filterEl.classList.remove('open');
+            filterBtn.setAttribute('aria-expanded', 'false');
+          }
+        });
+      })();
+
+      // Initial load
+      loadAll();
+    })();
+
+    // ── Event listeners ──────────────────────────────────────────────────────
+  </script>
+
+  <script>
+    // ── Stat card sync (mirrors counts from panel headers to KPI tiles) ──
+    (function initStatCards() {
+      function sync() {
+        requestAnimationFrame(() => {
+        // Emerging issues
+        var emCount = document.getElementById('arh-emerging-count');
+        var emStat = document.getElementById('sh-stat-emerging-val');
+        var emCard = document.getElementById('sh-stat-emerging-card');
+        if (emCount && emStat && emCard) {
+          var n = parseInt(emCount.textContent) || 0;
+          var vis = emCount.style.display !== 'none';
+          emStat.textContent = vis ? n : '0';
+          emCard.classList.toggle('sh-stat-ok', !vis || n === 0);
+          emCard.classList.toggle('sh-stat-warn', vis && n > 0);
+        }
+        // Service events
+        var evCount = document.getElementById('arh-events-count');
+        var evStat = document.getElementById('sh-stat-events-val');
+        var evCard = document.getElementById('sh-stat-events-card');
+        if (evCount && evStat && evCard) {
+          var n2 = parseInt(evCount.textContent) || 0;
+          var vis2 = evCount.style.display !== 'none';
+          evStat.textContent = vis2 ? n2 : '0';
+          evCard.classList.toggle('sh-stat-ok', !vis2 || n2 === 0);
+          evCard.classList.toggle('sh-stat-warn', vis2 && n2 > 0);
+        }
+        // Resource availability (healthy / total from cached data)
+        var avStat = document.getElementById('sh-stat-avail-val');
+        var avCard = document.getElementById('sh-stat-avail-card');
+        var pctStat = document.getElementById('sh-stat-pct-val');
+        var pctCard = document.getElementById('sh-stat-pct-card');
+        var tsStat = document.getElementById('sh-stat-ts-val');
+        // Last Updated timestamp
+        if (tsStat && window._arhLastRefresh) {
+          var d = window._arhLastRefresh;
+          var hh = String(d.getHours()).padStart(2,'0');
+          var mm = String(d.getMinutes()).padStart(2,'0');
+          tsStat.textContent = hh + ':' + mm;
+        }
+        if (avStat && avCard) {
+          var data = window._arhAvailData || [];
+          if (data.length === 0) {
+            avStat.textContent = '\u2014';
+            avCard.className = 'sh-stat-card';
+            if (pctStat) pctStat.textContent = '\u2014';
+            if (pctCard) pctCard.className = 'sh-stat-card sh-stat-pct';
+          } else {
+            var healthy = 0;
+            for (var i = 0; i < data.length; i++) {
+              if ((data[i].properties || {}).availabilityState === 'Available') healthy++;
+            }
+            avStat.textContent = healthy + ' / ' + data.length;
+            var allOk = healthy === data.length;
+            avCard.classList.toggle('sh-stat-ok', allOk);
+            avCard.classList.toggle('sh-stat-warn', !allOk);
+            // Availability %
+            if (pctStat && pctCard) {
+              var pct = Math.round((healthy / data.length) * 100);
+              pctStat.textContent = pct + '%';
+              pctCard.classList.toggle('sh-stat-warn', pct < 100);
+            }
+            // Health breakdown bar
+            updateHealthBar(data);
+          }
+        }
+        });
+      }
+      function updateHealthBar(data) {
+        var wrap = document.getElementById('arh-health-bar-wrap');
+        var bar = document.getElementById('arh-health-bar');
+        var legend = document.getElementById('arh-health-legend');
+        if (!wrap || !bar || !legend || !data || data.length === 0) {
+          if (wrap) wrap.style.display = 'none';
+          return;
+        }
+        var counts = { Available: 0, Degraded: 0, Unavailable: 0, Unknown: 0 };
+        for (var i = 0; i < data.length; i++) {
+          var st = (data[i].properties || {}).availabilityState || 'Unknown';
+          if (counts[st] != null) counts[st]++; else counts.Unknown++;
+        }
+        var total = data.length;
+        var barHtml = '';
+        var legendHtml = '';
+        var segments = [
+          { key: 'Available', cls: 'seg-available' },
+          { key: 'Degraded', cls: 'seg-degraded' },
+          { key: 'Unavailable', cls: 'seg-unavailable' },
+          { key: 'Unknown', cls: 'seg-unknown' }
+        ];
+        for (var s = 0; s < segments.length; s++) {
+          var seg = segments[s];
+          var ct = counts[seg.key];
+          if (ct > 0) {
+            var pct = (ct / total * 100).toFixed(1);
+            barHtml += '<div class="arh-health-bar-seg ' + seg.cls + '" style="width:' + pct + '%" title="' + seg.key + ': ' + ct + '"></div>';
+          }
+          legendHtml += '<span class="arh-health-legend-item"><span class="arh-health-legend-dot ' + seg.key + '"></span>' + seg.key + ' <span class="arh-health-legend-ct">' + ct + '</span></span>';
+        }
+        bar.innerHTML = barHtml;
+        legend.innerHTML = legendHtml;
+        wrap.style.display = '';
+      }
+      // Observe count elements for changes
+      ['arh-emerging-count', 'arh-events-count', 'arh-avail-count'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) new MutationObserver(sync).observe(el, { childList: true, attributes: true, attributeFilter: ['style'] });
+      });
+      // Observe list containers for innerHTML swaps
+      ['arh-emerging-list', 'arh-events-list', 'arh-avail-list'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) new MutationObserver(sync).observe(el, { childList: true });
+      });
+      setTimeout(sync, 200);
+    })();
+  </script>
+
+  <script src="/static/product-icons.js" defer></script>
+  <script src="/static/ai-insights.js" defer></script>
+  <script src="/static/subscription-picker.js" defer></script>
+</body>
+</html>

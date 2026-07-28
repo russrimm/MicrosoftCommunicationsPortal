@@ -6,11 +6,15 @@ using Playwright + headless Chromium.
 
 | File | Page captured |
 |---|---|
-| `power-platform-light.png` / `power-platform-dark.png` | `/` — Power Platform Release Planner |
+| `home-light.png` / `home-dark.png` | `/home` — Home / Dashboard |
+| `power-platform-light.png` / `power-platform-dark.png` | `/powerplatform` — Power Platform Roadmap |
 | `m365-roadmap-light.png` / `m365-roadmap-dark.png` | `/m365updates` — Microsoft 365 Roadmap |
-| `azure-updates-light.png` / `azure-updates-dark.png` | `/azureupdates` — Azure Roadmap |
+| `azure-updates-light.png` / `azure-updates-dark.png` | `/azureupdates` — Azure Updates |
 | `message-center-light.png` / `message-center-dark.png` | `/messagecenter` — Microsoft 365 Message Center |
 | `service-health-light.png` / `service-health-dark.png` | `/servicehealth` — Microsoft 365 Service Health |
+| `azure-service-health-light.png` / `azure-service-health-dark.png` | `/azureservicehealth` — Azure Service Health |
+| `fabric-roadmap-light.png` / `fabric-roadmap-dark.png` | `/fabricroadmap` — Microsoft Fabric Roadmap |
+| `guided-report-light.png` / `guided-report-dark.png` | `/guidedreport` — Guided Report |
 
 ## Regenerate
 
@@ -18,8 +22,8 @@ using Playwright + headless Chromium.
 # 1. Start the portal
 node server.js
 
-# 2. From another shell, install Playwright (one-time) and run the capture
-npm install --no-save playwright
+# 2. From another shell, install dependencies (including Playwright) and run the capture
+npm install
 npx playwright install chromium
 node scripts/capture-screenshots.js
 ```

@@ -441,8 +441,16 @@
     const className = (opts && opts.className) || 'product-icon';
     const src = '/public/' + encodeURIComponent(file);
     const title = escapeAttr(name);
-    return '<img class="' + className + '" src="' + src + '" alt="" aria-hidden="true" loading="lazy" title="' + title + '" onerror="this.remove()">';
+    return '<img class="' + className + '" data-product-icon="1" src="' + src + '" alt="" aria-hidden="true" loading="lazy" title="' + title + '">';
   }
+
+  // Remove broken icon images. Delegated capture-phase listener instead of an
+  // inline onerror="" attribute, which CSP (script-src without 'unsafe-inline'
+  // or 'unsafe-hashes') blocks from executing.
+  document.addEventListener('error', function (ev) {
+    const t = ev.target;
+    if (t && t.tagName === 'IMG' && t.getAttribute('data-product-icon') === '1') t.remove();
+  }, true);
 
   window.ProductIcons = { getProductIcon, productIconImg };
 })();

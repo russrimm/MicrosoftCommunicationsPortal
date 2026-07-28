@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <script src="/static/util.js" defer></script>
+  <link rel="stylesheet" href="/static/common.css">
+  <link rel="stylesheet" href="/static/home.css">
+</head>
+<body>
+  <script src="/static/nav.js" defer></script>
+
+  <!-- Hero -->
+  <section class="hero">
+    <h1>Your single pane of glass for Microsoft updates</h1>
+    <p>Track release plans, roadmap announcements, tenant-specific communications, and service health across Power Platform, Microsoft 365, and Azure — all in one place.</p>
+  </section>
+
+  <!-- Feature highlights -->
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M3 8h10M3 11.5h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="feature-text">
+        <strong>Unified feed</strong>
+        Five Microsoft communication streams in one filterable view
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v4l2.5 1.5M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-text">
+        <strong>Always current</strong>
+        Live data from Microsoft APIs, Graph, and RSS feeds
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M5.5 8.5 7 10l3.5-4M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="feature-text">
+        <strong>AI-powered insights</strong>
+        Optional LLM summarization and impact triage
+      </div>
+    </div>
+  </div>
+
+  <!-- Section label -->
+  <div class="section-label">Explore communication streams</div>
+
+  <!-- Group tiles -->
+  <div class="group-grid">
+    <!-- Tenant Health -->
+    <div class="group-card" data-color="orange" data-group="health" role="button" tabindex="0" aria-expanded="false">
+      <div class="group-card-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 12h3l3-6 4 12 3-6h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="group-card-content">
+        <div class="group-card-title">Tenant Health</div>
+        <div class="group-card-desc">Service incidents &amp; advisories</div>
+      </div>
+      <div class="group-card-badge">2</div>
+      <div class="group-card-chevron" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+
+    <!-- Product Roadmaps -->
+    <div class="group-card" data-color="purple" data-group="roadmaps" role="button" tabindex="0" aria-expanded="false">
+      <div class="group-card-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 3v9l6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.24 7.76l1.42-1.42M19.07 12H21M16.24 16.24l1.42 1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="group-card-content">
+        <div class="group-card-title">Product Roadmaps</div>
+        <div class="group-card-desc">Release plans &amp; feature timelines</div>
+      </div>
+      <div class="group-card-badge">4</div>
+      <div class="group-card-chevron" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+
+    <!-- Message Center -->
+    <div class="group-card" data-color="blue" data-group="messagecenter" role="button" tabindex="0" aria-expanded="false">
+      <div class="group-card-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="group-card-content">
+        <div class="group-card-title">Microsoft Message Center</div>
+        <div class="group-card-desc">Tenant advisories &amp; admin actions</div>
+      </div>
+      <div class="group-card-badge">1</div>
+      <div class="group-card-chevron" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-grids (hidden by default) -->
+  <div class="sub-grid-wrapper" data-for="health">
+    <div class="sub-grid">
+      <a class="sub-card" href="/servicehealth">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/m365.svg" alt="" loading="lazy"></div>
+          <div class="card-title">Microsoft 365 Service Health</div>
+        </div>
+        <div class="card-desc">Monitor service incidents, advisories, and degradation events across Microsoft 365 services with real-time status from your tenant.</div>
+        <div class="card-source"><span class="card-source-dot blue"></span> Microsoft Graph — requires app registration</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+      <a class="sub-card" href="/azureservicehealth">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/Azure.svg" alt="" loading="lazy"></div>
+          <div class="card-title">Azure Service Health</div>
+        </div>
+        <div class="card-desc">Track Azure service issues, planned maintenance, and health advisories across your subscriptions and regions.</div>
+        <div class="card-source"><span class="card-source-dot blue"></span> Microsoft Graph — requires app registration</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="sub-grid-wrapper" data-for="roadmaps">
+    <div class="sub-grid">
+      <a class="sub-card" href="/powerplatform">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/PowerPlatform_scalable.svg" alt="" loading="lazy"></div>
+          <div class="card-title">Power Platform</div>
+        </div>
+        <div class="card-desc">Browse planned features and release timelines for Power Apps, Power Automate, Power BI, and more.</div>
+        <div class="card-source"><span class="card-source-dot green"></span> Public API — no credentials required</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+      <a class="sub-card" href="/fabricroadmap">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/fabric_48_color.svg" alt="" loading="lazy"></div>
+          <div class="card-title">Fabric</div>
+        </div>
+        <div class="card-desc">Track Microsoft Fabric announcements, feature launches, and roadmap updates from the official blog feed.</div>
+        <div class="card-source"><span class="card-source-dot green"></span> Public RSS — no credentials required</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+      <a class="sub-card" href="/m365updates">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/m365.svg" alt="" loading="lazy"></div>
+          <div class="card-title">Microsoft 365</div>
+        </div>
+        <div class="card-desc">Track upcoming and recently launched features across Teams, Outlook, SharePoint, OneDrive, and other M365 services.</div>
+        <div class="card-source"><span class="card-source-dot green"></span> RSS feed — no credentials required</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+      <a class="sub-card" href="/azureupdates">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/Azure.svg" alt="" loading="lazy"></div>
+          <div class="card-title">Azure</div>
+        </div>
+        <div class="card-desc">Stay current with Azure service announcements, new features, retirements, and updates across all Azure products.</div>
+        <div class="card-source"><span class="card-source-dot green"></span> RSS feed — no credentials required</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="sub-grid-wrapper" data-for="messagecenter">
+    <div class="sub-grid">
+      <a class="sub-card" href="/messagecenter">
+        <div class="card-header">
+          <div class="card-icon"><img src="/public/m365.svg" alt="" loading="lazy"></div>
+          <div class="card-title">Microsoft 365 Message Center</div>
+        </div>
+        <div class="card-desc">View tenant-specific advisory messages, feature rollouts, planned changes, and required admin actions from the Microsoft 365 Message Center.</div>
+        <div class="card-source"><span class="card-source-dot blue"></span> Microsoft Graph — requires app registration</div>
+        <div class="card-cta">Open <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Group tile accordion -->
+  <script>
+    (() => {
+      const groups = document.querySelectorAll('.group-card');
+      function toggle(card) {
+        const groupId = card.dataset.group;
+        const wrapper = document.querySelector(`.sub-grid-wrapper[data-for="${groupId}"]`);
+        const isExpanded = card.classList.contains('expanded');
+
+        // Close all
+        groups.forEach(g => {
+          if (g !== card && g.classList.contains('expanded')) {
+            g.classList.remove('expanded');
+            g.setAttribute('aria-expanded', 'false');
+            const w = document.querySelector(`.sub-grid-wrapper[data-for="${g.dataset.group}"]`);
+            if (w) w.style.height = '0';
+          }
+        });
+
+        // Toggle clicked
+        if (isExpanded) {
+          card.classList.remove('expanded');
+          card.setAttribute('aria-expanded', 'false');
+          wrapper.style.height = '0';
+        } else {
+          card.classList.add('expanded');
+          card.setAttribute('aria-expanded', 'true');
+          wrapper.style.height = wrapper.scrollHeight + 'px';
+        }
+      }
+
+      groups.forEach(card => {
+        card.addEventListener('click', () => toggle(card));
+        card.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle(card);
+          }
+        });
+      });
+    })();
+  </script>
+
+  <!-- Footer -->
+  <footer class="home-footer">
+    <a href="https://github.com/russrimm/MicrosoftCommunicationsPortal" target="_blank" rel="noopener noreferrer">GitHub</a>
+    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; Not an official Microsoft product
+  </footer>
+
+  <script src="/static/subscription-picker.js"></script>
+</body>
+</html>

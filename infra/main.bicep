@@ -1,0 +1,61 @@
+targetScope = 'subscription'
+
+@minLength(1)
+@maxLength(64)
+@description('Name of the environment (used to generate resource names)')
+param environmentName string
+
+@minLength(1)
+@description('Primary location for all resources')
+param location string
+
+@description('App Service Plan SKU')
+param planSku string = 'B1'
+
+@minLength(1)
+@description('Entra ID app registration client ID for Easy Auth. Required — all requests must go through Entra ID sign-in to protect tenant data and AI endpoints.')
+param authClientId string
+
+var abbrs = loadJsonContent('abbreviations.json')
+var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+var tags = { 'azd-env-name': environmentName }
+
+resource rg 'Microsoft.Resources/resourceGroups@2022-09-01' = {
+  name: '${abbrs.resourcesResourceGroups}${environmentName}'
+  location: location
+  tags: tags
+}
+
+module web 'modules/appservice.bicep' = {
+  name: 'web'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    appServicePlanName: '${abbrs.webServerFarms}${resourceToken}'
+    appServiceName: '${abbrs.webSitesAppService}${resourceToken}'
+    logAnalyticsName: 'log-${resourceToken}'
+    appInsightsName: 'appi-${resourceToken}'
+    planSku: planSku
+    runtimeName: 'node'
+    runtimeVersion: '24-lts'
+    authClientId: authClientId
+    appSettings: {
+      NODE_ENV: 'production'
+      USE_MANAGED_IDENTITY: 'true'
+      SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+      // App Service fronts the app with its own HTTPS ingress; the app must
+      // bind 0.0.0.0 inside the sandbox. This is the ONLY deployment path
+      // where ALLOW_REMOTE_BIND is set by default — deliberate opt-in.
+      HOST: '0.0.0.0'
+      ALLOW_REMOTE_BIND: 'true'
+      // App Service is a reverse proxy — enable proxy-header trust so the
+      // rate limiter sees real client IPs instead of the single proxy IP.
+      TRUST_PROXY: 'true'
+    }
+  }
+}
+
+output AZURE_LOCATION string = location
+output SERVICE_WEB_NAME string = web.outputs.appServiceName
+output SERVICE_WEB_URI string = web.outputs.uri

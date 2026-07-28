@@ -1,0 +1,109 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - img "Microsoft" [ref=e3]:
+      - img [ref=e4]
+    - generic [ref=e9]:
+      - generic [ref=e10]: Microsoft Communications Portal
+      - generic [ref=e11]:
+        - text: A tool not officially supported by Microsoft, but officially created by
+        - link "Russ Rimmerman" [ref=e12] [cursor=pointer]:
+          - /url: https://www.linkedin.com/in/russrimm
+        - text: ", Microsoft Cloud Solution Architect, to help customers keep up with the pace of change."
+    - button "Toggle dark or light theme" [ref=e13] [cursor=pointer]: 🌙 Dark
+  - navigation "Primary" [ref=e14]:
+    - link "Home" [ref=e15] [cursor=pointer]:
+      - /url: /home
+    - button "Roadmaps" [ref=e17] [cursor=pointer]:
+      - text: Roadmaps
+      - generic [ref=e18]: ▾
+    - button "Microsoft 365" [ref=e20] [cursor=pointer]:
+      - text: Microsoft 365
+      - generic [ref=e21]: ▾
+    - button "Service Health" [ref=e23] [cursor=pointer]:
+      - text: Service Health
+      - generic [ref=e24]: ▾
+    - link "Guided Report" [ref=e25] [cursor=pointer]:
+      - /url: /guidedreport
+  - generic [ref=e26]:
+    - generic [ref=e28]:
+      - generic [ref=e29]: Microsoft 365 Service Health
+      - generic [ref=e30]: Live
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - generic [ref=e36]: Overview
+              - generic [ref=e37]:
+                - generic [ref=e38]: —
+                - button "Refresh service health" [ref=e39] [cursor=pointer]: ↻
+            - generic [ref=e40]:
+              - generic [ref=e41]:
+                - img "Service health overview" [ref=e42]
+                - generic:
+                  - generic: —
+                  - generic: Services
+              - generic [ref=e43]:
+                - generic [ref=e44]:
+                  - generic [ref=e46]: Operational
+                  - generic [ref=e47]: —
+                - generic [ref=e48]:
+                  - generic [ref=e50]: Degraded
+                  - generic [ref=e51]: —
+                - generic [ref=e52]:
+                  - generic [ref=e54]: Extended Recovery
+                  - generic [ref=e55]: —
+                - generic [ref=e56]:
+                  - generic [ref=e58]: Active issues
+                  - generic [ref=e59]: —
+          - generic [ref=e60]:
+            - generic [ref=e62]:
+              - generic [ref=e63]: By Service
+              - generic [ref=e64]: —
+            - status [ref=e66]
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - generic [ref=e71]:
+              - generic [ref=e72]: Recent Activity
+              - generic [ref=e73]: —
+            - status [ref=e75]
+          - generic [ref=e77]:
+            - generic [ref=e80]: Uptime Heatmap
+            - status [ref=e82]
+            - generic [ref=e84]:
+              - generic [ref=e85]: Operational
+              - generic [ref=e87]: Degraded
+              - generic [ref=e89]: Incident
+      - generic [ref=e91]:
+        - generic [ref=e92]:
+          - generic [ref=e93]:
+            - generic [ref=e94]: 📈
+            - generic [ref=e95]: 30-Day Health Trend
+          - group "Trend range" [ref=e96]:
+            - button "7 days" [ref=e97] [cursor=pointer]: 7d
+            - button "14 days" [ref=e98] [cursor=pointer]: 14d
+            - button "30 days" [pressed] [ref=e99] [cursor=pointer]: 30d
+        - img "30-day health trend chart" [ref=e100]
+        - generic [ref=e101]:
+          - generic [ref=e102]: Active issues
+          - generic [ref=e104]: Affected services
+          - generic [ref=e106]: Operational services
+      - generic [ref=e108]:
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - generic [ref=e111]: Current Issues
+            - generic [ref=e112]: —
+          - generic [ref=e113]:
+            - button "⬇ Export" [ref=e114] [cursor=pointer]
+            - button "Show all" [ref=e115] [cursor=pointer]
+            - button "Pause" [ref=e116] [cursor=pointer]
+        - status [ref=e118]
+  - dialog:
+    - document:
+      - generic:
+        - generic:
+          - generic: Issue
+        - button: ✕
+      - generic:
+        - generic: Impact
+        - generic: Updates

@@ -1,0 +1,88 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - img "Microsoft" [ref=e3]:
+      - img [ref=e4]
+    - generic [ref=e9]:
+      - generic [ref=e10]: Microsoft Communications Portal
+      - generic [ref=e11]:
+        - text: Created by
+        - link "Russ Rimmerman" [ref=e12] [cursor=pointer]:
+          - /url: https://www.linkedin.com/in/russrimm
+        - text: ", Microsoft Cloud Solution Architect"
+    - button "Toggle dark or light theme" [ref=e13] [cursor=pointer]: 🌙 Dark
+  - navigation "Primary" [ref=e14]:
+    - link "Home" [ref=e15] [cursor=pointer]:
+      - /url: /home
+    - link "Power Platform Release Planner" [ref=e16] [cursor=pointer]:
+      - /url: /powerplatform
+    - button "Microsoft 365" [ref=e18] [cursor=pointer]:
+      - text: Microsoft 365
+      - generic [ref=e19]: ▾
+    - link "Azure Updates" [ref=e20] [cursor=pointer]:
+      - /url: /azureupdates
+  - generic [ref=e21]:
+    - img [ref=e23]
+    - heading "Your single pane of glass for Microsoft updates" [level=1] [ref=e28]
+    - paragraph [ref=e29]: Track release plans, roadmap announcements, tenant-specific communications, and service health across Power Platform, Microsoft 365, and Azure — all in one place.
+  - generic [ref=e30]:
+    - generic [ref=e31]:
+      - img [ref=e33]
+      - generic [ref=e35]:
+        - strong [ref=e36]: Unified feed
+        - text: Five Microsoft communication streams in one filterable view
+    - generic [ref=e37]:
+      - img [ref=e39]
+      - generic [ref=e41]:
+        - strong [ref=e42]: Always current
+        - text: Live data from Microsoft APIs, Graph, and RSS feeds
+    - generic [ref=e43]:
+      - img [ref=e45]
+      - generic [ref=e47]:
+        - strong [ref=e48]: AI-powered insights
+        - text: Optional LLM summarization and impact triage
+  - generic [ref=e49]: Explore communication streams
+  - generic [ref=e50]:
+    - link "Power Platform Release Planner Browse planned features and release timelines for Power Apps, Power Automate, Power BI, Copilot Studio, and the entire Power Platform ecosystem. Public API — no credentials required Open Release Planner" [ref=e51] [cursor=pointer]:
+      - /url: /powerplatform
+      - generic [ref=e54]: Power Platform Release Planner
+      - generic [ref=e55]: Browse planned features and release timelines for Power Apps, Power Automate, Power BI, Copilot Studio, and the entire Power Platform ecosystem.
+      - generic [ref=e56]: Public API — no credentials required
+      - generic [ref=e58]:
+        - text: Open Release Planner
+        - img [ref=e59]
+    - link "Microsoft 365 Message Center View tenant-specific advisory messages, feature rollouts, planned changes, and required admin actions from the Microsoft 365 Message Center. Microsoft Graph — requires app registration Open Message Center" [ref=e61] [cursor=pointer]:
+      - /url: /messagecenter
+      - generic [ref=e64]: Microsoft 365 Message Center
+      - generic [ref=e65]: View tenant-specific advisory messages, feature rollouts, planned changes, and required admin actions from the Microsoft 365 Message Center.
+      - generic [ref=e66]: Microsoft Graph — requires app registration
+      - generic [ref=e68]:
+        - text: Open Message Center
+        - img [ref=e69]
+    - link "Microsoft 365 Roadmap Track upcoming and recently launched features across Teams, Outlook, SharePoint, OneDrive, and other Microsoft 365 services via the public roadmap feed. RSS feed — no credentials required Open M365 Roadmap" [ref=e71] [cursor=pointer]:
+      - /url: /m365updates
+      - generic [ref=e74]: Microsoft 365 Roadmap
+      - generic [ref=e75]: Track upcoming and recently launched features across Teams, Outlook, SharePoint, OneDrive, and other Microsoft 365 services via the public roadmap feed.
+      - generic [ref=e76]: RSS feed — no credentials required
+      - generic [ref=e78]:
+        - text: Open M365 Roadmap
+        - img [ref=e79]
+    - link "Microsoft 365 Service Health Monitor service incidents, advisories, and degradation events across Microsoft 365 services with real-time status from your tenant. Microsoft Graph — requires app registration Open Service Health" [ref=e81] [cursor=pointer]:
+      - /url: /servicehealth
+      - generic [ref=e84]: Microsoft 365 Service Health
+      - generic [ref=e85]: Monitor service incidents, advisories, and degradation events across Microsoft 365 services with real-time status from your tenant.
+      - generic [ref=e86]: Microsoft Graph — requires app registration
+      - generic [ref=e88]:
+        - text: Open Service Health
+        - img [ref=e89]
+    - link "Azure Updates Stay up to date with Azure service announcements, new features, retirements, and updates across all Azure products and regions. RSS feed — no credentials required Open Azure Updates" [ref=e91] [cursor=pointer]:
+      - /url: /azureupdates
+      - generic [ref=e94]: Azure Updates
+      - generic [ref=e95]: Stay up to date with Azure service announcements, new features, retirements, and updates across all Azure products and regions.
+      - generic [ref=e96]: RSS feed — no credentials required
+      - generic [ref=e98]:
+        - text: Open Azure Updates
+        - img [ref=e99]
+  - contentinfo [ref=e101]:
+    - link "GitHub" [ref=e102] [cursor=pointer]:
+      - /url: https://github.com/russrimm/MicrosoftCommunicationsPortal
+    - text: · MIT License · Not an official Microsoft product

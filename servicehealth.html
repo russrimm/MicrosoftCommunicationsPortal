@@ -11,725 +11,163 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
-  <style>
-    :root {
-      color-scheme: light;
-      --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff;
-      --cp-surface-soft: #f5f5f5; --cp-border: #dedede; --cp-border-strong: #919191;
-      --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
-      --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08);
-      --cp-accent-fg: #ffffff; --cp-success: #16a34a; --cp-danger: #dc2626;
-      --cp-warning: #f59e0b; --cp-link: #0078d4;
-      --cp-purple: #7c3aed;
-    }
-    html[data-theme="dark"] {
-      color-scheme: dark;
-      --cp-bg: #1f1d1c; --cp-bg-elevated: #2a2826; --cp-surface: #292929;
-      --cp-surface-soft: #2e2e2e; --cp-border: #3a3a3a; --cp-border-strong: #5f5f5f;
-      --cp-text: #f0f0f0; --cp-text-muted: #9a9a9a; --cp-text-soft: #b8b8b8;
-      --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14);
-      --cp-accent-fg: #1a1a1a; --cp-success: #4ade80; --cp-danger: #f87171;
-      --cp-warning: #fbbf24; --cp-link: #4da6ff; --cp-purple: #a78bfa;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    /* Screen-reader-only text (visually hidden but accessible) */
-    .sr-only {
-      position: absolute !important;
-      width: 1px; height: 1px;
-      padding: 0; margin: -1px;
-      overflow: hidden; clip: rect(0,0,0,0);
-      white-space: nowrap; border: 0;
-    }
-
-    /* Visible focus indicator for keyboard navigation */
-    a:focus-visible, button:focus-visible, input:focus-visible,
-    select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
-      outline: 2px solid var(--cp-accent);
-      outline-offset: 2px;
-    }
-    body {
-      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 14px; line-height: 1.5;
-      background: var(--cp-bg); color: var(--cp-text);
-      min-height: 100vh; display: flex; flex-direction: column;
-    }
-    /* Header */
-    .header {
-      position: sticky; top: 0; z-index: 100;
-      background: var(--cp-surface); border-bottom: 1px solid var(--cp-border);
-      padding: 0 1.25rem; display: flex; align-items: center; gap: 0.875rem;
-      height: 56px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0;
-    }
-    .header-logo {
-      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .header-logo svg { display: block; width: 28px; height: 28px; }
-    .header-title { font-size: 15px; font-weight: 700; color: var(--cp-text); }
-    .header-subtitle { font-size: 11px; font-weight: 400; color: var(--cp-text-muted, #605e5c); margin-top: 1px; }
-    .header-subtitle a { color: inherit; text-decoration: none; }
-    .header-subtitle a:hover, .header-subtitle a:focus { text-decoration: underline; }
-    .header-sub { font-size: 11px; color: var(--cp-text-muted); }
-    .page-tabs {
-      position: sticky; top: 56px; z-index: 99;
-      background: var(--cp-surface);
-      border-bottom: 1px solid var(--cp-border);
-      padding: 0 1.25rem;
-      display: flex; align-items: stretch; justify-content: center;
-      gap: 0.25rem;
-      height: 48px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-      overflow-x: auto;
-    }
-    .page-tabs::-webkit-scrollbar { height: 0; }
-    .nav-tab {
-      display: inline-flex; align-items: center;
-      padding: 0 1rem;
-      background: transparent;
-      border: none;
-      border-bottom: 3px solid transparent;
-      border-radius: 0;
-      color: var(--cp-text-muted);
-      font-size: 14px; font-weight: 600;
-      cursor: pointer;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
-      text-decoration: none;
-      white-space: nowrap;
-      margin-bottom: -1px;
-    }
-    .nav-tab:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
-    .nav-tab.active {
-      color: var(--cp-accent);
-      border-bottom-color: var(--cp-accent);
-      background: transparent;
-    }
-    .theme-btn {
-      margin-left: auto; background: var(--cp-surface-soft); border: 1px solid var(--cp-border);
-      border-radius: 0.625rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 12px;
-      color: var(--cp-text-muted); font-family: inherit; transition: all 0.15s;
-    }
-    .theme-btn:hover { background: var(--cp-accent-soft); color: var(--cp-accent); border-color: var(--cp-accent); }
-
-    /* Page — fills viewport so only the issues list scrolls */
-    .page-content {
-      flex: 1; min-height: 0;
-      padding: 0.875rem 1.125rem 1.125rem;
-      overflow: hidden;
-      display: flex; flex-direction: column; gap: 0.75rem;
-    }
-
-    /* Hero band — slim */
-    .sh-hero {
-      background: linear-gradient(135deg, var(--cp-bg-elevated), var(--cp-surface));
-      border: 1px solid var(--cp-border);
-      border-radius: 12px;
-      padding: 0.75rem 1.125rem;
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 1rem; flex-wrap: wrap;
-      flex-shrink: 0;
-    }
-    .sh-hero-title { font-size: 16px; font-weight: 700; color: var(--cp-text); margin-bottom: 0.1rem; line-height: 1.2; }
-    .sh-hero-sub   { font-size: 12px; color: var(--cp-text-muted); }
-    .sh-live {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.45rem 0.875rem;
-      background: rgba(22,163,74,0.12);
-      border: 1px solid rgba(22,163,74,0.3);
-      border-radius: 999px;
-      color: var(--cp-success);
-      font-size: 12px; font-weight: 600;
-      flex-shrink: 0;
-    }
-    .sh-live::before {
-      content: ''; width: 8px; height: 8px; border-radius: 50%;
-      background: var(--cp-success);
-      box-shadow: 0 0 0 0 rgba(22,163,74,0.4);
-      animation: livepulse 2s ease-in-out infinite;
-    }
-    @keyframes livepulse {
-      0%   { box-shadow: 0 0 0 0 rgba(22,163,74,0.55); }
-      70%  { box-shadow: 0 0 0 8px rgba(22,163,74,0); }
-      100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
-    }
-
-    /* Layout grid — single screen */
-    .sh-page-stack {
-      flex: 1; min-height: 0;
-      display: flex; flex-direction: column; gap: 0.75rem;
-    }
-    .sh-top-row {
-      display: grid;
-      grid-template-columns: minmax(0, 320px) minmax(0, 1.4fr) minmax(0, 1fr);
-      gap: 0.75rem;
-      flex-shrink: 0;
-    }
-    @media (max-width: 1100px) {
-      .sh-top-row { grid-template-columns: 1fr; }
-    }
-    .sh-content-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 0.75rem;
-      flex: 1; min-height: 0;
-    }
-
-    /* Panels */
-    .sh-panel {
-      background: var(--cp-bg-elevated);
-      border: 1px solid var(--cp-border);
-      border-radius: 12px;
-      padding: 0.875rem 1rem;
-      min-width: 0;
-    }
-    .sh-panel-flex {
-      display: flex; flex-direction: column;
-      min-height: 0;
-    }
-    .sh-panel-head {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 0.75rem; margin-bottom: 0.875rem;
-    }
-    .sh-panel-title {
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--cp-text-muted);
-      display: flex; align-items: center; gap: 0.5rem;
-    }
-    .sh-panel-title-icon { color: var(--cp-danger); font-size: 14px; }
-    .sh-panel-title-count {
-      font-size: 14px; font-weight: 700; color: var(--cp-text);
-      letter-spacing: 0;
-    }
-    .sh-panel-meta { display: flex; align-items: center; gap: 0.75rem; font-size: 12px; color: var(--cp-text-muted); }
-
-    .ai-summary-btn {
-      display: inline-flex; align-items: center; gap: 0.4rem;
-      padding: 0.4rem 0.75rem;
-      background: rgba(124,58,237,0.12);
-      border: 1px solid rgba(124,58,237,0.3);
-      border-radius: 0.5rem;
-      color: var(--cp-purple);
-      font-size: 12px; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: all 0.15s;
-    }
-    .ai-summary-btn:hover { background: rgba(124,58,237,0.2); }
-
-    .export-btn {
-      padding: 0.35rem 0.75rem; background: var(--cp-accent);
-      border: 1px solid var(--cp-accent); border-radius: 0.5rem;
-      color: var(--cp-accent-fg); font-size: 12px; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
-    }
-    .export-btn:hover { background: var(--cp-accent-hover); border-color: var(--cp-accent-hover); }
-    .ghost-btn {
-      padding: 0.3rem 0.7rem; background: transparent;
-      border: 1px solid var(--cp-border); border-radius: 0.5rem;
-      color: var(--cp-text-muted); font-size: 11px; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: all 0.15s;
-    }
-    .ghost-btn:hover { color: var(--cp-text); border-color: var(--cp-border-strong); }
-
-    /* Overview donut card */
-    .sh-overview {
-      display: flex; align-items: center; gap: 0.875rem;
-    }
-    .sh-donut-wrap {
-      position: relative; flex-shrink: 0;
-      width: 110px; height: 110px;
-    }
-    .sh-donut-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-    .sh-donut-center {
-      position: absolute; inset: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      pointer-events: none;
-    }
-    .sh-donut-num { font-size: 26px; font-weight: 700; color: var(--cp-text); line-height: 1; }
-    .sh-donut-label { font-size: 10px; color: var(--cp-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
-    .sh-legend { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 0; }
-    .sh-legend-row {
-      display: grid;
-      grid-template-columns: 10px 1fr auto;
-      align-items: center; gap: 0.5rem;
-      font-size: 12px;
-    }
-    .sh-legend-dot { width: 10px; height: 10px; border-radius: 3px; }
-    .sh-legend-name { color: var(--cp-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sh-legend-num { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--cp-text); }
-    .sh-legend-dot.degraded     { background: var(--cp-danger); }
-    .sh-legend-dot.extended     { background: var(--cp-warning); }
-    .sh-legend-dot.operational  { background: var(--cp-success); }
-
-    /* Bottom row: breakdown + trend */
-    .sh-bottom-row {
-      display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
-      gap: 1rem;
-    }
-    @media (max-width: 900px) {
-      .sh-bottom-row { grid-template-columns: 1fr; }
-    }
-
-    /* Issues panel — primary content area, fills remaining viewport */
-    .sh-issues-panel {
-      flex: 1; min-height: 0;
-      display: flex; flex-direction: column;
-      padding-bottom: 0.875rem;
-    }
-    .sh-issues-list {
-      flex: 1; min-height: 0;
-      overflow-y: auto;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 0.625rem;
-      padding-right: 0.25rem;
-      align-content: start;
-    }
-    .sh-issues-list::-webkit-scrollbar { width: 6px; }
-    .sh-issues-list::-webkit-scrollbar-track { background: transparent; }
-    .sh-issues-list::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
-
-    /* Breakdown list */
-    .sh-breakdown {
-      display: flex; flex-direction: column; gap: 0;
-      flex: 1; min-height: 0;
-      overflow-y: auto;
-    }
-    .sh-breakdown::-webkit-scrollbar { width: 6px; }
-    .sh-breakdown::-webkit-scrollbar-track { background: transparent; }
-    .sh-breakdown::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px; }
-    .sh-breakdown-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0.4rem 0;
-      border-bottom: 1px solid var(--cp-border);
-      font-size: 12px;
-    }
-    .sh-breakdown-row:last-child { border-bottom: none; }
-    .sh-breakdown-name { color: var(--cp-text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem; }
-    .sh-breakdown-count {
-      color: var(--cp-text-muted); font-weight: 600; font-variant-numeric: tabular-nums;
-      min-width: 24px; text-align: right;
-    }
-
-    /* Trend chart */
-    .sh-trend-toggle {
-      display: inline-flex; gap: 0;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 0.5rem; padding: 2px;
-    }
-    .sh-trend-toggle button {
-      padding: 0.3rem 0.7rem;
-      background: transparent;
-      border: none;
-      border-radius: 0.375rem;
-      font-size: 11px; font-weight: 600; font-family: inherit;
-      color: var(--cp-text-muted); cursor: pointer;
-      transition: all 0.15s;
-    }
-    .sh-trend-toggle button.active {
-      background: var(--cp-link);
-      color: #fff;
-    }
-    .sh-trend-svg {
-      width: 100%; height: 140px; display: block; overflow: visible;
-    }
-    .sh-trend-legend {
-      display: flex; flex-wrap: wrap; gap: 0.75rem;
-      justify-content: center;
-      font-size: 10px; color: var(--cp-text-muted);
-      margin-top: 0.4rem;
-    }
-    .sh-trend-legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
-    .sh-trend-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
-
-    /* Legacy sidebar (kept for narrow-viewport fallback) */
-    .sh-sidebar-list {
-      display: flex; flex-direction: column; gap: 0.5rem;
-    }
-
-    .sh-issue-card {
-      position: relative;
-      display: flex; flex-direction: column; gap: 0.5rem;
-      padding: 0.75rem 0.875rem 0.7rem;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-left: 3px solid var(--cp-border);
-      border-radius: 8px;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
-      min-width: 0;
-    }
-    .sh-issue-card:hover {
-      border-color: var(--cp-border-strong);
-      background: var(--cp-surface-soft);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-    .sh-issue-card:focus-visible {
-      outline: 2px solid var(--cp-link);
-      outline-offset: 2px;
-    }
-    .sh-issue-card.sev-incident   { border-left-color: var(--cp-danger); }
-    .sh-issue-card.sev-degraded   { border-left-color: var(--cp-warning); }
-    .sh-issue-card.sev-extended   { border-left-color: var(--cp-purple); }
-    .sh-issue-card.sev-restoring,
-    .sh-issue-card.sev-investigating { border-left-color: var(--cp-link); }
-
-    .sh-issue-head {
-      display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
-    }
-    .sh-issue-pill {
-      display: inline-flex; align-items: center; gap: 0.3rem;
-      padding: 0.15rem 0.5rem;
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.04em;
-      border-radius: 999px;
-      background: var(--cp-surface-soft);
-      color: var(--cp-text-muted);
-      border: 1px solid var(--cp-border);
-      white-space: nowrap;
-    }
-    .sh-issue-pill.sev-incident   { background: rgba(220,38,38,0.12);  color: var(--cp-danger);  border-color: rgba(220,38,38,0.3); }
-    .sh-issue-pill.sev-degraded   { background: rgba(245,158,11,0.14); color: var(--cp-warning); border-color: rgba(245,158,11,0.35); }
-    .sh-issue-pill.sev-extended   { background: rgba(124,58,237,0.14); color: var(--cp-purple);  border-color: rgba(124,58,237,0.32); }
-    .sh-issue-pill.sev-restoring,
-    .sh-issue-pill.sev-investigating { background: rgba(0,120,212,0.12); color: var(--cp-link); border-color: rgba(0,120,212,0.3); }
-    .sh-issue-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-
-    .sh-issue-class {
-      font-size: 10px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.04em; color: var(--cp-text-muted);
-    }
-    .sh-issue-service {
-      font-size: 11px; font-weight: 700; color: var(--cp-text-soft);
-      text-transform: uppercase; letter-spacing: 0.04em;
-      margin-left: auto;
-      min-width: 0;
-      text-align: right;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-      display: inline-flex; align-items: center; gap: 0.3rem; justify-content: flex-end;
-    }
-    .sh-issue-service .product-icon {
-      width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;
-    }
-
-    .sh-issue-title {
-      font-size: 13px; font-weight: 600; color: var(--cp-text);
-      line-height: 1.35;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-    .sh-issue-foot {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 0.5rem;
-      font-size: 11px; color: var(--cp-text-muted);
-    }
-    .sh-issue-id {
-      font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-      font-size: 10.5px;
-      color: var(--cp-text-muted);
-    }
-    .sh-issue-time { font-variant-numeric: tabular-nums; }
-
-    /* Issue detail modal */
-    .sh-modal-backdrop {
-      position: fixed; inset: 0; z-index: 200;
-      background: rgba(0,0,0,0.45);
-      display: flex; align-items: center; justify-content: center;
-      padding: 1.5rem;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.15s;
-    }
-    .sh-modal-backdrop.open { opacity: 1; pointer-events: auto; }
-    .sh-modal {
-      background: var(--cp-bg-elevated);
-      border: 1px solid var(--cp-border);
-      border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-      width: min(720px, 100%);
-      max-height: calc(100vh - 3rem);
-      display: flex; flex-direction: column;
-      overflow: hidden;
-      transform: translateY(8px);
-      transition: transform 0.15s;
-    }
-    .sh-modal-backdrop.open .sh-modal { transform: translateY(0); }
-    .sh-modal-head {
-      padding: 1rem 1.125rem 0.75rem;
-      border-bottom: 1px solid var(--cp-border);
-      display: flex; align-items: flex-start; justify-content: space-between;
-      gap: 0.75rem;
-    }
-    .sh-modal-title {
-      font-size: 15px; font-weight: 700; color: var(--cp-text);
-      line-height: 1.35;
-    }
-    .sh-modal-sub {
-      margin-top: 0.3rem;
-      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
-    }
-    .sh-modal-close {
-      flex-shrink: 0;
-      background: transparent; border: 1px solid var(--cp-border);
-      border-radius: 6px; padding: 0.25rem 0.55rem;
-      color: var(--cp-text-muted); font-size: 14px; cursor: pointer;
-      font-family: inherit; line-height: 1;
-    }
-    .sh-modal-close:hover { color: var(--cp-text); border-color: var(--cp-border-strong); }
-    .sh-modal-body {
-      padding: 0.875rem 1.125rem 1.125rem;
-      overflow-y: auto;
-      flex: 1; min-height: 0;
-    }
-    .sh-modal-meta {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 0.5rem 1rem;
-      padding: 0.75rem 0.875rem;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-radius: 8px;
-      margin-bottom: 0.875rem;
-    }
-    .sh-modal-meta-item { font-size: 12px; min-width: 0; }
-    .sh-modal-meta-label {
-      font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-      color: var(--cp-text-muted); font-weight: 700; margin-bottom: 0.15rem;
-    }
-    .sh-modal-meta-val {
-      color: var(--cp-text); font-weight: 500; word-break: break-word;
-      font-variant-numeric: tabular-nums;
-    }
-    .sh-modal-section-title {
-      font-size: 11px; font-weight: 700; color: var(--cp-text-muted);
-      text-transform: uppercase; letter-spacing: 0.06em;
-      margin: 0.875rem 0 0.5rem;
-    }
-    .sh-modal-impact {
-      font-size: 13px; color: var(--cp-text); line-height: 1.55;
-      white-space: pre-wrap; word-wrap: break-word;
-    }
-    .sh-modal-posts {
-      display: flex; flex-direction: column; gap: 0.625rem;
-    }
-    .sh-modal-post {
-      padding: 0.625rem 0.75rem;
-      background: var(--cp-surface);
-      border: 1px solid var(--cp-border);
-      border-left: 3px solid var(--cp-link);
-      border-radius: 6px;
-    }
-    .sh-modal-post-head {
-      display: flex; justify-content: space-between; gap: 0.5rem;
-      font-size: 11px; color: var(--cp-text-muted); margin-bottom: 0.3rem;
-      flex-wrap: wrap;
-    }
-    .sh-modal-post-type {
-      font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-      color: var(--cp-text-soft);
-    }
-    .sh-modal-post-body {
-      font-size: 12.5px; color: var(--cp-text); line-height: 1.5;
-      white-space: pre-wrap; word-wrap: break-word;
-    }
-
-    /* Loading + empty */
-    .spinner {
-      width: 15px; height: 15px;
-      border: 2px solid var(--cp-accent-soft); border-top-color: var(--cp-accent);
-      border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .sh-loading {
-      padding: 2rem; text-align: center;
-      display: flex; align-items: center; justify-content: center; gap: 0.75rem;
-      color: var(--cp-accent);
-    }
-    .sh-empty { padding: 1.5rem; text-align: center; color: var(--cp-text-muted); font-size: 12px; }
-
-    /* ── Generate Export modal ── */
-    .gen-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-    .gen-modal[hidden] { display: none; }
-    .gen-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
-    .gen-modal-dialog {
-      position: relative; background: var(--cp-surface); color: var(--cp-text);
-      border: 1px solid var(--cp-border); border-radius: 8px;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.3);
-      width: min(560px, 100%); max-height: 86vh; display: flex; flex-direction: column;
-    }
-    .gen-modal-header, .gen-modal-footer { display: flex; align-items: center; padding: 12px 16px; gap: 10px; }
-    .gen-modal-header { border-bottom: 1px solid var(--cp-border); }
-    .gen-modal-footer { border-top: 1px solid var(--cp-border); justify-content: flex-end; }
-    .gen-modal-title { margin: 0; font-size: 15px; font-weight: 600; flex: 1; color: var(--cp-text); }
-    .gen-modal-close { background: transparent; border: none; font-size: 22px; cursor: pointer; color: var(--cp-text-muted); line-height: 1; padding: 2px 8px; border-radius: 4px; font-family: inherit; }
-    .gen-modal-close:hover { color: var(--cp-text); background: var(--cp-surface-soft); }
-    .gen-modal-body { padding: 14px 16px; overflow: auto; }
-    .gen-field { margin-bottom: 14px; }
-    .gen-field-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; color: var(--cp-text-muted); }
-    .gen-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .gen-range input[type="date"] {
-      padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 4px;
-      background: var(--cp-surface); color: var(--cp-text); font: inherit;
-    }
-    .gen-hint { font-size: 11px; color: var(--cp-text-muted); margin: 6px 0 0; }
-    .gen-product-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
-    .gen-product-controls input[type="search"] {
-      flex: 1 1 160px; padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 4px;
-      background: var(--cp-surface); color: var(--cp-text); font: inherit;
-    }
-    .gen-product-list {
-      max-height: 220px; overflow-y: auto;
-      border: 1px solid var(--cp-border); border-radius: 4px;
-      padding: 6px 10px; background: var(--cp-surface);
-    }
-    .gen-product-list label { display: block; padding: 4px 0; font-size: 13px; cursor: pointer; color: var(--cp-text); }
-    .gen-product-list label input { margin-right: 8px; }
-    .gen-product-list .gen-empty { color: var(--cp-text-muted); font-size: 12px; padding: 8px 0; }
-    .gen-quick {
-      padding: 5px 10px; font-size: 12px; font-family: inherit;
-      border: 1px solid var(--cp-border); background: var(--cp-surface);
-      color: var(--cp-text); border-radius: 4px; cursor: pointer;
-    }
-    .gen-quick:hover { background: var(--cp-surface-soft); }
-    .gen-count { flex: 1; font-size: 12px; color: var(--cp-text-muted); }
-    .gen-cancel-btn {
-      padding: 0.3rem 0.75rem; background: transparent; color: var(--cp-text);
-      border: 1px solid var(--cp-border); border-radius: 0.5rem;
-      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
-    }
-    .gen-cancel-btn:hover { background: var(--cp-surface-soft); }
-  </style>
+  <script src="/static/util.js" defer></script>
+  <link rel="stylesheet" href="/static/common.css">
+  <link rel="stylesheet" href="/static/servicehealth.css">
 </head>
 <body>
-  <header class="header">
-    <div class="header-logo" role="img" aria-label="Microsoft"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23 23" aria-hidden="true" focusable="false"><path fill="#F25022" d="M0 0h11v11H0z"/><path fill="#7FBA00" d="M12 0h11v11H12z"/><path fill="#00A4EF" d="M0 12h11v11H0z"/><path fill="#FFB900" d="M12 12h11v11H12z"/></svg></div>
-    <div>
-      <div class="header-title">Microsoft Communications Portal</div>
-      <div class="header-subtitle">Vibed by <a href="https://www.linkedin.com/in/russrimm" target="_blank" rel="noopener noreferrer">Russ Rimmerman</a>, Microsoft Cloud Solution Architect</div>
-    </div>
-    <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme">🌙 Dark</button>
-  </header>
-
-  <nav class="page-tabs" aria-label="Primary">
-    <a class="nav-tab" href="/powerplatform">Power Platform Release Planner</a>
-    <a class="nav-tab" href="/messagecenter">Microsoft 365 Message Center</a>
-    <a class="nav-tab" href="/m365updates">Microsoft 365 Roadmap</a>
-    <a class="nav-tab active" href="/servicehealth" aria-current="page">Microsoft 365 Service Health</a>
-    <a class="nav-tab" href="/azureupdates">Azure Roadmap</a>
-  </nav>
+  <script src="/static/nav.js" defer></script>
 
   <div class="page-content">
-    <!-- Hero -->
+    <!-- Heading bar -->
     <div class="sh-hero">
-      <div>
-        <div class="sh-hero-title">Microsoft 365 Service Health &amp; Communications</div>
-        <div class="sh-hero-sub">Real-time monitoring and status updates for Microsoft 365 services</div>
+      <div class="sh-hero-left">
+        <div class="sh-hero-title">Microsoft 365 Service Health</div>
+        <span class="sh-live">Live</span>
       </div>
-      <span class="sh-live">Live Monitoring</span>
     </div>
 
     <!-- Dashboard layout -->
     <div class="sh-page-stack">
-      <!-- Top row: compact overview donut + trend + per-service breakdown -->
+      <!-- Top row: left column (overview + breakdown), right column (activity + heatmap) -->
       <div class="sh-top-row">
-        <section class="sh-panel">
-          <div class="sh-panel-head">
-            <div class="sh-panel-title">Overview</div>
-            <div class="sh-panel-meta">
-              <span id="sh-updated">—</span>
-              <button class="export-btn" id="sh-refresh-btn" type="button" aria-label="Refresh service health"><span aria-hidden="true">↻</span></button>
-            </div>
-          </div>
-          <div class="sh-overview">
-            <div class="sh-donut-wrap">
-              <svg class="sh-donut-svg" id="sh-donut-svg" viewBox="0 0 42 42" role="img" aria-label="Service health overview"></svg>
-              <div class="sh-donut-center">
-                <div class="sh-donut-num" id="sh-donut-total">—</div>
-                <div class="sh-donut-label">Services</div>
+        <div class="sh-top-left">
+          <section class="sh-panel">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">Overview</div>
+              <div class="sh-panel-meta">
+                <span id="sh-updated">—</span>
+                <button class="export-btn" id="sh-refresh-btn" type="button" aria-label="Refresh service health"><span aria-hidden="true">↻</span></button>
               </div>
             </div>
-            <div class="sh-legend">
-              <div class="sh-legend-row">
-                <span class="sh-legend-dot operational"></span>
-                <span class="sh-legend-name">Operational</span>
-                <span class="sh-legend-num" id="sh-stat-operational">—</span>
+            <div class="sh-overview">
+              <div class="sh-donut-wrap">
+                <svg class="sh-donut-svg" id="sh-donut-svg" viewBox="0 0 42 42" role="img" aria-label="Service health overview"></svg>
+                <div class="sh-donut-center">
+                  <div class="sh-donut-num" id="sh-donut-total">—</div>
+                  <div class="sh-donut-label">Services</div>
+                </div>
               </div>
-              <div class="sh-legend-row">
-                <span class="sh-legend-dot degraded"></span>
-                <span class="sh-legend-name">Degraded</span>
-                <span class="sh-legend-num" id="sh-stat-degraded">—</span>
-              </div>
-              <div class="sh-legend-row">
-                <span class="sh-legend-dot extended"></span>
-                <span class="sh-legend-name">Extended Recovery</span>
-                <span class="sh-legend-num" id="sh-stat-extended">—</span>
-              </div>
-              <div class="sh-legend-row">
-                <span class="sh-legend-dot degraded"></span>
-                <span class="sh-legend-name">Active issues</span>
-                <span class="sh-legend-num" id="sh-stat-issues">—</span>
+              <div class="sh-legend">
+                <div class="sh-legend-row">
+                  <span class="sh-legend-dot operational"></span>
+                  <span class="sh-legend-name">Operational</span>
+                  <span class="sh-legend-num" id="sh-stat-operational">—</span>
+                </div>
+                <div class="sh-legend-row">
+                  <span class="sh-legend-dot degraded"></span>
+                  <span class="sh-legend-name">Degraded</span>
+                  <span class="sh-legend-num" id="sh-stat-degraded">—</span>
+                </div>
+                <div class="sh-legend-row">
+                  <span class="sh-legend-dot extended"></span>
+                  <span class="sh-legend-name">Extended Recovery</span>
+                  <span class="sh-legend-num" id="sh-stat-extended">—</span>
+                </div>
+                <div class="sh-legend-row">
+                  <span class="sh-legend-dot degraded"></span>
+                  <span class="sh-legend-name">Active issues</span>
+                  <span class="sh-legend-num" id="sh-stat-issues">—</span>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section class="sh-panel">
-          <div class="sh-panel-head">
-            <div class="sh-panel-title">
-              <span class="sh-panel-title-icon" aria-hidden="true" style="color:var(--cp-success)">📈</span>
-              <span>30-Day Health Trend</span>
+          <section class="sh-panel sh-panel-flex">
+            <div class="sh-panel-head">
+              <div class="sh-panel-title">
+                <span>By Service</span>
+                <span class="sh-panel-title-count" id="sh-breakdown-total">—</span>
+              </div>
             </div>
-            <div class="sh-trend-toggle" id="sh-trend-toggle" role="group" aria-label="Trend range">
-              <button type="button" data-range="7" aria-pressed="false" aria-label="7 days">7d</button>
-              <button type="button" data-range="14" aria-pressed="false" aria-label="14 days">14d</button>
-              <button type="button" data-range="30" class="active" aria-pressed="true" aria-label="30 days">30d</button>
+            <div class="sh-breakdown" id="sh-breakdown">
+              <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
             </div>
-          </div>
-          <svg class="sh-trend-svg" id="sh-trend-svg" viewBox="0 0 800 140" preserveAspectRatio="none" role="img" aria-label="30-day health trend chart"></svg>
-          <div class="sh-trend-legend">
-            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-danger)"></span>Active issues</span>
-            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-warning)"></span>Affected services</span>
-            <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-success)"></span>Operational services</span>
-          </div>
-        </section>
+          </section>
+        </div>
 
+        <div class="sh-top-right">
         <section class="sh-panel sh-panel-flex">
           <div class="sh-panel-head">
             <div class="sh-panel-title">
-              <span class="sh-panel-title-icon" aria-hidden="true">🧩</span>
-              <span>By Service</span>
-              <span class="sh-panel-title-count" id="sh-breakdown-total">—</span>
+              <span>Recent Activity</span>
+              <span class="sh-panel-title-count" id="sh-activity-total">—</span>
             </div>
           </div>
-          <div class="sh-breakdown" id="sh-breakdown">
+          <div class="sh-severity-legend">
+            <span class="sh-severity-legend-item"><span class="sh-severity-legend-dot" style="background:var(--cp-danger)"></span>Incident</span>
+            <span class="sh-severity-legend-item"><span class="sh-severity-legend-dot" style="background:var(--cp-warning)"></span>Advisory</span>
+            <span class="sh-severity-legend-item"><span class="sh-severity-legend-dot" style="background:var(--cp-purple)"></span>Extended</span>
+            <span class="sh-severity-legend-item"><span class="sh-severity-legend-dot" style="background:var(--cp-link)"></span>Investigating</span>
+          </div>
+          <div class="sh-activity" id="sh-activity">
             <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
           </div>
         </section>
+
+        <section class="sh-panel">
+          <div class="sh-panel-head">
+            <div class="sh-panel-title">
+              <span>Uptime Heatmap</span>
+            </div>
+          </div>
+          <div class="sh-heatmap-wrap" id="sh-heatmap">
+            <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
+          </div>
+          <div class="sh-heatmap-legend">
+            <span class="sh-heatmap-legend-item"><span class="sh-heatmap-legend-dot" style="background:var(--cp-success)"></span>Operational</span>
+            <span class="sh-heatmap-legend-item"><span class="sh-heatmap-legend-dot" style="background:var(--cp-warning)"></span>Degraded</span>
+            <span class="sh-heatmap-legend-item"><span class="sh-heatmap-legend-dot" style="background:var(--cp-danger)"></span>Incident</span>
+          </div>
+        </section>
+        </div>
       </div>
+
+      <!-- Trend chart — full width for better readability -->
+      <section class="sh-panel">
+        <div class="sh-panel-head">
+          <div class="sh-panel-title">
+            <span class="sh-panel-title-icon" aria-hidden="true" style="color:var(--cp-success)">📈</span>
+            <span>30-Day Health Trend</span>
+          </div>
+          <div class="sh-trend-toggle" id="sh-trend-toggle" role="group" aria-label="Trend range">
+            <button type="button" data-range="7" aria-pressed="false" aria-label="7 days">7d</button>
+            <button type="button" data-range="14" aria-pressed="false" aria-label="14 days">14d</button>
+            <button type="button" data-range="30" class="active" aria-pressed="true" aria-label="30 days">30d</button>
+          </div>
+        </div>
+        <svg class="sh-trend-svg" id="sh-trend-svg" viewBox="0 0 800 90" preserveAspectRatio="none" role="img" aria-label="30-day health trend chart"></svg>
+        <div class="sh-trend-legend">
+          <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-danger)"></span>Active issues</span>
+          <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-warning)"></span>Affected services</span>
+          <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-success)"></span>Operational services</span>
+        </div>
+      </section>
 
       <!-- Current Issues — fills remaining height, scrolls internally -->
       <section class="sh-panel sh-issues-panel">
         <div class="sh-panel-head">
           <div class="sh-panel-title">
-            <span class="sh-panel-title-icon" aria-hidden="true">📊</span>
             <span>Current Issues</span>
             <span class="sh-panel-title-count" id="sh-issues-total">—</span>
           </div>
           <div style="display:flex;gap:0.4rem;align-items:center">
-            <button class="export-btn" id="sh-gen-export-btn" type="button">🛠 Generate Full Export</button>
             <button class="export-btn" id="sh-export-btn" type="button">⬇ Export</button>
             <button class="ghost-btn" id="sh-expand-btn" type="button" aria-expanded="false">Show all</button>
             <button class="ghost-btn" id="sh-pause-btn" type="button" aria-pressed="false">Pause</button>
           </div>
         </div>
+        <div class="sh-severity-legend">
+          <span class="sh-severity-legend-item"><span class="sh-severity-legend-bar" style="background:var(--cp-danger)"></span>Incident</span>
+          <span class="sh-severity-legend-item"><span class="sh-severity-legend-bar" style="background:var(--cp-warning)"></span>Advisory</span>
+          <span class="sh-severity-legend-item"><span class="sh-severity-legend-bar" style="background:var(--cp-purple)"></span>Extended</span>
+          <span class="sh-severity-legend-item"><span class="sh-severity-legend-bar" style="background:var(--cp-link)"></span>Investigating</span>
+        </div>
         <div class="sh-issues-list" id="sh-sidebar-list">
           <div class="sh-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div></div>
         </div>
       </section>
+
     </div>
   </div>
 
@@ -845,6 +283,8 @@
         renderStats();
         renderBreakdown();
         renderSidebar();
+        renderRecentActivity();
+        renderHeatmap();
         renderTrend();
       } catch (err) {
         document.getElementById('sh-breakdown').innerHTML =
@@ -994,6 +434,8 @@
       }
       // Stash the latest list so the modal can look an issue up by id.
       issuesById = new Map(list.map(it => [it.id, it]));
+      const expandBtn = document.getElementById('sh-expand-btn');
+      if (expandBtn) expandBtn.style.display = list.length > 25 ? '' : 'none';
       const items = expandedIssues ? list : list.slice(0, 25);
       container.innerHTML = items.map(it => {
         const sev = severityFromIssue(it);
@@ -1019,10 +461,220 @@
       }).join('');
     }
 
+    function renderRecentActivity() {
+      const list = flatIssues().slice(0, 6);
+      const container = document.getElementById('sh-activity');
+      const countEl = document.getElementById('sh-activity-total');
+      const total = flatIssues().length;
+      if (countEl) countEl.textContent = total;
+      if (!list.length) {
+        container.innerHTML = '<div class="sh-empty">✓ No recent activity</div>';
+        return;
+      }
+      container.innerHTML = list.map(it => {
+        const sev = severityFromIssue(it);
+        const dt = it.lastModifiedDateTime ? new Date(it.lastModifiedDateTime) : null;
+        const ago = dt ? timeAgo(dt) : '';
+        return `
+          <div class="sh-activity-row">
+            <span class="sh-activity-dot sev-${sev}"></span>
+            <div class="sh-activity-body">
+              <div class="sh-activity-title" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</div>
+              <div class="sh-activity-meta">
+                <span>${escapeHtml(it.service)}</span>
+                <span>${escapeHtml(ago)}</span>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function timeAgo(dt) {
+      const diff = Date.now() - dt.getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return mins + 'm ago';
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return hrs + 'h ago';
+      const days = Math.floor(hrs / 24);
+      return days + 'd ago';
+    }
+
+    function renderHeatmap() {
+      const container = document.getElementById('sh-heatmap');
+      const DAYS = 14;
+      const today = new Date(); today.setHours(0,0,0,0);
+
+      // Build per-service per-day status from allServices issue data.
+      const svcMap = new Map();
+      for (const svc of allServices) {
+        const name = svc.service || svc.displayName || 'Unknown';
+        if (!svcMap.has(name)) svcMap.set(name, new Map());
+        const dayMap = svcMap.get(name);
+        for (const issue of (svc.issues || [])) {
+          const start = issue.startDateTime ? new Date(issue.startDateTime) : null;
+          const end = issue.endDateTime ? new Date(issue.endDateTime) : (issue.isResolved ? null : new Date());
+          if (!start) continue;
+          const cls = String(issue.classification || '').toLowerCase();
+          const weight = cls === 'incident' ? 2 : 1;
+          for (let di = 0; di < DAYS; di++) {
+            const d = new Date(today); d.setDate(today.getDate() - (DAYS - 1 - di));
+            const dk = dayKey(d);
+            const dEnd = new Date(d); dEnd.setHours(23,59,59,999);
+            if (start <= dEnd && (!end || end >= d)) {
+              dayMap.set(dk, Math.max(dayMap.get(dk) || 0, weight));
+            }
+          }
+        }
+      }
+
+      // Pick top services (those with any issues, plus top operational ones, up to 6).
+      let svcNames = [...svcMap.entries()]
+        .filter(([, dm]) => [...dm.values()].some(v => v > 0))
+        .sort((a, b) => {
+          const sa = [...a[1].values()].reduce((s,v) => s+v, 0);
+          const sb = [...b[1].values()].reduce((s,v) => s+v, 0);
+          return sb - sa;
+        })
+        .map(([n]) => n)
+        .slice(0, 6);
+      // If fewer than 3, pad with operational services for context.
+      if (svcNames.length < 3) {
+        for (const svc of allServices) {
+          const n = svc.service || svc.displayName || 'Unknown';
+          if (!svcNames.includes(n)) { svcNames.push(n); }
+          if (svcNames.length >= 5) break;
+        }
+      }
+
+      if (!svcNames.length) {
+        container.innerHTML = '<div class="sh-empty">No service data</div>';
+        return;
+      }
+
+      const cols = DAYS + 1; // +1 for label column
+      let html = `<div class="sh-heatmap" style="grid-template-columns: 100px repeat(${DAYS}, 1fr);">`;
+
+      // Day header row.
+      html += '<div class="sh-heatmap-label"></div>';
+      for (let di = 0; di < DAYS; di++) {
+        const d = new Date(today); d.setDate(today.getDate() - (DAYS - 1 - di));
+        const label = di === DAYS - 1 ? 'Today' : `${d.getMonth()+1}/${d.getDate()}`;
+        html += `<div class="sh-heatmap-daylabel">${label}</div>`;
+      }
+
+      // Service rows.
+      for (const name of svcNames) {
+        html += `<div class="sh-heatmap-label" title="${escapeHtml(name)}">${escapeHtml(name)}</div>`;
+        const dayMap = svcMap.get(name) || new Map();
+        for (let di = 0; di < DAYS; di++) {
+          const d = new Date(today); d.setDate(today.getDate() - (DAYS - 1 - di));
+          const dk = dayKey(d);
+          const v = dayMap.get(dk) || 0;
+          const cls = v >= 2 ? 'hm-incident' : v === 1 ? 'hm-degraded' : 'hm-ok';
+          const tip = `${name} — ${d.getMonth()+1}/${d.getDate()}: ${v >= 2 ? 'Incident' : v === 1 ? 'Degraded' : 'Operational'}`;
+          html += `<div class="sh-heatmap-cell ${cls}" title="${escapeHtml(tip)}" data-svc="${escapeHtml(name)}" data-day="${dk}"></div>`;
+        }
+      }
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    // Heatmap click handler — event delegation on the static container (registered once)
+    document.getElementById('sh-heatmap').addEventListener('click', (ev) => {
+      const cell = ev.target.closest('.sh-heatmap-cell');
+      if (!cell) return;
+      const svcName = cell.getAttribute('data-svc');
+      const day = cell.getAttribute('data-day');
+      if (!svcName || !day) return;
+      const v = cell.classList.contains('hm-incident') ? 2 : cell.classList.contains('hm-degraded') ? 1 : 0;
+      if (v === 0) return;
+      openHeatmapDayIssues(svcName, day);
+    });
+
+    /**
+     * Find issues for a service on a specific day and open the detail modal.
+     */
+    function openHeatmapDayIssues(svcName, dayStr) {
+      const dayStart = new Date(dayStr + 'T00:00:00');
+      const dayEnd = new Date(dayStr + 'T23:59:59.999');
+      const matches = [];
+      for (const svc of allServices) {
+        const name = svc.service || svc.displayName || 'Unknown';
+        if (name !== svcName) continue;
+        for (const issue of (svc.issues || [])) {
+          const start = issue.startDateTime ? new Date(issue.startDateTime) : null;
+          const end = issue.endDateTime ? new Date(issue.endDateTime) : (issue.isResolved ? null : new Date());
+          if (!start) continue;
+          if (start <= dayEnd && (!end || end >= dayStart)) {
+            matches.push({
+              service: name,
+              id: issue.id || '',
+              title: issue.title || 'Active issue',
+              impact: issue.impactDescription || '',
+              classification: issue.classification || '',
+              status: issue.status || '',
+              feature: issue.feature || '',
+              featureGroup: issue.featureGroup || '',
+              highImpact: !!issue.highImpact,
+              startDateTime: issue.startDateTime || null,
+              endDateTime: issue.endDateTime || null,
+              lastModifiedDateTime: issue.lastModifiedDateTime || issue.startDateTime || null,
+              posts: Array.isArray(issue.posts) ? issue.posts : [],
+            });
+          }
+        }
+      }
+      if (!matches.length) return;
+      // Ensure issuesById has these entries so openIssueModal can find them
+      for (const m of matches) issuesById.set(m.id, m);
+      if (matches.length === 1) {
+        openIssueModal(matches[0].id);
+      } else {
+        openHeatmapIssuePicker(svcName, dayStr, matches);
+      }
+    }
+
+    /**
+     * Show a picker modal when multiple issues match a heatmap cell.
+     */
+    function openHeatmapIssuePicker(svcName, dayStr, issues) {
+      const d = new Date(dayStr + 'T00:00:00');
+      const dateLabel = `${d.getMonth()+1}/${d.getDate()}`;
+      document.getElementById('sh-modal-title').textContent = `${svcName} — ${dateLabel}`;
+      document.getElementById('sh-modal-sub').innerHTML =
+        `<span class="sh-issue-class">${issues.length} issue${issues.length > 1 ? 's' : ''} on this day</span>`;
+      document.getElementById('sh-modal-meta').innerHTML = '';
+      document.getElementById('sh-modal-impact').textContent = '';
+      document.getElementById('sh-modal-posts').innerHTML = issues.map(it => {
+        const sev = severityFromIssue(it);
+        const status = humanizeStatus(it.status, sev);
+        const cls = humanizeClassification(it.classification);
+        const last = it.lastModifiedDateTime ? new Date(it.lastModifiedDateTime) : null;
+        const timeStr = last ? `${formatShortDate(last)} · ${formatShortTime(last)}` : '';
+        return `
+          <div class="sh-modal-post" style="cursor:pointer" role="button" tabindex="0"
+               onclick="closeIssueModal(); setTimeout(function(){ openIssueModal('${escapeHtml(it.id)}'); }, 160)">
+            <div class="sh-modal-post-head">
+              <span class="sh-issue-pill sev-${sev}" style="font-size:10px"><span class="sh-issue-pill-dot"></span>${escapeHtml(status)}</span>
+              <span>${escapeHtml(timeStr)}</span>
+            </div>
+            <div class="sh-modal-post-body" style="font-weight:600">${escapeHtml(it.title)}</div>
+            <div style="font-size:11px;color:var(--cp-text-muted);margin-top:0.3rem">
+              ${cls ? `<span>${escapeHtml(cls)}</span> · ` : ''}${escapeHtml(it.feature || '')}
+            </div>
+          </div>`;
+      }).join('');
+      const backdrop = document.getElementById('sh-modal-backdrop');
+      backdrop.classList.add('open');
+      backdrop.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
     function toggleExpandIssues() {
       expandedIssues = !expandedIssues;
       const btn = document.getElementById('sh-expand-btn');
-      btn.textContent = expandedIssues ? 'Collapse' : 'Expand';
+      btn.textContent = expandedIssues ? 'Show less' : 'Show all';
       btn.setAttribute('aria-expanded', String(expandedIssues));
       renderSidebar();
     }
@@ -1125,8 +777,8 @@
     function renderTrend() {
       const svg = document.getElementById('sh-trend-svg');
       if (!svg) return;
-      const W = 800, H = 140;
-      const pad = { top: 12, right: 12, bottom: 24, left: 28 };
+      const W = 800, H = 90;
+      const pad = { top: 8, right: 12, bottom: 20, left: 28 };
       const innerW = W - pad.left - pad.right;
       const innerH = H - pad.top - pad.bottom;
       const series = buildSeries(trendRange);
@@ -1319,7 +971,7 @@
       getAllRows:  () => (typeof flatIssues === 'function' ? flatIssues() : []),
       getProducts: (it) => [it && it.service].filter(Boolean),
       getDate:     (it) => { const d = Date.parse((it && (it.startDateTime || it.lastModifiedDateTime)) || ''); return isNaN(d) ? null : d; },
-      runExport:   (rows) => exportServiceHealthToHtml(rows),
+      runExport:   (rows, format) => exportServiceHealthToHtml(rows, format),
     };
     const EXPORT_UNCLASSIFIED = '(Unclassified)';
     function getExportProducts(row) {
@@ -1351,8 +1003,9 @@
       filterExportProductSearch();
       updateExportCount();
       document.getElementById('gen-modal').hidden = false;
+      if (window.trapFocus) trapFocus(document.getElementById('gen-modal'));
     }
-    function closeExportModal() { const el = document.getElementById('gen-modal'); if (el) el.hidden = true; }
+    function closeExportModal() { if (window.releaseFocus) releaseFocus(); const el = document.getElementById('gen-modal'); if (el) el.hidden = true; }
     function selectAllExportProducts(state) {
       document.querySelectorAll('#gen-product-list input[type="checkbox"]').forEach(cb => {
         const label = cb.closest('label');
@@ -1363,6 +1016,14 @@
     function clearExportDates() {
       document.getElementById('gen-from-date').value = '';
       document.getElementById('gen-to-date').value = '';
+      updateExportCount();
+    }
+    function applyExportPreset(days) {
+      const now = new Date();
+      const from = new Date(now); from.setDate(from.getDate() - days);
+      const to   = new Date(now); to.setDate(to.getDate() + days);
+      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
+      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
       updateExportCount();
     }
     function filterExportProductSearch() {
@@ -1400,17 +1061,18 @@
     function submitExportModal() {
       const rows = computeExportRows();
       if (!rows.length) { alert('No items match the selected filters.'); return; }
+      const format = (document.querySelector('input[name="gen-format"]:checked') || {}).value || 'html';
       closeExportModal();
-      EXPORT_MODAL_CONFIG.runExport(rows);
+      EXPORT_MODAL_CONFIG.runExport(rows, format);
     }
 
     // ════════════════════════════════
     // EXPORT
     // ════════════════════════════════
-    function exportServiceHealthToHtml(customRows) {
+    function exportServiceHealthToHtml(customRows, format) {
       const issues = (customRows && customRows.length) ? customRows : (typeof flatIssues === 'function' ? flatIssues() : []);
       const counts = (typeof getCounts === 'function' ? getCounts() : null);
-      if (!window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
+      if (!window.ExportFormats || !window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
 
       const btn = document.getElementById('sh-export-btn');
       if (btn) { btn.disabled = true; btn.textContent = '…Exporting'; }
@@ -1454,37 +1116,18 @@
         ? `Operational ${counts.operational} · Degraded ${counts.degraded} · Extended Recovery ${counts.extended} · Active issues ${counts.totalIssues} · Affected services ${counts.affected}`
         : `${issues.length} active issue${issues.length !== 1 ? 's' : ''}`;
       const now = new Date().toLocaleString();
-      const subtitle = 'Exported ' + now + ' • ' + summary;
+      let subtitle = 'Exported ' + now + ' • ' + summary;
+      if (!issues.length) subtitle += ' — ✓ No active issues at the time of export.';
 
-      if (!issues.length) {
-        // Special empty-state page (the helper expects at least one row to build a table).
-        const html = '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8">'
-          + '<meta name="color-scheme" content="light only">'
-          + '<title>Microsoft 365 Service Health</title></head>'
-          + '<body bgcolor="#ffffff" style="margin:0;padding:24px;background-color:#ffffff;color:#1f2937;'
-          + "font-family:'Segoe UI',Calibri,Arial,sans-serif;\">"
-          + '<h2 style="font-size:18px;font-weight:600;margin:0 0 4px;color:#1f2937;">Microsoft 365 Service Health</h2>'
-          + '<p style="font-size:12px;color:#6b7280;margin:0 0 14px;">' + window.OutlookExport.escapeHtml(subtitle) + '</p>'
-          + '<p style="font-style:italic;color:#6b7280;padding:16px 0;">✓ No active issues at the time of export.</p>'
-          + '</body></html>';
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        const url  = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'servicehealth-export-' + new Date().toISOString().slice(0,10) + '.html';
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-      } else {
-        window.OutlookExport.download({
-          title:    'Microsoft 365 Service Health',
-          subtitle: subtitle,
-          filename: 'servicehealth-export-' + new Date().toISOString().slice(0,10) + '.html',
-          columns:  ['ID', 'Service', 'Title', 'Classification', 'Status', 'Feature', 'Feature Group',
-                     'High Impact', 'Started', 'Last Updated', 'Impact', 'Latest Update'],
-          rows: tableRows,
-        });
-      }
+      window.ExportFormats.download({
+        title:        'Microsoft 365 Service Health',
+        subtitle:     subtitle,
+        baseFilename: 'servicehealth-export-' + new Date().toISOString().slice(0,10),
+        columns:      ['ID', 'Service', 'Title', 'Classification', 'Status', 'Feature', 'Feature Group',
+                       'High Impact', 'Started', 'Last Updated', 'Impact', 'Latest Update'],
+        rows:         tableRows,
+        format:       format || 'html',
+      });
 
       if (btn) { btn.disabled = false; btn.textContent = '⬇ Export'; }
     }
@@ -1498,10 +1141,8 @@
       });
     }
     // ── Event listeners (replaces inline handlers for elements above) ───
-    document.getElementById('theme-btn').addEventListener('click', toggleTheme);
     document.getElementById('sh-refresh-btn').addEventListener('click', loadServiceHealth);
-    document.getElementById('sh-gen-export-btn').addEventListener('click', openExportModal);
-    document.getElementById('sh-export-btn').addEventListener('click', exportServiceHealthToHtml);
+    document.getElementById('sh-export-btn').addEventListener('click', openExportModal);
     document.getElementById('sh-expand-btn').addEventListener('click', toggleExpandIssues);
     document.getElementById('sh-pause-btn').addEventListener('click', togglePause);
   </script>
@@ -1509,12 +1150,27 @@
     <div class="gen-modal-backdrop" id="gen-modal-backdrop"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Generate Full Export</h3>
+        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
         <button class="gen-modal-close" id="gen-modal-close-btn" type="button" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
         <div class="gen-field">
+          <span class="gen-field-label">Format</span>
+          <div class="gen-format-group" role="radiogroup" aria-label="Export format">
+            <label><input type="radio" name="gen-format" value="html" checked> HTML</label>
+            <label><input type="radio" name="gen-format" value="md"> Markdown</label>
+            <label><input type="radio" name="gen-format" value="pdf"> PDF</label>
+            <label><input type="radio" name="gen-format" value="docx"> Word</label>
+          </div>
+          <p class="gen-format-note">PDF opens a print dialog (choose "Save as PDF"). Word export opens in Word / LibreOffice.</p>
+        </div>
+        <div class="gen-field">
           <span class="gen-field-label">Date range (Started)</span>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+            <button type="button" class="gen-quick" id="gen-preset-7">±7 days</button>
+            <button type="button" class="gen-quick" id="gen-preset-30">±30 days</button>
+            <button type="button" class="gen-quick" id="gen-preset-60">±60 days</button>
+          </div>
           <div class="gen-range">
             <input type="date" id="gen-from-date" aria-label="From date">
             <span>to</span>
@@ -1548,6 +1204,9 @@
     document.getElementById('gen-from-date').addEventListener('change', updateExportCount);
     document.getElementById('gen-to-date').addEventListener('change', updateExportCount);
     document.getElementById('gen-clear-dates-btn').addEventListener('click', clearExportDates);
+    document.getElementById('gen-preset-7').addEventListener('click', function() { applyExportPreset(7); });
+    document.getElementById('gen-preset-30').addEventListener('click', function() { applyExportPreset(30); });
+    document.getElementById('gen-preset-60').addEventListener('click', function() { applyExportPreset(60); });
     document.getElementById('gen-select-all-btn').addEventListener('click', function() { selectAllExportProducts(true); });
     document.getElementById('gen-clear-all-btn').addEventListener('click', function() { selectAllExportProducts(false); });
     document.getElementById('gen-product-search').addEventListener('input', filterExportProductSearch);
@@ -1561,6 +1220,7 @@
 
   <script src="/static/product-icons.js" defer></script>
   <script src="/static/outlook-export.js" defer></script>
+  <script src="/static/export-formats.js" defer></script>
   <script src="/static/ai-insights.js" defer></script>
 </body>
 </html>
