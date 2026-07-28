@@ -490,7 +490,7 @@
     // GENERATE EXPORT MODAL
     // ════════════════════════════════════════════════
     const EXPORT_MODAL_CONFIG = {
-      getAllRows:  () => allUpdates || [],
+      getAllRows:  () => currentFiltered || [],
       getProducts: (u) => u && u.product ? [u.product] : [],
       getDate:     () => null, // Fabric uses quarters, not exact dates
       runExport:   (rows, format) => exportFabricRoadmapToHtml(rows, format),

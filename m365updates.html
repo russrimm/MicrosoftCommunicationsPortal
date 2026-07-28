@@ -481,7 +481,7 @@
     // GENERATE EXPORT MODAL
     // ════════════════════════════════════════════════
     const EXPORT_MODAL_CONFIG = {
-      getAllRows:  () => allUpdates || [],
+      getAllRows:  () => currentFiltered || [],
       getProducts: (u) => (u && u.buckets && u.buckets.product) || [],
       getDate:     (u) => { const d = Date.parse(u && u.pubDate || ''); return isNaN(d) ? null : d; },
       runExport:   (rows, format) => exportM365UpdatesToHtml(rows, format),
