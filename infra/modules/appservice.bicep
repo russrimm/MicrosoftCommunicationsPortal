@@ -15,7 +15,6 @@ param logAnalyticsName string
 
 @description('Application Insights name')
 param appInsightsName string
-param appServiceName string
 
 @description('App Service Plan SKU')
 param planSku string = 'B1'
@@ -37,6 +36,12 @@ param authClientId string
 param authTenantId string = tenant().tenantId
 
 var linuxFxVersion = '${toUpper(runtimeName)}|${runtimeVersion}'
+var configuredAppSettings = [
+  for key in objectKeys(appSettings): {
+    name: key
+    value: appSettings[key]
+  }
+]
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
@@ -67,14 +72,15 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       appCommandLine: 'node server.js'
-      appSettings: [for key in objectKeys(union(appSettings, {
-        APPLICATIONINSIGHTS_CONNECTION_STRING: appInsights.properties.ConnectionString
-      })): {
-        name: key
-        value: union(appSettings, {
-          APPLICATIONINSIGHTS_CONNECTION_STRING: appInsights.properties.ConnectionString
-        })[key]
-      }]
+      appSettings: concat(
+        configuredAppSettings,
+        [
+          {
+            name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+            value: appInsights.properties.ConnectionString
+          }
+        ]
+      )
     }
   }
 }
@@ -134,6 +140,7 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
 }
 
 output appServiceName string = appService.name
+output principalId string = appService.identity.principalId
 output uri string = 'https://${appService.properties.defaultHostName}'
 
 // ── Entra ID Easy Auth (authsettingsV2) ─────────────────────────────────────
