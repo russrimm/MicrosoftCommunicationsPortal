@@ -325,7 +325,9 @@ is used.
 
 > **`azd up` users:** the post-provision hook runs `scripts/create-entra-app.ps1`
 > which automatically grants these Graph permissions to the App Service managed
-> identity — no manual steps needed.
+> identity. The Bicep deployment also assigns the identity the Azure `Reader`
+> role and configures the deployment subscription as the default Azure Service
+> Health scope, so no separate Resource Health setup is needed.
 
 **Granting Graph permissions to a managed identity manually**
 
@@ -508,7 +510,8 @@ Azure subscription(s) you want to monitor.
 **Steps:**
 
 1. **Assign a Reader role** to your app registration's service principal (or managed
-   identity) on each Azure subscription you want to monitor:
+   identity) on each Azure subscription you want to monitor. Skip this for the
+   subscription deployed by `azd up`; its Bicep template creates the assignment:
 
    ```bash
    # Replace the placeholders with your values:
@@ -518,9 +521,10 @@ Azure subscription(s) you want to monitor.
        --scope "/subscriptions/<subscription-id>"
    ```
 
-   > **Which role?** `Reader` is the simplest choice — it grants read-only access
-   > to all resources in the subscription. For a more restrictive option, use
-   > `Resource Health Reader` which only grants access to health data. Either works.
+   > **Which role?** `Reader` grants the management-plane read permissions used
+   > by the subscription picker and Resource Health endpoints. The specialized
+   > `Service Health Security Reader` role is only needed when the app must read
+   > sensitive security-advisory details.
 
    > **Where do I find my subscription ID?** Azure portal → Subscriptions → click
    > your subscription → the **Subscription ID** is shown on the Overview blade.

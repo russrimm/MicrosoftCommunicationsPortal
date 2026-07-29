@@ -19,6 +19,11 @@ param authClientId string
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
+var appServiceName = '${abbrs.webSitesAppService}${resourceToken}'
+var readerRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
 
 resource rg 'Microsoft.Resources/resourceGroups@2022-09-01' = {
   name: '${abbrs.resourcesResourceGroups}${environmentName}'
@@ -33,7 +38,7 @@ module web 'modules/appservice.bicep' = {
     location: location
     tags: tags
     appServicePlanName: '${abbrs.webServerFarms}${resourceToken}'
-    appServiceName: '${abbrs.webSitesAppService}${resourceToken}'
+    appServiceName: appServiceName
     logAnalyticsName: 'log-${resourceToken}'
     appInsightsName: 'appi-${resourceToken}'
     planSku: planSku
@@ -43,6 +48,7 @@ module web 'modules/appservice.bicep' = {
     appSettings: {
       NODE_ENV: 'production'
       USE_MANAGED_IDENTITY: 'true'
+      AZURE_SUBSCRIPTION_ID: subscription().subscriptionId
       SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
       // App Service fronts the app with its own HTTPS ingress; the app must
       // bind 0.0.0.0 inside the sandbox. This is the ONLY deployment path
@@ -53,6 +59,17 @@ module web 'modules/appservice.bicep' = {
       // rate limiter sees real client IPs instead of the single proxy IP.
       TRUST_PROXY: 'true'
     }
+  }
+}
+
+// Resource Health is an ARM management-plane API. The managed identity needs
+// subscription read access in addition to its Microsoft Graph permissions.
+resource resourceHealthReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, appServiceName, readerRoleDefinitionId)
+  properties: {
+    principalId: web.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: readerRoleDefinitionId
   }
 }
 
