@@ -45,6 +45,12 @@ This project uses the following open-source dependency:
 |---------|---------|
 | [dotenv](https://github.com/motdotla/dotenv) | BSD-2-Clause |
 
+The world map outline in `static/worldmap.js` is generated from
+[Natural Earth](https://www.naturalearthdata.com/) 1:110m Admin 0 country
+boundaries (public domain), by way of the
+[world-atlas](https://github.com/topojson/world-atlas) TopoJSON build
+(ISC License). Regenerate it with `node scripts/build-worldmap.js`.
+
 All Microsoft product icons included in the `/public/` directory are the
 property of Microsoft Corporation and are used here solely for the purpose of
 identifying Microsoft products and services within this tool.

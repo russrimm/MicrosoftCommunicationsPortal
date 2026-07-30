@@ -31,6 +31,7 @@ tenant-side incidents in one place.
 |---|---|---|---|
 | Home | `/home` | `home.html` | — (dashboard/landing page) |
 | Power Platform Release Planner | `/powerplatform` | `powerplatform.html` | `releaseplans.microsoft.com` (proxied) |
+| Regional Release Plans | `/featuregeo` | `featuregeo.html` | `releaseplans.microsoft.com` (scraped + normalised) |
 | Microsoft 365 Roadmap | `/m365updates` | `m365updates.html` | M365 Roadmap RSS |
 | Azure Updates | `/azureupdates` | `azureupdates.html` | Azure Updates RSS |
 | Microsoft Fabric Roadmap | `/fabricroadmap` | `fabricroadmap.html` | `roadmap.fabric.microsoft.com` (proxied) |
@@ -784,6 +785,7 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /api/m365updates` | Microsoft 365 Roadmap RSS, parsed to JSON | None | 60/min |
 | `GET /api/azureupdates` | Azure Updates RSS, parsed to JSON | None | 60/min |
 | `GET /api/fabricroadmap` | Microsoft Fabric Roadmap JSON (14 product areas) | None | 60/min |
+| `GET /api/featuregeo` | Regional release plans (feature availability by geography), normalised from the public release plans site (30 min server cache) | None | 60/min |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` | 60/min |
 | `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` | 60/min |
 | `GET /api/subscriptions` | List Azure subscriptions (for subscription picker) | `.env` | 30/min |
@@ -816,6 +818,7 @@ Static `/public/` icons are sent with a 24-hour `Cache-Control` and an ETag, and
 ```
 home.html                        Home / dashboard landing page
 powerplatform.html               Power Platform Release Planner UI
+featuregeo.html                  Regional Release Plans (world map + rollout table by geography)
 m365updates.html                 M365 Roadmap UI
 azureupdates.html                Azure Updates UI
 fabricroadmap.html               Microsoft Fabric Roadmap UI
@@ -833,11 +836,14 @@ static/
   outlook-export.js              Shared client-side Outlook-friendly HTML exporter (inline styles + bgcolor)
   export-formats.js              Multi-format export (HTML, Markdown, PDF, Word) for the Generate Full Export modal
   subscription-picker.js         Shared Azure subscription selection picker
+  featuregeo.css                 Regional Release Plans page styles (map, filter rail, rollout table)
+  worldmap.js                    Generated world outline (Natural Earth 110m) used by the Regional Release Plans map
 public/                          Microsoft product / service SVG icons served at /public/<file>.svg
 empty-products.json              Persisted cache of known-empty Release Planner product IDs (auto-skip list)
 package.json                     Dependencies (dotenv only)
 .env.example                     Template for Graph auth, AI providers, and server/security options
 scripts/capture-screenshots.js   Playwright script that regenerates the README screenshot gallery
+scripts/build-worldmap.js        Regenerates static/worldmap.js from Natural Earth 110m TopoJSON
 screenshots/                     Light + dark mode PNGs rendered into the README above
 ```
 

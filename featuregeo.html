@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Regional Release Plans – Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <script src="/static/util.js" defer></script>
+  <script src="/static/worldmap.js" defer></script>
+  <link rel="stylesheet" href="/static/common.css">
+  <link rel="stylesheet" href="/static/roadmap.css">
+  <link rel="stylesheet" href="/static/featuregeo.css">
+</head>
+<body>
+  <script src="/static/nav.js" defer></script>
+
+  <div class="page-content">
+    <h1 class="page-heading">Regional Release Plans</h1>
+
+    <div class="fg-layout">
+      <aside class="fg-rail" aria-label="Filters">
+        <div class="fg-field">
+          <div class="fg-field-label">
+            <span>Products</span>
+            <button type="button" class="fg-field-reset" data-act="resetProducts">Select all</button>
+          </div>
+          <div class="fg-tree" id="fg-products" role="group" aria-label="Products"></div>
+        </div>
+        <div class="fg-field">
+          <div class="fg-field-label">
+            <span>Release wave</span>
+            <button type="button" class="fg-field-reset" data-act="clearFilter" data-kind="waves" hidden>Clear</button>
+          </div>
+          <div class="fg-chips" id="fg-waves"></div>
+        </div>
+        <div class="fg-field">
+          <div class="fg-field-label">
+            <span>Geo release status</span>
+            <button type="button" class="fg-field-reset" data-act="clearFilter" data-kind="status" hidden>Clear</button>
+          </div>
+          <div class="fg-chips" id="fg-status"></div>
+        </div>
+        <div class="fg-field">
+          <div class="fg-field-label">
+            <span>Copilot capabilities</span>
+            <button type="button" class="fg-field-reset" data-act="clearFilter" data-kind="copilot" hidden>Clear</button>
+          </div>
+          <div class="fg-chips" id="fg-copilot"></div>
+        </div>
+        <div class="fg-field">
+          <div class="fg-field-label">
+            <span>Geo release date</span>
+            <button type="button" class="fg-field-reset" data-act="clearFilter" data-kind="months" hidden>Clear</button>
+          </div>
+          <div class="fg-chips is-scroll" id="fg-months"></div>
+        </div>
+        <div class="fg-field">
+          <div class="fg-field-label">
+            <span>Geographies</span>
+            <button type="button" class="fg-field-reset" data-act="clearFilter" data-kind="geos" hidden>Clear</button>
+          </div>
+          <div class="fg-chips is-scroll" id="fg-geos"></div>
+        </div>
+      </aside>
+
+      <div class="fg-main">
+        <div class="fg-map-panel">
+          <div id="fg-map-host"></div>
+          <div class="fg-map-tooltip" id="fg-tooltip" role="status" hidden></div>
+          <div class="fg-map-hint">
+            <span><span class="fg-legend-dot is-on"></span> Selected</span>
+            <span><span class="fg-legend-dot"></span> Available, not selected</span>
+            <span class="fg-map-hint-spacer">Click a marker to filter by that geography. Numbers show matching features.</span>
+          </div>
+        </div>
+
+        <div class="fg-toolbar">
+          <label for="fg-search" class="sr-only">Search features or products</label>
+          <input type="text" class="au-search-input" id="fg-search"
+                 placeholder="Search features or products…"
+                 aria-label="Search features or products" data-act="onSearch" data-on="input">
+          <span class="fg-count" id="fg-count" aria-live="polite"></span>
+          <button class="export-btn" type="button" data-act="exportCsv">⬇ CSV</button>
+          <button class="export-btn" type="button" data-act="loadFeatureGeo">↻ Refresh</button>
+        </div>
+
+        <div class="fg-table-wrap" id="fg-table-wrap">
+          <div class="cp-state" role="status" aria-live="polite">
+            <div class="spinner" aria-hidden="true"></div>
+            <span>Loading geography data…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Geography coordinates ────────────────────────────────────────────────
+    // Upstream publishes geography names only, so positions are supplied here.
+    // The US sovereign clouds all live in the same place, so they share one
+    // marker that toggles the whole family at once.
+    const GEO_POINTS = {
+      'United States':          [37.09,  -95.71],
+      'Canada':                 [56.13, -106.35],
+      'Brazil':                 [-14.24, -51.93],
+      'United Kingdom':         [55.38,   -3.44],
+      'Europe':                 [54.53,   15.26],
+      'Germany':                [51.17,   10.45],
+      'France':                 [46.23,    2.21],
+      'Spain':                  [40.46,   -3.75],
+      'Italy':                  [41.87,   12.57],
+      'Switzerland':            [46.82,    8.23],
+      'Poland':                 [51.92,   19.15],
+      'Norway':                 [60.47,    8.47],
+      'Sweden':                 [60.13,   18.64],
+      'Qatar':                  [25.28,   51.52],
+      'United Arab Emirates':   [23.42,   53.85],
+      'South Africa':          [-30.56,   22.94],
+      'India':                  [20.59,   78.96],
+      'Singapore':              [ 1.35,  103.82],
+      'Asia Pacific':           [ 1.29,  103.85],
+      'China':                  [35.86,  104.20],
+      'South Korea':            [35.91,  127.77],
+      'Japan':                  [36.20,  138.25],
+      'Australia':             [-25.27,  133.78],
+      'New Zealand':           [-40.90,  174.89],
+      'US Gov clouds':          [38.91,  -77.04],
+    };
+    // Geography names that roll up into a single map marker.
+    const GEO_MARKER_GROUPS = {
+      'US Gov clouds': ['US GCC', 'US GCC High', 'US Gov', 'US DoD', 'US Sec', 'US Nat'],
+    };
+    const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    const PAGE_SIZE = 25;
+    const MARKER_RADIUS = 8;
+
+    let DATA = null;
+    let geoToMarker = {};   // geography name -> marker key
+    let markerToGeos = {};  // marker key -> geography names
+    let rows = [];          // currently filtered + sorted rows
+    let visibleRows = PAGE_SIZE;
+    let sort = { key: 'product', dir: 1 };
+
+    const filters = {
+      products: new Set(),  // product indexes; empty means "nothing selected"
+      waves:    new Set(),  // remaining sets: empty means "no constraint"
+      status:   new Set(),
+      copilot:  new Set(),
+      months:   new Set(),
+      geos:     new Set(),
+      search:   '',
+    };
+
+    const esc = (v) => window.CPUtil.escapeHtml(v == null ? '' : String(v));
+
+    // Registered once the deferred util.js has installed window.CPActions.
+    const ACTIONS = {
+      loadFeatureGeo,
+      exportCsv,
+      resetProducts,
+      onSearch:      (e, el) => { filters.search = el.value.trim().toLowerCase(); applyFilters(); },
+      clearFilter:   (e, el) => { filters[el.dataset.kind].clear(); applyFilters(); },
+      toggleChip:    (e, el) => { toggleSetValue(filters[el.dataset.kind], el.dataset.value); applyFilters(); },
+      toggleProduct: (e, el) => { toggleSetValue(filters.products, el.dataset.value); applyFilters(); },
+      toggleGroup:   (e, el) => toggleProductGroup(el),
+      collapseGroup: (e, el) => el.closest('.fg-tree-group').classList.toggle('is-collapsed'),
+      toggleGeo:     (e, el) => toggleGeography(el.dataset.geo),
+      sortBy:        (e, el) => sortBy(el.dataset.key),
+      showMore:      () => { visibleRows += PAGE_SIZE; renderTable(); },
+    };
+
+    function toggleSetValue(set, rawValue) {
+      const value = Number(rawValue);
+      const key = Number.isNaN(value) ? rawValue : value;
+      if (set.has(key)) set.delete(key); else set.add(key);
+    }
+
+    function monthLabel(ym) {
+      if (!ym) return '—';
+      const [year, month] = ym.split('-');
+      return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
+    }
+
+    function productGroup(name) {
+      const hpath = (DATA.hierarchy && DATA.hierarchy[name]) || '';
+      if (hpath.includes('Dynamics 365')) return 'Dynamics 365';
+      if (hpath.includes('Power Platform')) return 'Power Platform';
+      if (hpath.includes('Role-based Copilots')) return 'Role-based Copilots';
+      return 'Other';
+    }
+
+    // ── Data load ────────────────────────────────────────────────────────────
+    // Rollouts more than one calendar year old are dropped — they are history,
+    // not release planning. Returns the oldest "YYYY-MM" still worth showing.
+    function releaseDateCutoff() {
+      const now = new Date();
+      const cutoff = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+      return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    async function loadFeatureGeo() {
+      const wrap = document.getElementById('fg-table-wrap');
+      wrap.innerHTML = window.CPUtil.renderLoading('Loading geography data…');
+      try {
+        const res = await fetch('/api/featuregeo');
+        const data = await res.json();
+        if (data.error && (!data.items || !data.items.length)) {
+          wrap.innerHTML = window.CPUtil.renderError(data.error);
+          return;
+        }
+        DATA = data;
+        DATA.items = DATA.items.filter(it => !it.d || it.d >= releaseDateCutoff());
+        buildMarkerIndex();
+        buildFilterControls();
+        applyFilters();
+      } catch (err) {
+        wrap.innerHTML = window.CPUtil.renderError(`Failed to load: ${err.message}`);
+      }
+    }
+
+    // Maps every geography returned upstream onto the marker that represents it.
+    function buildMarkerIndex() {
+      geoToMarker = {};
+      markerToGeos = {};
+      const grouped = {};
+      for (const [markerKey, members] of Object.entries(GEO_MARKER_GROUPS)) {
+        for (const member of members) grouped[member] = markerKey;
+      }
+      for (const geo of DATA.geos) {
+        const markerKey = grouped[geo] || geo;
+        if (!GEO_POINTS[markerKey]) continue;
+        geoToMarker[geo] = markerKey;
+        (markerToGeos[markerKey] = markerToGeos[markerKey] || []).push(geo);
+      }
+    }
+
+    // ── Filter controls ──────────────────────────────────────────────────────
+    function buildFilterControls() {
+      Object.values(filters).forEach(v => { if (v instanceof Set) v.clear(); });
+
+      const usedProducts = new Set(DATA.items.map(it => it.p));
+      const usedWaves = new Set(DATA.items.map(it => it.w));
+      const usedGeos = new Set();
+      DATA.items.forEach(it => it.g.forEach(g => usedGeos.add(g)));
+
+      usedProducts.forEach(i => filters.products.add(i));
+      renderProductTree(usedProducts);
+
+      const waves = DATA.waves
+        .map((label, i) => ({ label: label || 'No wave', value: i }))
+        .filter(opt => usedWaves.has(opt.value))
+        .sort((a, b) => b.label.localeCompare(a.label));
+      renderChips('fg-waves', 'waves', waves);
+
+      const statuses = [...new Set(DATA.items.map(it => it.s))].filter(Boolean).sort();
+      renderChips('fg-status', 'status', statuses.map(s => ({ label: s, value: s })));
+
+      renderChips('fg-copilot', 'copilot', [
+        { label: 'Copilot', value: 1 },
+        { label: 'Non-Copilot', value: 0 },
+      ]);
+
+      const months = [...new Set(DATA.items.map(it => it.d))].filter(Boolean).sort();
+      renderChips('fg-months', 'months', months.map(m => ({ label: monthLabel(m), value: m })));
+
+      const geos = DATA.geos
+        .map((label, i) => ({ label, value: i }))
+        .filter(opt => usedGeos.has(opt.value))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      renderChips('fg-geos', 'geos', geos);
+    }
+
+    function renderChips(hostId, kind, options) {
+      document.getElementById(hostId).innerHTML = options.map(opt =>
+        `<button type="button" class="fg-chip" aria-pressed="false" data-act="toggleChip"` +
+        ` data-kind="${esc(kind)}" data-value="${esc(opt.value)}">${esc(opt.label)}</button>`
+      ).join('');
+    }
+
+    function renderProductTree(usedProducts) {
+      const groups = new Map();
+      DATA.products.forEach((name, index) => {
+        if (usedProducts && !usedProducts.has(index)) return;
+        const group = productGroup(name);
+        if (!groups.has(group)) groups.set(group, []);
+        groups.get(group).push({ name, index });
+      });
+      const order = ['Dynamics 365', 'Power Platform', 'Role-based Copilots', 'Other'];
+      const sorted = [...groups.keys()].sort((a, b) => {
+        const ai = order.indexOf(a), bi = order.indexOf(b);
+        return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi);
+      });
+      document.getElementById('fg-products').innerHTML = sorted.map(group => {
+        const children = groups.get(group).sort((a, b) => a.name.localeCompare(b.name));
+        const rowsHtml = children.map(child =>
+          `<label class="fg-tree-row is-child">` +
+            `<input type="checkbox" data-act="toggleProduct" data-on="change" data-value="${child.index}" checked>` +
+            `<span class="fg-tree-label" title="${esc(child.name)}">${esc(child.name)}</span>` +
+          `</label>`
+        ).join('');
+        return `<div class="fg-tree-group" data-group="${esc(group)}">` +
+          `<div class="fg-tree-row is-group">` +
+            `<button type="button" class="fg-tree-chevron" data-act="collapseGroup"` +
+            ` aria-label="Collapse ${esc(group)}">▼</button>` +
+            `<input type="checkbox" data-act="toggleGroup" data-on="change" data-group="${esc(group)}" checked>` +
+            `<span class="fg-tree-label">${esc(group)}</span>` +
+          `</div>` +
+          `<div class="fg-tree-children">${rowsHtml}</div></div>`;
+      }).join('');
+    }
+
+    function toggleProductGroup(el) {
+      const groupEl = el.closest('.fg-tree-group');
+      const checked = el.checked;
+      groupEl.querySelectorAll('.fg-tree-children input').forEach(input => {
+        input.checked = checked;
+        const index = Number(input.dataset.value);
+        if (checked) filters.products.add(index); else filters.products.delete(index);
+      });
+      applyFilters();
+    }
+
+    function resetProducts() {
+      filters.products.clear();
+      document.querySelectorAll('#fg-products input[data-act="toggleProduct"]').forEach(input => {
+        input.checked = true;
+        filters.products.add(Number(input.dataset.value));
+      });
+      document.querySelectorAll('#fg-products input[data-act="toggleGroup"]').forEach(input => { input.checked = true; });
+      applyFilters();
+    }
+
+    function toggleGeography(geoName) {
+      const markerKey = geoToMarker[geoName] || geoName;
+      const members = markerToGeos[markerKey] || [geoName];
+      const indexes = members.map(name => DATA.geos.indexOf(name)).filter(i => i >= 0);
+      const allOn = indexes.every(i => filters.geos.has(i));
+      indexes.forEach(i => { if (allOn) filters.geos.delete(i); else filters.geos.add(i); });
+      applyFilters();
+    }
+
+    function syncFilterControls() {
+      document.querySelectorAll('.fg-chip').forEach(chip => {
+        const raw = chip.dataset.value;
+        const numeric = Number(raw);
+        const value = Number.isNaN(numeric) ? raw : numeric;
+        chip.setAttribute('aria-pressed', String(filters[chip.dataset.kind].has(value)));
+      });
+      document.querySelectorAll('.fg-field-reset[data-kind]').forEach(btn => {
+        btn.hidden = filters[btn.dataset.kind].size === 0;
+      });
+      document.querySelectorAll('.fg-tree-group').forEach(groupEl => {
+        const inputs = [...groupEl.querySelectorAll('.fg-tree-children input')];
+        const checked = inputs.filter(i => i.checked).length;
+        const groupInput = groupEl.querySelector('.fg-tree-row.is-group input');
+        groupInput.checked = checked === inputs.length;
+        groupInput.indeterminate = checked > 0 && checked < inputs.length;
+      });
+    }
+
+    // ── Filtering ────────────────────────────────────────────────────────────
+    function applyFilters() {
+      if (!DATA) return;
+      const matches = DATA.items.filter(item => {
+        if (!filters.products.has(item.p)) return false;
+        if (filters.waves.size && !filters.waves.has(item.w)) return false;
+        if (filters.status.size && !filters.status.has(item.s)) return false;
+        if (filters.copilot.size && !filters.copilot.has(item.c)) return false;
+        if (filters.months.size && !filters.months.has(item.d)) return false;
+        if (filters.geos.size && !item.g.some(g => filters.geos.has(g))) return false;
+        if (filters.search) {
+          const haystack = `${item.f} ${DATA.products[item.p]}`.toLowerCase();
+          if (!haystack.includes(filters.search)) return false;
+        }
+        return true;
+      });
+      rows = matches;
+      sortRows();
+      visibleRows = PAGE_SIZE;
+      syncFilterControls();
+      renderMap();
+      renderTable();
+    }
+
+    function sortRows() {
+      const dir = sort.dir;
+      const value = (item) => {
+        switch (sort.key) {
+          case 'feature': return item.f.toLowerCase();
+          case 'copilot': return item.c;
+          case 'status':  return item.s.toLowerCase();
+          case 'date':    return item.d;
+          default:        return DATA.products[item.p].toLowerCase();
+        }
+      };
+      rows.sort((a, b) => {
+        const av = value(a), bv = value(b);
+        if (av < bv) return -dir;
+        if (av > bv) return dir;
+        return DATA.products[a.p].localeCompare(DATA.products[b.p]) || a.f.localeCompare(b.f);
+      });
+    }
+
+    function sortBy(key) {
+      if (sort.key === key) sort.dir *= -1;
+      else sort = { key, dir: 1 };
+      sortRows();
+      renderTable();
+    }
+
+    // ── Map ──────────────────────────────────────────────────────────────────
+    // Markers start at their true coordinates and are then nudged apart so
+    // dense clusters (western Europe, Singapore) stay individually clickable.
+    // Anything displaced far from its origin keeps a thin leader line.
+    function relaxMarkers(markers, minDistance, iterations) {
+      const map = window.CPWorldMap;
+      for (let pass = 0; pass < iterations; pass++) {
+        let moved = false;
+        for (let i = 0; i < markers.length; i++) {
+          for (let j = i + 1; j < markers.length; j++) {
+            const a = markers[i], b = markers[j];
+            let dx = b.x - a.x, dy = b.y - a.y;
+            let dist = Math.hypot(dx, dy);
+            if (dist >= minDistance) continue;
+            if (dist < 0.001) { dx = (i % 2 ? 1 : -1); dy = 0.5; dist = 1; }
+            const push = (minDistance - dist) / 2;
+            const ux = dx / dist * push, uy = dy / dist * push;
+            a.x -= ux; a.y -= uy; b.x += ux; b.y += uy;
+            moved = true;
+          }
+        }
+        for (const marker of markers) {
+          marker.x = Math.min(map.width - MARKER_RADIUS, Math.max(MARKER_RADIUS, marker.x));
+          marker.y = Math.min(map.height - MARKER_RADIUS, Math.max(MARKER_RADIUS, marker.y));
+        }
+        if (!moved) break;
+      }
+      return markers;
+    }
+
+    function renderMap() {
+      const map = window.CPWorldMap;
+      const host = document.getElementById('fg-map-host');
+      if (!map) { host.innerHTML = ''; return; }
+
+      // Count matching features per marker across the currently filtered rows.
+      const counts = {};
+      for (const item of rows) {
+        const seen = new Set();
+        for (const geoIndex of item.g) {
+          const markerKey = geoToMarker[DATA.geos[geoIndex]];
+          if (markerKey && !seen.has(markerKey)) { seen.add(markerKey); counts[markerKey] = (counts[markerKey] || 0) + 1; }
+        }
+      }
+
+      const markers = Object.keys(counts).map(key => {
+        const [lat, lon] = GEO_POINTS[key];
+        const point = map.project(lat, lon);
+        return { key, count: counts[key], x: point.x, y: point.y, originX: point.x, originY: point.y };
+      });
+      relaxMarkers(markers, MARKER_RADIUS * 2 + 1.5, 60);
+
+      const noGeoFilter = filters.geos.size === 0;
+      const markup = markers.map(marker => {
+        const members = markerToGeos[marker.key] || [marker.key];
+        const on = noGeoFilter || members.some(name => filters.geos.has(DATA.geos.indexOf(name)));
+        const drift = Math.hypot(marker.x - marker.originX, marker.y - marker.originY);
+        const leader = drift > MARKER_RADIUS
+          ? `<line class="fg-marker-leader" x1="${marker.originX.toFixed(1)}" y1="${marker.originY.toFixed(1)}"` +
+            ` x2="${marker.x.toFixed(1)}" y2="${marker.y.toFixed(1)}"></line>`
+          : '';
+        const label = `${marker.key}: ${marker.count} feature${marker.count === 1 ? '' : 's'}`;
+        return leader +
+          `<g class="fg-marker${on ? ' is-on' : ''}" role="button" tabindex="0"` +
+          ` data-act="toggleGeo" data-geo="${esc(members[0])}" data-marker="${esc(marker.key)}"` +
+          ` data-count="${marker.count}" data-x="${marker.x.toFixed(1)}" data-y="${marker.y.toFixed(1)}">` +
+            `<title>${esc(label)}</title>` +
+            `<circle class="fg-marker-halo" cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="${MARKER_RADIUS + 5}"></circle>` +
+            `<circle class="fg-marker-dot" cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="${MARKER_RADIUS}"></circle>` +
+            `<text class="fg-marker-count" x="${marker.x.toFixed(1)}" y="${(marker.y + 2.6).toFixed(1)}">${marker.count}</text>` +
+          `</g>`;
+      }).join('');
+
+      host.innerHTML =
+        `<svg class="fg-map" viewBox="0 0 ${map.width} ${map.height}" role="img"` +
+        ` aria-label="World map showing ${markers.length} geographies with matching features">` +
+          `<path class="fg-map-land" d="${map.path}"></path>${markup}</svg>`;
+      wireMapTooltip();
+    }
+
+    function wireMapTooltip() {
+      const panel = document.querySelector('.fg-map-panel');
+      const svg = panel.querySelector('svg');
+      const tooltip = document.getElementById('fg-tooltip');
+      panel.querySelectorAll('.fg-marker').forEach(marker => {
+        marker.addEventListener('mouseenter', () => {
+          const rect = svg.getBoundingClientRect();
+          const scale = rect.width / window.CPWorldMap.width;
+          const count = Number(marker.dataset.count);
+          tooltip.innerHTML = `<strong>${esc(marker.dataset.marker)}</strong>` +
+            `<span>${count} matching feature${count === 1 ? '' : 's'}</span>`;
+          tooltip.style.left = `${Number(marker.dataset.x) * scale}px`;
+          tooltip.style.top = `${Number(marker.dataset.y) * scale - MARKER_RADIUS * scale}px`;
+          tooltip.hidden = false;
+        });
+        marker.addEventListener('mouseleave', () => { tooltip.hidden = true; });
+      });
+    }
+
+    // ── Table ────────────────────────────────────────────────────────────────
+    function planUrl(productName, planId) {
+      const app = productName.startsWith('Dynamics 365')
+        ? productName.replace(/^Dynamics 365\s*/, '')
+        : productName;
+      return 'https://releaseplans.microsoft.com/en-US/?app=' + encodeURIComponent(app) +
+        '&rp=all-plans&planID=' + encodeURIComponent(planId);
+    }
+
+    function sortHeader(key, label, className) {
+      const arrow = sort.key === key ? `<span class="fg-sort-arrow">${sort.dir > 0 ? '▲' : '▼'}</span>` : '';
+      const ariaSort = sort.key === key ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none';
+      return `<th class="is-sortable ${className}" scope="col" aria-sort="${ariaSort}"` +
+        ` data-act="sortBy" data-key="${key}">${label}${arrow}</th>`;
+    }
+
+    function renderTable() {
+      const wrap = document.getElementById('fg-table-wrap');
+      const count = document.getElementById('fg-count');
+      count.textContent = `${rows.length} feature${rows.length === 1 ? '' : 's'}`;
+
+      if (!rows.length) {
+        wrap.innerHTML = window.CPUtil.renderEmpty(
+          filters.products.size ? 'No features match the current filters.' : 'Select at least one product.');
+        return;
+      }
+
+      const body = rows.slice(0, visibleRows).map(item => {
+        const productName = DATA.products[item.p];
+        const geos = item.g.map(g => DATA.geos[g]).sort();
+        const tags = geos.map(name =>
+          `<button type="button" class="fg-geo-tag${filters.geos.has(DATA.geos.indexOf(name)) ? ' is-on' : ''}"` +
+          ` data-act="toggleGeo" data-geo="${esc(name)}">${esc(name)}</button>`
+        ).join('');
+        return `<tr>` +
+          `<td class="fg-col-product">${esc(productName)}</td>` +
+          `<td class="fg-col-feature"><a class="fg-feature-link" target="_blank" rel="noopener noreferrer"` +
+            ` href="${esc(planUrl(productName, item.i))}">${esc(item.f)}</a></td>` +
+          `<td class="fg-col-copilot">${item.c ? 'Yes' : 'No'}</td>` +
+          `<td class="fg-col-status"><span class="au-status-pill ${item.s.toLowerCase() === 'shipped' ? 'shipped' : 'planned'}">${esc(item.s)}</span></td>` +
+          `<td class="fg-col-date">${esc(monthLabel(item.d))}</td>` +
+          `<td><div class="fg-geo-list">${tags}</div></td>` +
+        `</tr>`;
+      }).join('');
+
+      const more = rows.length > visibleRows
+        ? `<div class="fg-more"><button type="button" class="export-btn" data-act="showMore">` +
+          `Show more (${rows.length - visibleRows} remaining)</button></div>`
+        : '';
+
+      wrap.innerHTML = `<table class="fg-table"><thead><tr>` +
+        sortHeader('product', 'Product name', 'fg-col-product') +
+        sortHeader('feature', 'Feature name', 'fg-col-feature') +
+        sortHeader('copilot', 'Copilot', 'fg-col-copilot') +
+        sortHeader('status', 'Geo release status', 'fg-col-status') +
+        sortHeader('date', 'Geo release date', 'fg-col-date') +
+        `<th scope="col">Geographies</th></tr></thead><tbody>${body}</tbody></table>${more}`;
+    }
+
+    // ── Export ───────────────────────────────────────────────────────────────
+    function exportCsv() {
+      if (!rows.length) return;
+      const cell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+      const lines = [['Product name', 'Feature name', 'Copilot capabilities',
+        'Geo release status', 'Geo release date', 'Geographies'].map(cell).join(',')];
+      for (const item of rows) {
+        lines.push([
+          DATA.products[item.p],
+          item.f,
+          item.c ? 'Yes' : 'No',
+          item.s,
+          monthLabel(item.d),
+          item.g.map(g => DATA.geos[g]).sort().join('; '),
+        ].map(cell).join(','));
+      }
+      const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `regional-release-plans-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      window.CPActions.register(ACTIONS);
+      loadFeatureGeo();
+    });
+  </script>
+</body>
+</html>
