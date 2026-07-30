@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Feature Geography – Microsoft Communications Portal</title>
+  <title>Regional Release Plans – Microsoft Communications Portal</title>
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
@@ -21,7 +21,7 @@
   <script src="/static/nav.js" defer></script>
 
   <div class="page-content">
-    <h1 class="page-heading">Feature Availability by Geography</h1>
+    <h1 class="page-heading">Regional Release Plans</h1>
 
     <div class="fg-layout">
       <aside class="fg-rail" aria-label="Filters">
@@ -197,6 +197,14 @@
     }
 
     // ── Data load ────────────────────────────────────────────────────────────
+    // Rollouts more than one calendar year old are dropped — they are history,
+    // not release planning. Returns the oldest "YYYY-MM" still worth showing.
+    function releaseDateCutoff() {
+      const now = new Date();
+      const cutoff = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+      return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}`;
+    }
+
     async function loadFeatureGeo() {
       const wrap = document.getElementById('fg-table-wrap');
       wrap.innerHTML = window.CPUtil.renderLoading('Loading geography data…');
@@ -208,6 +216,7 @@
           return;
         }
         DATA = data;
+        DATA.items = DATA.items.filter(it => !it.d || it.d >= releaseDateCutoff());
         buildMarkerIndex();
         buildFilterControls();
         applyFilters();
@@ -234,11 +243,19 @@
 
     // ── Filter controls ──────────────────────────────────────────────────────
     function buildFilterControls() {
-      DATA.products.forEach((_, i) => filters.products.add(i));
-      renderProductTree();
+      Object.values(filters).forEach(v => { if (v instanceof Set) v.clear(); });
+
+      const usedProducts = new Set(DATA.items.map(it => it.p));
+      const usedWaves = new Set(DATA.items.map(it => it.w));
+      const usedGeos = new Set();
+      DATA.items.forEach(it => it.g.forEach(g => usedGeos.add(g)));
+
+      usedProducts.forEach(i => filters.products.add(i));
+      renderProductTree(usedProducts);
 
       const waves = DATA.waves
         .map((label, i) => ({ label: label || 'No wave', value: i }))
+        .filter(opt => usedWaves.has(opt.value))
         .sort((a, b) => b.label.localeCompare(a.label));
       renderChips('fg-waves', 'waves', waves);
 
@@ -255,6 +272,7 @@
 
       const geos = DATA.geos
         .map((label, i) => ({ label, value: i }))
+        .filter(opt => usedGeos.has(opt.value))
         .sort((a, b) => a.label.localeCompare(b.label));
       renderChips('fg-geos', 'geos', geos);
     }
@@ -266,9 +284,10 @@
       ).join('');
     }
 
-    function renderProductTree() {
+    function renderProductTree(usedProducts) {
       const groups = new Map();
       DATA.products.forEach((name, index) => {
+        if (usedProducts && !usedProducts.has(index)) return;
         const group = productGroup(name);
         if (!groups.has(group)) groups.set(group, []);
         groups.get(group).push({ name, index });
@@ -309,8 +328,12 @@
     }
 
     function resetProducts() {
-      DATA.products.forEach((_, i) => filters.products.add(i));
-      document.querySelectorAll('#fg-products input').forEach(input => { input.checked = true; });
+      filters.products.clear();
+      document.querySelectorAll('#fg-products input[data-act="toggleProduct"]').forEach(input => {
+        input.checked = true;
+        filters.products.add(Number(input.dataset.value));
+      });
+      document.querySelectorAll('#fg-products input[data-act="toggleGroup"]').forEach(input => { input.checked = true; });
       applyFilters();
     }
 
@@ -570,7 +593,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `feature-geography-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `regional-release-plans-${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();

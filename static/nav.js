@@ -28,8 +28,8 @@
   var NAV_ITEMS = [
     { label: 'Home', href: '/home' },
     { label: 'Roadmaps', items: [
-      { label: 'Power Platform', href: '/powerplatform' },
-      { label: 'Feature Geography', href: '/featuregeo' },
+      { label: 'Power Platform & Dynamics 365', href: '/powerplatform' },
+      { label: 'Regional Release Plans', href: '/featuregeo', sub: true },
       { label: 'Fabric',         href: '/fabricroadmap' },
       { label: 'Azure',          href: '/azureupdates' },
       { label: 'Microsoft 365',  href: '/m365updates' }
@@ -56,7 +56,8 @@
           var sub = item.items[j];
           var isItemActive = path === sub.href;
           if (isItemActive) dropdownActive = true;
-          menuHtml += '<a class="nav-dropdown-item' + (isItemActive ? ' active' : '') + '"' +
+          menuHtml += '<a class="nav-dropdown-item' + (isItemActive ? ' active' : '') +
+            (sub.sub ? ' nav-dropdown-subitem' : '') + '"' +
             ' href="' + sub.href + '"' +
             (isItemActive ? ' aria-current="page"' : '') + '>' +
             sub.label + '</a>';

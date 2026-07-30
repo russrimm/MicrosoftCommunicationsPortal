@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generates `static/worldmap.js` — a self-contained SVG world outline used by
- * the Feature Geography page.
+ * the Regional Release Plans page.
  *
  * Source geometry: Natural Earth 1:110m "Admin 0 – Countries" (public domain),
  * distributed as TopoJSON via the `world-atlas` package. We decode the topology,

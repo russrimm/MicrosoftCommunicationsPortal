@@ -130,6 +130,7 @@ body {
   top: 100%;
   left: 0;
   min-width: 220px;
+  white-space: nowrap;
   background: var(--cp-surface);
   border: 1px solid var(--cp-border);
   border-radius: 0.5rem;
@@ -156,6 +157,22 @@ body {
   color: var(--cp-accent);
   font-weight: 600;
   background: var(--cp-accent-soft);
+}
+.nav-dropdown-subitem {
+  position: relative;
+  padding-left: 2.1rem;
+  font-size: 12.5px;
+  color: var(--cp-text-muted);
+}
+.nav-dropdown-subitem::before {
+  content: '';
+  position: absolute;
+  left: 1.35rem;
+  top: 0.55rem;
+  bottom: 0.55rem;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--cp-border-strong);
 }
 
 /* ── Spinner ── */
