@@ -29,6 +29,7 @@
     { label: 'Home', href: '/home' },
     { label: 'Roadmaps', items: [
       { label: 'Power Platform', href: '/powerplatform' },
+      { label: 'Feature Geography', href: '/featuregeo' },
       { label: 'Fabric',         href: '/fabricroadmap' },
       { label: 'Azure',          href: '/azureupdates' },
       { label: 'Microsoft 365',  href: '/m365updates' }

@@ -16,6 +16,10 @@ const API_HOST = 'releaseplans.microsoft.com';
 // The /en-US/ locale-prefixed path now 301-redirects to the locale-less path;
 // locale is supplied via the langCode query parameter instead.
 const API_PATH = '/releaseplanner-json/';
+// Per-geography rollout data is only published as a rendered page on the same
+// host; the dataset lives in inline script literals that we extract server-side.
+const FEATURE_GEO_PATH = '/en-US/feature-geo/';
+const FEATURE_GEO_TTL_MS = 30 * 60_000;
 const MAX_REDIRECTS = 5;
 
 // Reuse TLS sockets across upstream calls (releaseplans, graph, www.microsoft.com).
@@ -1316,6 +1320,134 @@ function fetchFabricRoadmap(done) {
   }, done);
 }
 
+// ── Feature availability by geography ───────────────────────────────────────
+// The upstream Release Planner exposes per-geography rollout data only as a
+// rendered page — there is no JSON endpoint. The page embeds its dataset in two
+// inline literals (`const results = {...}` and `const prodresult = [...]`), so
+// we extract those, normalise them, and hand the client a compact payload.
+
+// Returns the substring starting at `start` (which must be "{" or "[") through
+// its matching close brace/bracket, skipping over anything inside string
+// literals. Returns null when the literal is unterminated.
+function sliceBalanced(src, start) {
+  const open = src[start];
+  const close = open === '{' ? '}' : ']';
+  let depth = 0, inString = false, escaped = false;
+  for (let i = start; i < src.length; i++) {
+    const ch = src[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === open) depth++;
+    else if (ch === close && --depth === 0) return src.slice(start, i + 1);
+  }
+  return null;
+}
+
+function parseEmbeddedJson(html, declarationRe) {
+  const match = declarationRe.exec(html);
+  if (!match) return null;
+  const raw = sliceBalanced(html, match.index + match[0].length - 1);
+  if (!raw) return null;
+  // Upstream emits Windows-style hierarchy paths ("Platform\Dynamics 365")
+  // without escaping the backslash, which is not valid JSON. Escape any
+  // backslash that does not already begin a legal JSON escape sequence.
+  try { return JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, '\\\\')); }
+  catch { return null; }
+}
+
+// Product names arrive HTML-encoded ("Small &amp; Medium Businesses").
+function decodeHtmlEntities(value) {
+  return String(value == null ? '' : value)
+    .replace(/&#(\d+);/g, (_m, code) => String.fromCharCode(Number(code)))
+    .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+// Upstream dates look like "4/26/2024 5:00:00 AM". Parse the components
+// directly — `new Date(...)` would apply the server's local timezone and can
+// shift the date across a month boundary.
+function geoReleaseMonth(value) {
+  const m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(value || ''));
+  if (!m) return '';
+  return `${m[3]}-${String(Number(m[1])).padStart(2, '0')}`;
+}
+
+// Collapses the per-geography rows into one row per feature + status + month,
+// with products/geographies/waves hoisted into shared lookup tables. This turns
+// ~4,000 verbose rows into a few hundred compact ones.
+function buildFeatureGeoPayload(rows, products) {
+  const productIds = new Map();
+  const geoIds = new Map();
+  const waveIds = new Map();
+  const intern = (map, value) => {
+    if (!map.has(value)) map.set(value, map.size);
+    return map.get(value);
+  };
+
+  const byKey = new Map();
+  for (const row of rows) {
+    const productName = decodeHtmlEntities(row.ProductName);
+    const feature = decodeHtmlEntities(row.ReleaseNoteName);
+    const status = decodeHtmlEntities(row.GeoReleaseStatus);
+    const month = geoReleaseMonth(row.GeoReleaseDate);
+    const key = `${row.ReleasePlanID}|${productName}|${feature}|${status}|${month}`;
+    let item = byKey.get(key);
+    if (!item) {
+      item = {
+        p: intern(productIds, productName),
+        f: feature,
+        i: String(row.ReleasePlanID || ''),
+        c: String(row.IsCopilotFeature) === 'true' ? 1 : 0,
+        s: status,
+        d: month,
+        w: intern(waveIds, decodeHtmlEntities(row.GAWave || row.PPWave || '')),
+        g: [],
+      };
+      byKey.set(key, item);
+    }
+    if (row.Geo) {
+      const geoId = intern(geoIds, decodeHtmlEntities(row.Geo).trim());
+      if (!item.g.includes(geoId)) item.g.push(geoId);
+    }
+  }
+
+  const hierarchy = {};
+  for (const entry of products || []) {
+    const name = decodeHtmlEntities(entry.ProductName);
+    if (name) hierarchy[name] = decodeHtmlEntities(entry.HierarchyPath || '');
+  }
+
+  return {
+    products: [...productIds.keys()],
+    hierarchy,
+    geos: [...geoIds.keys()],
+    waves: [...waveIds.keys()],
+    items: [...byKey.values()],
+  };
+}
+
+function fetchFeatureGeo(done) {
+  cachedFetch('featuregeo', FEATURE_GEO_TTL_MS, (cb) => {
+    requestReleasePlans(FEATURE_GEO_PATH, MAX_REDIRECTS, (err, upstream) => {
+      if (err) return cb(err);
+      const { status, body } = upstream;
+      if (status >= 400) return cb(new Error(`Upstream returned status ${status}`));
+      const results = parseEmbeddedJson(body, /const\s+results\s*=\s*\{/);
+      const products = parseEmbeddedJson(body, /const\s+prodresult\s*=\s*\[/);
+      if (!results || !Array.isArray(results.results)) {
+        return cb(new Error('Could not read geography data from the upstream page'));
+      }
+      cb(null, buildFeatureGeoPayload(results.results, products || []));
+    });
+  }, done);
+}
+
 function requestReleasePlans(pathname, redirectsLeft, done) {
   const options = {
     hostname: API_HOST,
@@ -1960,6 +2092,28 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Feature availability by geography JSON endpoint ────────────────────
+  if (parsed.pathname === '/api/featuregeo') {
+    if (!checkRateLimit(req, res, 60, 60_000)) return;
+    fetchFeatureGeo((err, payload) => {
+      if (err) {
+        console.error('[featuregeo] fetch error:', err.message);
+        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
+        res.end(JSON.stringify({ items: [], error: err.message }));
+        return;
+      }
+      console.log(`[featuregeo] ${payload.items.length} features across ${payload.geos.length} geographies`);
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'max-age=900, stale-while-revalidate=1800',
+        ...corsHeaders(req),
+      });
+      res.end(JSON.stringify(payload));
+    });
+    return;
+  }
+
   // ── Proxy endpoint ──────────────────────────────────────────────────────────
   if (parsed.pathname === '/proxy') {
     // Generous limit: the Release Planner picker fans out ~30 parallel calls per
@@ -2112,6 +2266,7 @@ const server = http.createServer((req, res) => {
     '/m365updates':   'm365updates.html',
     '/azureupdates':    'azureupdates.html',
     '/fabricroadmap':   'fabricroadmap.html',
+    '/featuregeo':      'featuregeo.html',
     '/guidedreport':  'guidedreport.html',
   };
   const htmlFile = pageMap[parsed.pathname];
