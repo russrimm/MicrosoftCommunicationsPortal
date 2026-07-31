@@ -601,7 +601,18 @@ configured data sources so you can confirm which pages are working.
   `?clawpilotTheme=light` / `?clawpilotTheme=dark` on the URL. Theme is applied
   before first paint to avoid flash.
 - **Auto-refresh** — Graph-backed pages (Message Center, Service Health) refresh
-  on an interval; non-Graph pages refresh on demand.
+  on an interval; non-Graph pages refresh on demand. Public roadmap refresh
+  buttons bypass both browser and server TTL caches, while concurrent refreshes
+  still coalesce into one upstream request.
+- **Shareable public filters** — Microsoft 365 Roadmap, Azure Updates, and Fabric
+  Roadmap keep search, sort, grouping, timeframe, and multi-select filters in the
+  URL. Reloading or sharing the URL restores the same public-data view without
+  persisting tenant-specific searches.
+- **Visible data freshness** — public roadmap pages show the upstream source,
+  fetch time, and whether results are fresh, cached, partial, stale, or
+  unavailable. If a transient refresh fails, the server can serve bounded stale
+  public data (24 hours for RSS/Fabric, 7 days for geography data) with an
+  explicit warning instead of replacing useful results with an empty screen.
 
 ### ✨ AI Insights *(optional)*
 - A per-feed **"Top 5 most impactful changes this week"** digest at the top of the page,
@@ -677,7 +688,7 @@ proper cryptographic-style header validator: spoofed values like
 |---------|-------------|-----------------|
 | **Prototype pollution guard** | The JSON body parser uses a reviver function that strips `__proto__`, `constructor`, and `prototype` keys before they reach application code. | Prototype pollution attacks that could modify object behavior, bypass validation, or escalate to remote code execution. |
 | **Path traversal protection** | The `/static/` and `/public/` file-serving routes reject `..`, `\`, and any resolved path that escapes the intended root directory using `path.normalize()` checks. | Directory traversal attacks that could read arbitrary files from the server filesystem (e.g., `.env`, `/etc/passwd`). |
-| **1 MB request body limit** | JSON POST bodies (e.g., `/api/summarize`) are capped at 1 MB. Oversized payloads destroy the socket immediately. | Memory exhaustion and denial-of-service via large request bodies. |
+| **1 MB request body limit** | JSON POST bodies are capped at 1 MB (`/api/summarize` uses a tighter 256 KB cap). Oversized payloads stop buffering and receive HTTP 413. | Memory exhaustion and denial-of-service via large request bodies. |
 
 #### Rate limiting & abuse prevention
 
@@ -709,6 +720,11 @@ All responses include defense-in-depth headers:
 | `Referrer-Policy` | `no-referrer` | Leaking sensitive URL parameters (e.g., tokens, subscription IDs) to external sites via the `Referer` header. |
 | `Cache-Control` | `no-store` (HTML) | Prevents caching of HTML pages that may contain nonces or tenant-specific data. |
 | `Content-Security-Policy` | Full policy (see above) | Comprehensive XSS, clickjacking, and resource-loading restrictions. |
+
+Public feed JSON over 4 KB uses the shared asynchronous gzip/deflate response
+path. Responses include `X-Cache`, `X-Data-Fetched-At`, and a `meta` object so
+clients can distinguish fresh, cache-hit, coalesced, and stale results. CORS
+responses vary on both `Origin` and `Accept-Encoding`.
 
 #### AI-specific security
 
@@ -793,10 +809,10 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /healthz` or `/health` | Health check / liveness probe | None | — |
 | `GET /api/auth-check` | Reports auth configuration status for Graph, ARM, and AI | None | — |
 | `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None | 600/min |
-| `GET /api/m365updates` | Microsoft 365 Roadmap RSS, parsed to JSON | None | 60/min |
-| `GET /api/azureupdates` | Azure Updates RSS, parsed to JSON | None | 60/min |
-| `GET /api/fabricroadmap` | Microsoft Fabric Roadmap JSON (14 product areas) | None | 60/min |
-| `GET /api/featuregeo` | Regional release plans (feature availability by geography), normalised from the public release plans site (30 min server cache) | None | 60/min |
+| `GET /api/m365updates[?refresh=1]` | Microsoft 365 Roadmap RSS, parsed to JSON; optional forced refresh | None | 60/min |
+| `GET /api/azureupdates[?refresh=1]` | Azure Updates RSS, parsed to JSON; optional forced refresh | None | 60/min |
+| `GET /api/fabricroadmap[?refresh=1]` | Microsoft Fabric Roadmap JSON (14 product areas); optional forced refresh | None | 60/min |
+| `GET /api/featuregeo[?refresh=1]` | Regional release plans (feature availability by geography), normalised from the public release plans site (30 min server cache) | None | 60/min |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` | 60/min |
 | `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` | 60/min |
 | `GET /api/subscriptions` | List Azure subscriptions (for subscription picker) | `.env` | 30/min |

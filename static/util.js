@@ -235,6 +235,70 @@
       '</div>';
   }
 
+  // ── Shareable public filter state + feed freshness ──────────────────────
+  function queryValue(key) {
+    try {
+      return (new URLSearchParams(window.location.search).get(key) || '').slice(0, 256);
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function queryValues(key) {
+    try {
+      return new URLSearchParams(window.location.search).getAll(key)
+        .slice(0, 25)
+        .map(function (value) { return value.slice(0, 128); })
+        .filter(Boolean);
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function replaceQueryState(state) {
+    if (!window.history || !window.history.replaceState) return;
+    var url = new URL(window.location.href);
+    Object.keys(state || {}).forEach(function (key) {
+      url.searchParams.delete(key);
+      var value = state[key];
+      if (Array.isArray(value)) {
+        Array.from(new Set(value.filter(Boolean))).forEach(function (entry) {
+          url.searchParams.append(key, String(entry));
+        });
+      } else if (value !== null && value !== undefined && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    });
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+
+  function renderFeedStatus(target, meta) {
+    var el = typeof target === 'string' ? document.getElementById(target) : target;
+    if (!el) return;
+    if (!meta) {
+      el.textContent = '';
+      el.removeAttribute('title');
+      el.classList.remove('is-stale');
+      return;
+    }
+    var label = meta.unavailable ? 'Unavailable'
+      : meta.stale ? 'Stale cache'
+      : meta.warning ? 'Partial data'
+        : meta.cache === 'hit' || meta.cache === 'coalesced' ? 'Cached' : 'Fresh';
+    var time = '';
+    var timestamp = Date.parse(meta.fetchedAt || '');
+    if (!isNaN(timestamp)) {
+      time = new Intl.DateTimeFormat(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(new Date(timestamp));
+    }
+    el.textContent = [meta.source || 'Source', label, time].filter(Boolean).join(' · ');
+    el.classList.toggle('is-stale', !!meta.stale || !!meta.unavailable);
+    if (meta.warning) el.title = meta.warning;
+    else el.removeAttribute('title');
+  }
+
   // Export globals.
   window.escapeHtml = escapeHtml;
   window.safeUrl = safeUrl;
@@ -254,7 +318,11 @@
     stripHtml: stripHtml,
     renderLoading: renderLoading,
     renderError: renderError,
-    renderEmpty: renderEmpty
+    renderEmpty: renderEmpty,
+    queryValue: queryValue,
+    queryValues: queryValues,
+    replaceQueryState: replaceQueryState,
+    renderFeedStatus: renderFeedStatus
   };
 
   // ── Event delegation (replaces inline on* handlers for CSP compliance) ──────

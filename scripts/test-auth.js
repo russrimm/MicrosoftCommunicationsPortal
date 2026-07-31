@@ -14,6 +14,8 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const {
+  createTtlCache,
+  mergeVaryHeaders,
   parseBoundedInteger,
   rateLimitBucketKey,
 } = require('../runtime-utils.js');
@@ -151,6 +153,105 @@ test('rate limit keys isolate fixed endpoint policies without using request path
     rateLimitBucketKey('127.0.0.1', 5, 60_000),
     rateLimitBucketKey('127.0.0.1', 60, 60_000)
   );
+});
+
+test('mergeVaryHeaders preserves encoding and origin cache variants', () => {
+  assert.equal(
+    mergeVaryHeaders('Accept-Encoding', 'Origin', 'Accept-Encoding, User-Agent'),
+    'Accept-Encoding, Origin, User-Agent'
+  );
+});
+
+function cacheFetch(store, key, ttlMs, fetcher, options) {
+  return new Promise((resolve, reject) => {
+    store.fetch(key, ttlMs, fetcher, (err, value, meta) => {
+      if (err) reject(err);
+      else resolve({ value, meta });
+    }, options);
+  });
+}
+
+test('TTL cache reports misses and hits and honors forced refresh', async () => {
+  let now = 1_000;
+  let calls = 0;
+  const store = createTtlCache({ maxEntries: 5, now: () => now });
+  const fetcher = (done) => done(null, { version: ++calls });
+
+  const first = await cacheFetch(store, 'feed', 500, fetcher);
+  assert.equal(first.value.version, 1);
+  assert.equal(first.meta.status, 'miss');
+  assert.equal(first.meta.storedAt, 1_000);
+
+  now = 1_100;
+  const hit = await cacheFetch(store, 'feed', 500, fetcher);
+  assert.equal(hit.value.version, 1);
+  assert.equal(hit.meta.status, 'hit');
+  assert.equal(calls, 1);
+
+  now = 1_200;
+  const refreshed = await cacheFetch(store, 'feed', 500, fetcher, { force: true });
+  assert.equal(refreshed.value.version, 2);
+  assert.equal(refreshed.meta.status, 'miss');
+  assert.equal(calls, 2);
+});
+
+test('TTL cache serves bounded stale data when refresh fails', async () => {
+  let now = 1_000;
+  const store = createTtlCache({ maxEntries: 5, now: () => now });
+  await cacheFetch(store, 'feed', 100, done => done(null, { version: 1 }));
+
+  now = 1_150;
+  const stale = await cacheFetch(
+    store,
+    'feed',
+    100,
+    done => done(new Error('upstream unavailable')),
+    { staleIfErrorMs: 500 }
+  );
+  assert.equal(stale.value.version, 1);
+  assert.equal(stale.meta.status, 'stale');
+
+  now = 1_700;
+  await assert.rejects(
+    cacheFetch(
+      store,
+      'feed',
+      100,
+      done => done(new Error('upstream unavailable')),
+      { staleIfErrorMs: 500 }
+    ),
+    /upstream unavailable/
+  );
+});
+
+test('TTL cache coalesces concurrent upstream requests', async () => {
+  const store = createTtlCache({ maxEntries: 5 });
+  let release;
+  let calls = 0;
+  const fetcher = (done) => {
+    calls++;
+    release = () => done(null, { ok: true });
+  };
+  const first = cacheFetch(store, 'feed', 500, fetcher);
+  const second = cacheFetch(store, 'feed', 500, fetcher);
+  assert.equal(calls, 1);
+  release();
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(a.meta.status, 'miss');
+  assert.equal(b.meta.status, 'coalesced');
+});
+
+test('TTL cache clears in-flight state when a fetcher throws synchronously', async () => {
+  const store = createTtlCache({ maxEntries: 5 });
+  await assert.rejects(
+    cacheFetch(store, 'feed', 500, () => { throw new Error('synchronous failure'); }),
+    /synchronous failure/
+  );
+  assert.equal(store.inflight.size, 0);
+
+  const recovered = await cacheFetch(store, 'feed', 500, done => done(null, { ok: true }));
+  assert.equal(recovered.value.ok, true);
+  assert.equal(recovered.meta.status, 'miss');
 });
 
 // ── validatePrincipal ────────────────────────────────────────────────────────

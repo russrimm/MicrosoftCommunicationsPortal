@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js" defer></script>
+  <script src="/static/util.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -72,9 +72,10 @@
         </label>
       </div>
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
+        <span id="au-source-status" class="au-source-status" role="status" aria-live="polite"></span>
         <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal">⬇ Export</button>
-        <button class="export-btn" data-act="loadAzureUpdates">↻ Refresh</button>
+        <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
+        <button class="export-btn" id="au-refresh-btn" data-act="loadAzureUpdates">↻ Refresh</button>
       </div>
     </div>
     <div class="au-cards" id="au-cards-container">
@@ -101,8 +102,8 @@
   <script>
     let allUpdates = [];
     let currentFiltered = [];
-    const statusFilter  = new Set();
-    const productFilter = new Set();
+    const statusFilter  = new Set(window.CPUtil ? window.CPUtil.queryValues('status') : []);
+    const productFilter = new Set(window.CPUtil ? window.CPUtil.queryValues('product') : []);
 
     // Register delegated actions that need arguments carried on data-* attributes.
     // (Argument-less handlers resolve automatically to same-named global functions.)
@@ -115,6 +116,8 @@
       applyExportPreset7:      () => applyExportPreset(7),
       applyExportPreset30:     () => applyExportPreset(30),
       applyExportPreset60:     () => applyExportPreset(60),
+      loadAzureUpdates:        () => loadAzureUpdates(true),
+      retry:                   () => loadAzureUpdates(true),
     });
 
     // Azure RSS uses these category values for status / type signalling.
@@ -179,24 +182,41 @@
       return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     }
 
-    async function loadAzureUpdates() {
+    async function loadAzureUpdates(refresh) {
       const container = document.getElementById('au-cards-container');
+      const refreshBtn = document.getElementById('au-refresh-btn');
+      if (refreshBtn) refreshBtn.disabled = true;
       container.innerHTML = '<div class="au-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading Azure Updates…</span></div>';
       try {
-        const res = await fetch('/api/azureupdates');
+        const url = refresh ? `/api/azureupdates?refresh=1&_t=${Date.now()}` : '/api/azureupdates';
+        const res = await fetch(url, { cache: refresh ? 'no-store' : 'default' });
         const data = await res.json();
-        if (data.error && (!data.items || !data.items.length)) {
-          container.innerHTML = `<div class="au-empty">⚠️ ${escapeHtml(data.error)}</div>`;
-          return;
+        if (!res.ok || (data.error && (!data.items || !data.items.length))) {
+          throw new Error(data.error || `HTTP ${res.status}`);
         }
         allUpdates = (data.items || []).map(item => {
           const buckets = classifyCategories(item.categories);
           return { ...item, buckets };
         });
+        if (window.CPUtil) window.CPUtil.renderFeedStatus('au-source-status', data.meta);
         rebuildFilters();
         filterUpdates();
       } catch (err) {
-        container.innerHTML = `<div class="au-empty">❌ Failed to load: ${escapeHtml(err.message)}</div>`;
+        const message = navigator.onLine === false
+          ? 'You appear to be offline. Reconnect and retry.'
+          : `Could not load Azure Updates. ${err.message}`;
+        if (window.CPUtil) {
+          window.CPUtil.renderFeedStatus('au-source-status', {
+            source: 'Azure Updates RSS',
+            unavailable: true,
+            warning: message,
+          });
+          container.innerHTML = window.CPUtil.renderError(message, 'Retry');
+        } else {
+          container.innerHTML = `<div class="au-empty">❌ ${escapeHtml(message)}</div>`;
+        }
+      } finally {
+        if (refreshBtn) refreshBtn.disabled = false;
       }
     }
 
@@ -212,6 +232,8 @@
       const sortedStatuses = STATUS_KEYWORDS.filter(s => statuses.has(s))
         .concat([...statuses].filter(s => !STATUS_KEYWORDS.includes(s)).sort());
       const sortedProducts = [...products].sort((a, b) => a.localeCompare(b));
+      for (const value of [...statusFilter]) if (!sortedStatuses.includes(value)) statusFilter.delete(value);
+      for (const value of [...productFilter]) if (!sortedProducts.includes(value)) productFilter.delete(value);
 
       renderMultiOptions('au-status-options', sortedStatuses, statusFilter, 'status');
       renderMultiOptions('au-product-options', sortedProducts, productFilter, 'product');
@@ -306,13 +328,22 @@
     }
 
     function filterUpdates() {
-      const q = (document.getElementById('au-search').value || '').toLowerCase().trim();
+      const rawQuery = (document.getElementById('au-search').value || '').trim();
+      const q = rawQuery.toLowerCase();
       const sort = document.getElementById('au-sort').value;
 
       const allKnownStatuses = Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value);
       const allKnownProducts = Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value);
       const statusActive  = statusFilter.size > 0 && statusFilter.size < allKnownStatuses.length;
       const productActive = productFilter.size > 0 && productFilter.size < allKnownProducts.length;
+      if (window.CPUtil) {
+        window.CPUtil.replaceQueryState({
+          q: rawQuery || null,
+          sort: sort === 'date-desc' ? null : sort,
+          status: statusActive ? [...statusFilter].sort() : [],
+          product: productActive ? [...productFilter].sort() : [],
+        });
+      }
 
       let filtered = allUpdates.filter(u => {
         if (statusActive && !statusFilter.has(u.buckets.status)) return false;
@@ -331,6 +362,11 @@
       });
 
       currentFiltered = filtered;
+      const exportBtn = document.getElementById('au-export-btn');
+      if (exportBtn) {
+        exportBtn.disabled = filtered.length === 0;
+        exportBtn.title = filtered.length ? '' : 'No filtered items to export';
+      }
 
       document.getElementById('au-result-count').textContent =
         `${filtered.length} of ${allUpdates.length}`;
@@ -631,7 +667,14 @@
       if (btn) { btn.disabled = false; btn.textContent = '⬇ Export'; }
     }
 
-    loadAzureUpdates();
+    if (window.CPUtil) {
+      document.getElementById('au-search').value = window.CPUtil.queryValue('q');
+      const savedSort = window.CPUtil.queryValue('sort');
+      if ([...document.getElementById('au-sort').options].some(o => o.value === savedSort)) {
+        document.getElementById('au-sort').value = savedSort;
+      }
+    }
+    loadAzureUpdates(false);
 
     // ── AI insights ──────────────────────────────────────────────────────
     if (window.CportalAi) {

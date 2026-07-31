@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js" defer></script>
+  <script src="/static/util.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -138,7 +138,7 @@
       </div>
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="export-btn" type="button" data-act="openExportModal">⬇ Export</button>
+        <button class="export-btn" id="export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
         <button class="export-btn" data-act="reloadAll">↻ Refresh</button>
       </div>
     </div>
@@ -834,6 +834,11 @@
       const sort = document.getElementById('au-sort').value;
 
       currentFiltered = filtered;
+      const exportBtn = document.getElementById('export-btn');
+      if (exportBtn) {
+        exportBtn.disabled = filtered.length === 0;
+        exportBtn.title = filtered.length ? '' : 'No filtered items to export';
+      }
 
       document.getElementById('au-result-count').textContent =
         `${filtered.length} of ${allFeatures.length}`;

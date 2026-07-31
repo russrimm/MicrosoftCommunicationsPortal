@@ -1,5 +1,5 @@
 // Microsoft Communications Portal — Node HTTP server
-// Serves 5 HTML pages, proxies upstream feeds, handles Graph auth (managed
+// Serves 10 HTML pages, proxies upstream feeds, handles Graph auth (managed
 // identity or client-secret), optional AI endpoints, and per-IP rate limiting.
 // Usage: node server.js   (then open http://localhost:3000)
 
@@ -9,7 +9,12 @@ const fs    = require('fs');
 const path  = require('path');
 const zlib  = require('zlib');
 const crypto = require('crypto');
-const { parseBoundedInteger, rateLimitBucketKey } = require('./runtime-utils.js');
+const {
+  createTtlCache,
+  mergeVaryHeaders,
+  parseBoundedInteger,
+  rateLimitBucketKey,
+} = require('./runtime-utils.js');
 require('dotenv').config();
 
 const PORT     = Number(process.env.PORT) || 3000;
@@ -33,45 +38,16 @@ const UPSTREAM_TIMEOUT_MS = 15000;
 // ── Upstream response cache ─────────────────────────────────────────────────
 // Simple in-memory TTL cache plus an in-flight map that coalesces concurrent
 // requests for the same key into a single upstream call.
-const upstreamCache   = new Map();   // key -> { expires, value }
-const upstreamInflight = new Map();  // key -> Array<callback>
 // Hard cap on cache entries. Several cache keys incorporate user-supplied
 // query parameters, so without a bound a client could grow the Map without
 // limit (memory DoS). Evicts expired entries first, then oldest-inserted.
 const UPSTREAM_CACHE_MAX = 500;
-
-function cachedFetch(key, ttlMs, fetcher, done) {
-  const now = Date.now();
-  const hit = upstreamCache.get(key);
-  if (hit && hit.expires > now) {
-    return done(null, hit.value);
-  }
-  const waiters = upstreamInflight.get(key);
-  if (waiters) {
-    waiters.push(done);
-    return;
-  }
-  upstreamInflight.set(key, [done]);
-  fetcher((err, value) => {
-    const callbacks = upstreamInflight.get(key) || [];
-    upstreamInflight.delete(key);
-    if (!err && ttlMs > 0) {
-      if (upstreamCache.size >= UPSTREAM_CACHE_MAX) {
-        const t = Date.now();
-        for (const [k, v] of upstreamCache) {
-          if (v.expires <= t) upstreamCache.delete(k);
-        }
-        while (upstreamCache.size >= UPSTREAM_CACHE_MAX) {
-          upstreamCache.delete(upstreamCache.keys().next().value);
-        }
-      }
-      upstreamCache.set(key, { expires: Date.now() + ttlMs, value });
-    }
-    for (const cb of callbacks) {
-      try { cb(err, value); } catch (e) { console.error('[cache] callback error:', e.message); }
-    }
-  });
-}
+const upstreamStore = createTtlCache({
+  maxEntries: UPSTREAM_CACHE_MAX,
+  onCallbackError: (err) => console.error('[cache] callback error:', err.message),
+});
+const upstreamCache = upstreamStore.cache;
+const cachedFetch = upstreamStore.fetch;
 
 // ── Per-IP token bucket rate limiter ────────────────────────────────────────
 // Simple fixed-window counter keyed by remote address. State: Map<ip, {count, resetAt}>.
@@ -159,15 +135,47 @@ function corsHeaders(req) {
   return { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' };
 }
 
+function feedMetadata(source, cacheMeta, warning) {
+  const cacheStatus = (cacheMeta && cacheMeta.status) || 'unknown';
+  return {
+    source,
+    cache: cacheStatus,
+    fetchedAt: cacheMeta && cacheMeta.storedAt
+      ? new Date(cacheMeta.storedAt).toISOString()
+      : new Date().toISOString(),
+    stale: cacheStatus === 'stale',
+    warning: warning || (cacheStatus === 'stale'
+      ? 'The upstream source is unavailable; showing the most recent cached data.'
+      : null),
+  };
+}
+
+function feedHeaders(req, meta, maxAge, refresh) {
+  const headers = {
+    ...corsHeaders(req),
+    'Cache-Control': refresh
+      ? 'no-store'
+      : `max-age=${maxAge}, stale-while-revalidate=${maxAge * 2}`,
+    'X-Cache': meta.cache,
+    'X-Data-Fetched-At': meta.fetchedAt,
+  };
+  if (meta.stale) headers.Warning = '110 - "Response is stale"';
+  return headers;
+}
+
 // Send a JSON response, honoring Accept-Encoding for gzip/deflate.
 function sendJson(req, res, status, payload, extraHeaders) {
   const json = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  const headers = Object.assign({
+  const defaults = {
     'Content-Type': 'application/json; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
     'Vary': 'Accept-Encoding',
-  }, extraHeaders || {});
+  };
+  const headers = Object.assign(defaults, extraHeaders || {});
+  if (extraHeaders && extraHeaders.Vary) {
+    headers.Vary = mergeVaryHeaders('Accept-Encoding', extraHeaders.Vary);
+  }
   const accept = (req.headers['accept-encoding'] || '').toLowerCase();
   const buf = Buffer.from(json, 'utf8');
   // Threshold raised from 1 KB to 4 KB to reduce event-loop blocking from
@@ -1299,24 +1307,27 @@ function parseRssItems(xml) {
   return items;
 }
 
-function fetchRssFeed(host, pathname, done) {
+function fetchRssFeed(host, pathname, options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
   cachedFetch(`rss:${host}${pathname}`, 5 * 60_000, (cb) => {
     httpsGetFollow(host, pathname, MAX_REDIRECTS, (err, result) => {
       if (err) return cb(err);
       const { status, body } = result;
-      if (status >= 400) return cb(null, { status, items: [], error: `Upstream returned status ${status}` });
+      if (status >= 400) return cb(new Error(`Upstream returned status ${status}`));
       const items = parseRssItems(body);
       cb(null, { status, items });
     });
-  }, done);
+  }, done, options);
 }
 
-function fetchM365Updates(done) {
-  fetchRssFeed(M365_UPDATES_HOST, M365_UPDATES_PATH, done);
+function fetchM365Updates(options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
+  fetchRssFeed(M365_UPDATES_HOST, M365_UPDATES_PATH, options, done);
 }
 
-function fetchAzureUpdates(done) {
-  fetchRssFeed(AZURE_UPDATES_HOST, AZURE_UPDATES_PATH, done);
+function fetchAzureUpdates(options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
+  fetchRssFeed(AZURE_UPDATES_HOST, AZURE_UPDATES_PATH, options, done);
 }
 
 // Fetch a single Fabric product's roadmap items from the Power Pages JSON endpoint.
@@ -1325,15 +1336,17 @@ function fetchFabricProduct(productId, done) {
   httpsGetFollow(FABRIC_ROADMAP_HOST, pathname, MAX_REDIRECTS, (err, result) => {
     if (err) return done(err);
     const { status, body } = result;
-    if (status >= 400) return done(null, { status, items: [] });
+    if (status >= 400) return done(new Error(`Upstream returned status ${status}`));
     let parsed;
-    try { parsed = JSON.parse(body); } catch { return done(null, { status, items: [] }); }
+    try { parsed = JSON.parse(body); }
+    catch { return done(new Error('Fabric roadmap returned invalid JSON')); }
     done(null, { status, items: Array.isArray(parsed.results) ? parsed.results : [] });
   });
 }
 
 // Fetch all Fabric products in parallel, merge, and cache the combined result.
-function fetchFabricRoadmap(done) {
+function fetchFabricRoadmap(options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
   cachedFetch('fabric:roadmap', 5 * 60_000, (cb) => {
     let pending = FABRIC_PRODUCTS.length;
     const allItems = [];
@@ -1344,11 +1357,11 @@ function fetchFabricRoadmap(done) {
         else if (result && result.items) { allItems.push(...result.items); }
         if (--pending === 0) {
           if (hadError && !allItems.length) return cb(hadError);
-          cb(null, { items: allItems });
+          cb(null, { items: allItems, partial: !!hadError });
         }
       });
     });
-  }, done);
+  }, done, options);
 }
 
 // ── Feature availability by geography ───────────────────────────────────────
@@ -1463,7 +1476,8 @@ function buildFeatureGeoPayload(rows, products) {
   };
 }
 
-function fetchFeatureGeo(done) {
+function fetchFeatureGeo(options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
   cachedFetch('featuregeo', FEATURE_GEO_TTL_MS, (cb) => {
     requestReleasePlans(FEATURE_GEO_PATH, MAX_REDIRECTS, (err, upstream) => {
       if (err) return cb(err);
@@ -1476,7 +1490,7 @@ function fetchFeatureGeo(done) {
       }
       cb(null, buildFeatureGeoPayload(results.results, products || []));
     });
-  }, done);
+  }, done, options);
 }
 
 function requestReleasePlans(pathname, redirectsLeft, done) {
@@ -2066,22 +2080,20 @@ const server = http.createServer((req, res) => {
   // ── M365 Updates (M365 roadmap) RSS endpoint ───────────────────────
   if (parsed.pathname === '/api/m365updates') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
-    fetchM365Updates((err, result) => {
+    const refresh = parsed.searchParams.get('refresh') === '1';
+    fetchM365Updates({ force: refresh, staleIfErrorMs: 24 * 60 * 60_000 }, (err, result, cacheMeta) => {
       if (err) {
         console.error('[m365updates] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
-        res.end(JSON.stringify({ items: [], error: err.message }));
-        return;
+        return sendJson(req, res, 502, {
+          items: [],
+          error: 'Microsoft 365 Roadmap is temporarily unavailable. Try again shortly.',
+        }, corsHeaders(req));
       }
-      const { status, items, error } = result;
+      const { status, items } = result;
+      const meta = feedMetadata('Microsoft 365 Roadmap RSS', cacheMeta);
       console.log(`[m365updates] ${status} \u2192 ${items.length} items`);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-        ...corsHeaders(req),
-      });
-      res.end(JSON.stringify({ items, count: items.length, error: error || null }));
+      sendJson(req, res, 200, { items, count: items.length, error: null, meta },
+        feedHeaders(req, meta, 300, refresh));
     });
     return;
   }
@@ -2089,22 +2101,20 @@ const server = http.createServer((req, res) => {
   // ── Azure Updates RSS endpoint ─────────────────────────────────────
   if (parsed.pathname === '/api/azureupdates') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
-    fetchAzureUpdates((err, result) => {
+    const refresh = parsed.searchParams.get('refresh') === '1';
+    fetchAzureUpdates({ force: refresh, staleIfErrorMs: 24 * 60 * 60_000 }, (err, result, cacheMeta) => {
       if (err) {
         console.error('[azureupdates] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
-        res.end(JSON.stringify({ items: [], error: err.message }));
-        return;
+        return sendJson(req, res, 502, {
+          items: [],
+          error: 'Azure Updates is temporarily unavailable. Try again shortly.',
+        }, corsHeaders(req));
       }
-      const { status, items, error } = result;
+      const { status, items } = result;
+      const meta = feedMetadata('Azure Updates RSS', cacheMeta);
       console.log(`[azureupdates] ${status} \u2192 ${items.length} items`);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-        ...corsHeaders(req),
-      });
-      res.end(JSON.stringify({ items, count: items.length, error: error || null }));
+      sendJson(req, res, 200, { items, count: items.length, error: null, meta },
+        feedHeaders(req, meta, 300, refresh));
     });
     return;
   }
@@ -2113,12 +2123,14 @@ const server = http.createServer((req, res) => {
   if (parsed.pathname === '/api/fabricroadmap') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
     const productFilter = parsed.searchParams.get('product') || '';
-    fetchFabricRoadmap((err, result) => {
+    const refresh = parsed.searchParams.get('refresh') === '1';
+    fetchFabricRoadmap({ force: refresh, staleIfErrorMs: 24 * 60 * 60_000 }, (err, result, cacheMeta) => {
       if (err) {
         console.error('[fabricroadmap] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
-        res.end(JSON.stringify({ items: [], error: err.message }));
-        return;
+        return sendJson(req, res, 502, {
+          items: [],
+          error: 'Microsoft Fabric Roadmap is temporarily unavailable. Try again shortly.',
+        }, corsHeaders(req));
       }
       let items = result.items || [];
       // Optional product filter (by queryString)
@@ -2128,14 +2140,14 @@ const server = http.createServer((req, res) => {
           items = items.filter(it => it.ProductID === product.id);
         }
       }
+      const meta = feedMetadata(
+        'Microsoft Fabric Roadmap API',
+        cacheMeta,
+        result.partial ? 'Some product areas could not be refreshed.' : null
+      );
       console.log(`[fabricroadmap] ${items.length} items${productFilter ? ` (product=${productFilter})` : ''}`);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-        ...corsHeaders(req),
-      });
-      res.end(JSON.stringify({ items, count: items.length, products: FABRIC_PRODUCTS }));
+      sendJson(req, res, 200, { items, count: items.length, products: FABRIC_PRODUCTS, meta },
+        feedHeaders(req, meta, 300, refresh));
     });
     return;
   }
@@ -2143,21 +2155,18 @@ const server = http.createServer((req, res) => {
   // ── Feature availability by geography JSON endpoint ────────────────────
   if (parsed.pathname === '/api/featuregeo') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
-    fetchFeatureGeo((err, payload) => {
+    const refresh = parsed.searchParams.get('refresh') === '1';
+    fetchFeatureGeo({ force: refresh, staleIfErrorMs: 7 * 24 * 60 * 60_000 }, (err, payload, cacheMeta) => {
       if (err) {
         console.error('[featuregeo] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
-        res.end(JSON.stringify({ items: [], error: err.message }));
-        return;
+        return sendJson(req, res, 502, {
+          items: [],
+          error: 'Regional release-plan data is temporarily unavailable. Try again shortly.',
+        }, corsHeaders(req));
       }
+      const meta = feedMetadata('Microsoft Release Plans', cacheMeta);
       console.log(`[featuregeo] ${payload.items.length} features across ${payload.geos.length} geographies`);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=900, stale-while-revalidate=1800',
-        ...corsHeaders(req),
-      });
-      res.end(JSON.stringify(payload));
+      sendJson(req, res, 200, { ...payload, meta }, feedHeaders(req, meta, 900, refresh));
     });
     return;
   }
