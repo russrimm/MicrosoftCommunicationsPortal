@@ -1,5 +1,5 @@
 // Microsoft Communications Portal — Node HTTP server
-// Serves 5 HTML pages, proxies upstream feeds, handles Graph auth (managed
+// Serves 10 HTML pages, proxies upstream feeds, handles Graph auth (managed
 // identity or client-secret), optional AI endpoints, and per-IP rate limiting.
 // Usage: node server.js   (then open http://localhost:3000)
 
@@ -9,6 +9,12 @@ const fs    = require('fs');
 const path  = require('path');
 const zlib  = require('zlib');
 const crypto = require('crypto');
+const {
+  createTtlCache,
+  mergeVaryHeaders,
+  parseBoundedInteger,
+  rateLimitBucketKey,
+} = require('./runtime-utils.js');
 require('dotenv').config();
 
 const PORT     = Number(process.env.PORT) || 3000;
@@ -32,45 +38,16 @@ const UPSTREAM_TIMEOUT_MS = 15000;
 // ── Upstream response cache ─────────────────────────────────────────────────
 // Simple in-memory TTL cache plus an in-flight map that coalesces concurrent
 // requests for the same key into a single upstream call.
-const upstreamCache   = new Map();   // key -> { expires, value }
-const upstreamInflight = new Map();  // key -> Array<callback>
 // Hard cap on cache entries. Several cache keys incorporate user-supplied
 // query parameters, so without a bound a client could grow the Map without
 // limit (memory DoS). Evicts expired entries first, then oldest-inserted.
 const UPSTREAM_CACHE_MAX = 500;
-
-function cachedFetch(key, ttlMs, fetcher, done) {
-  const now = Date.now();
-  const hit = upstreamCache.get(key);
-  if (hit && hit.expires > now) {
-    return done(null, hit.value);
-  }
-  const waiters = upstreamInflight.get(key);
-  if (waiters) {
-    waiters.push(done);
-    return;
-  }
-  upstreamInflight.set(key, [done]);
-  fetcher((err, value) => {
-    const callbacks = upstreamInflight.get(key) || [];
-    upstreamInflight.delete(key);
-    if (!err && ttlMs > 0) {
-      if (upstreamCache.size >= UPSTREAM_CACHE_MAX) {
-        const t = Date.now();
-        for (const [k, v] of upstreamCache) {
-          if (v.expires <= t) upstreamCache.delete(k);
-        }
-        while (upstreamCache.size >= UPSTREAM_CACHE_MAX) {
-          upstreamCache.delete(upstreamCache.keys().next().value);
-        }
-      }
-      upstreamCache.set(key, { expires: Date.now() + ttlMs, value });
-    }
-    for (const cb of callbacks) {
-      try { cb(err, value); } catch (e) { console.error('[cache] callback error:', e.message); }
-    }
-  });
-}
+const upstreamStore = createTtlCache({
+  maxEntries: UPSTREAM_CACHE_MAX,
+  onCallbackError: (err) => console.error('[cache] callback error:', err.message),
+});
+const upstreamCache = upstreamStore.cache;
+const cachedFetch = upstreamStore.fetch;
 
 // ── Per-IP token bucket rate limiter ────────────────────────────────────────
 // Simple fixed-window counter keyed by remote address. State: Map<ip, {count, resetAt}>.
@@ -117,9 +94,9 @@ function checkRateLimit(req, res, limit, windowMs) {
     }
   }
   const ip = clientIp(req);
-  // Key by IP only — including the full path allows attackers to exhaust the
-  // bucket map by spraying unique URLs, evicting entries for other IPs.
-  const key = ip;
+  // Use a fixed policy key rather than the request path. This keeps endpoint
+  // classes independent without letting clients create unbounded path keys.
+  const key = rateLimitBucketKey(ip, limit, windowMs);
   let bucket = rateLimitBuckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
     if (rateLimitBuckets.size >= RATE_LIMIT_MAX_BUCKETS) {
@@ -158,15 +135,47 @@ function corsHeaders(req) {
   return { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' };
 }
 
+function feedMetadata(source, cacheMeta, warning) {
+  const cacheStatus = (cacheMeta && cacheMeta.status) || 'unknown';
+  return {
+    source,
+    cache: cacheStatus,
+    fetchedAt: cacheMeta && cacheMeta.storedAt
+      ? new Date(cacheMeta.storedAt).toISOString()
+      : new Date().toISOString(),
+    stale: cacheStatus === 'stale',
+    warning: warning || (cacheStatus === 'stale'
+      ? 'The upstream source is unavailable; showing the most recent cached data.'
+      : null),
+  };
+}
+
+function feedHeaders(req, meta, maxAge, refresh) {
+  const headers = {
+    ...corsHeaders(req),
+    'Cache-Control': refresh
+      ? 'no-store'
+      : `max-age=${maxAge}, stale-while-revalidate=${maxAge * 2}`,
+    'X-Cache': meta.cache,
+    'X-Data-Fetched-At': meta.fetchedAt,
+  };
+  if (meta.stale) headers.Warning = '110 - "Response is stale"';
+  return headers;
+}
+
 // Send a JSON response, honoring Accept-Encoding for gzip/deflate.
 function sendJson(req, res, status, payload, extraHeaders) {
   const json = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  const headers = Object.assign({
+  const defaults = {
     'Content-Type': 'application/json; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
     'Vary': 'Accept-Encoding',
-  }, extraHeaders || {});
+  };
+  const headers = Object.assign(defaults, extraHeaders || {});
+  if (extraHeaders && extraHeaders.Vary) {
+    headers.Vary = mergeVaryHeaders('Accept-Encoding', extraHeaders.Vary);
+  }
   const accept = (req.headers['accept-encoding'] || '').toLowerCase();
   const buf = Buffer.from(json, 'utf8');
   // Threshold raised from 1 KB to 4 KB to reduce event-loop blocking from
@@ -346,7 +355,12 @@ const AI_PROVIDER = detectAiProvider();
 // ── Global daily LLM budget ─────────────────────────────────────────────────
 // Caps the total number of LLM calls per UTC day to prevent runaway spend from
 // automated abuse or misconfigured clients. Default 200; override via env.
-const LLM_DAILY_LIMIT = Math.max(1, parseInt(process.env.LLM_DAILY_LIMIT || '200', 10));
+const LLM_DAILY_LIMIT = parseBoundedInteger(
+  process.env.LLM_DAILY_LIMIT,
+  200,
+  1,
+  Number.MAX_SAFE_INTEGER
+);
 let llmDailyCount = 0;
 let llmDailyResetDate = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
 
@@ -368,7 +382,9 @@ function callLlm(opts, done) {
     return done(new Error('No AI provider configured. Set AZURE_OPENAI_*, OPENAI_API_KEY, or GITHUB_TOKEN in .env.'));
   }
   if (!llmBudgetCheck()) {
-    return done(new Error('Daily LLM call budget exhausted. Try again tomorrow or increase LLM_DAILY_LIMIT.'));
+    const err = new Error('Daily LLM call budget exhausted.');
+    err.code = 'AI_DAILY_LIMIT';
+    return done(err);
   }
   const body = {
     model: AI_PROVIDER.model,
@@ -419,28 +435,51 @@ function callLlm(opts, done) {
   req.end();
 }
 
+function sendAiFailure(req, res, err, emptyPayload) {
+  if (err && err.code === 'AI_DAILY_LIMIT') {
+    return sendJson(req, res, 429, Object.assign({
+      error: 'Daily AI call budget exhausted. Try again after midnight UTC.',
+      code: 'AI_DAILY_LIMIT',
+    }, emptyPayload));
+  }
+  return sendJson(req, res, 502, Object.assign({
+    error: 'AI provider request failed. See server logs for details.',
+    code: 'AI_UPSTREAM_ERROR',
+  }, emptyPayload));
+}
+
 // Read a JSON request body (cap at maxBytes, default 1MB) and parse it.
 function readJsonBody(req, done, maxBytes) {
   let received = 0;
   const chunks = [];
   const MAX = maxBytes || 1024 * 1024;
+  let settled = false;
+  const finish = (err, value) => {
+    if (settled) return;
+    settled = true;
+    done(err, value);
+  };
   // Drop dangerous keys during parse to prevent prototype pollution.
   const reviver = (key, value) =>
     (key === '__proto__' || key === 'constructor' || key === 'prototype') ? undefined : value;
   req.on('data', (chunk) => {
+    if (settled) return;
     received += chunk.length;
     if (received > MAX) {
-      req.destroy();
-      return done(new Error('Request body too large'));
+      chunks.length = 0;
+      const err = new Error('Request body too large');
+      err.statusCode = 413;
+      return finish(err);
     }
     chunks.push(chunk);
   });
   req.on('end', () => {
-    if (!chunks.length) return done(null, {});
-    try { done(null, JSON.parse(Buffer.concat(chunks).toString('utf8'), reviver)); }
-    catch (e) { done(new Error(`Invalid JSON body: ${e.message}`)); }
+    if (settled) return;
+    if (!chunks.length) return finish(null, {});
+    try { finish(null, JSON.parse(Buffer.concat(chunks).toString('utf8'), reviver)); }
+    catch (e) { finish(new Error(`Invalid JSON body: ${e.message}`)); }
   });
-  req.on('error', done);
+  req.on('error', (err) => finish(err));
 }
 
 // Strip HTML to plain text for AI input (keeps token usage down).
@@ -896,13 +935,15 @@ function fetchManagedIdentityArmToken(done) {
     res.on('data', c => { body += c; });
     res.on('end', () => {
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        return done(new Error(`ARM managed identity token HTTP ${res.statusCode}: ${body.slice(0, 300)}`));
+        console.error(`[arm-auth] Managed identity token HTTP ${res.statusCode}: ${body.slice(0, 300)}`);
+        return done(new Error(`ARM managed identity token request failed (HTTP ${res.statusCode}); see server logs`));
       }
       let data;
       try { data = JSON.parse(body); }
       catch (e) { return done(new Error(`ARM managed identity token parse error: ${e.message}`)); }
       if (!data.access_token) {
-        return done(new Error(`ARM managed identity response missing access_token: ${body.slice(0, 200)}`));
+        console.error(`[arm-auth] Managed identity response missing access_token: ${body.slice(0, 200)}`);
+        return done(new Error('ARM managed identity response missing access_token; see server logs'));
       }
       let expiresAt;
       if (data.expires_in) expiresAt = Date.now() + (Number(data.expires_in) - 60) * 1000;
@@ -1153,9 +1194,7 @@ function describeGraphError(status, err, requiredPermission) {
   const code = (err && err.code) || '';
   // Redact identifiers (GUIDs, emails) from upstream error text before it is
   // echoed in client-facing responses; full errors are logged by callers.
-  const msg  = String((err && err.message) || '')
-    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<redacted-guid>')
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<redacted-email>');
+  const msg = redactUpstreamError(err && err.message);
   if (status === 403 || status === 401) {
     const perm = requiredPermission || 'the required Microsoft Graph application permission';
     const detail = msg && msg.toLowerCase() !== code.toLowerCase() ? ` Graph said: "${msg}".` : '';
@@ -1268,24 +1307,27 @@ function parseRssItems(xml) {
   return items;
 }
 
-function fetchRssFeed(host, pathname, done) {
+function fetchRssFeed(host, pathname, options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
   cachedFetch(`rss:${host}${pathname}`, 5 * 60_000, (cb) => {
     httpsGetFollow(host, pathname, MAX_REDIRECTS, (err, result) => {
       if (err) return cb(err);
       const { status, body } = result;
-      if (status >= 400) return cb(null, { status, items: [], error: `Upstream returned status ${status}` });
+      if (status >= 400) return cb(new Error(`Upstream returned status ${status}`));
       const items = parseRssItems(body);
       cb(null, { status, items });
     });
-  }, done);
+  }, done, options);
 }
 
-function fetchM365Updates(done) {
-  fetchRssFeed(M365_UPDATES_HOST, M365_UPDATES_PATH, done);
+function fetchM365Updates(options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
+  fetchRssFeed(M365_UPDATES_HOST, M365_UPDATES_PATH, options, done);
 }
 
-function fetchAzureUpdates(done) {
-  fetchRssFeed(AZURE_UPDATES_HOST, AZURE_UPDATES_PATH, done);
+function fetchAzureUpdates(options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
+  fetchRssFeed(AZURE_UPDATES_HOST, AZURE_UPDATES_PATH, options, done);
 }
 
 // Fetch a single Fabric product's roadmap items from the Power Pages JSON endpoint.
@@ -1294,15 +1336,17 @@ function fetchFabricProduct(productId, done) {
   httpsGetFollow(FABRIC_ROADMAP_HOST, pathname, MAX_REDIRECTS, (err, result) => {
     if (err) return done(err);
     const { status, body } = result;
-    if (status >= 400) return done(null, { status, items: [] });
+    if (status >= 400) return done(new Error(`Upstream returned status ${status}`));
     let parsed;
-    try { parsed = JSON.parse(body); } catch { return done(null, { status, items: [] }); }
+    try { parsed = JSON.parse(body); }
+    catch { return done(new Error('Fabric roadmap returned invalid JSON')); }
     done(null, { status, items: Array.isArray(parsed.results) ? parsed.results : [] });
   });
 }
 
 // Fetch all Fabric products in parallel, merge, and cache the combined result.
-function fetchFabricRoadmap(done) {
+function fetchFabricRoadmap(options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
   cachedFetch('fabric:roadmap', 5 * 60_000, (cb) => {
     let pending = FABRIC_PRODUCTS.length;
     const allItems = [];
@@ -1313,11 +1357,11 @@ function fetchFabricRoadmap(done) {
         else if (result && result.items) { allItems.push(...result.items); }
         if (--pending === 0) {
           if (hadError && !allItems.length) return cb(hadError);
-          cb(null, { items: allItems });
+          cb(null, { items: allItems, partial: !!hadError });
         }
       });
     });
-  }, done);
+  }, done, options);
 }
 
 // ── Feature availability by geography ───────────────────────────────────────
@@ -1432,7 +1476,8 @@ function buildFeatureGeoPayload(rows, products) {
   };
 }
 
-function fetchFeatureGeo(done) {
+function fetchFeatureGeo(options, done) {
+  if (typeof options === 'function') { done = options; options = {}; }
   cachedFetch('featuregeo', FEATURE_GEO_TTL_MS, (cb) => {
     requestReleasePlans(FEATURE_GEO_PATH, MAX_REDIRECTS, (err, upstream) => {
       if (err) return cb(err);
@@ -1445,7 +1490,7 @@ function fetchFeatureGeo(done) {
       }
       cb(null, buildFeatureGeoPayload(results.results, products || []));
     });
-  }, done);
+  }, done, options);
 }
 
 function requestReleasePlans(pathname, redirectsLeft, done) {
@@ -1555,18 +1600,6 @@ function clearEmpty(productId) {
   if (emptyProducts.delete(productId)) saveEmptyProductsDebounced();
 }
 
-// Constant-time string comparison to avoid leaking token contents via timing.
-function timingSafeEqualStr(a, b) {
-  const ab = Buffer.from(String(a == null ? '' : a));
-  const bb = Buffer.from(String(b == null ? '' : b));
-  if (ab.length !== bb.length) {
-    // Keep the comparison time independent of where the mismatch is.
-    crypto.timingSafeEqual(ab, ab);
-    return false;
-  }
-  return crypto.timingSafeEqual(ab, bb);
-}
-
 loadEmptyProducts();
 
 // ── Universal API authentication guard ───────────────────────────────────────
@@ -1577,6 +1610,8 @@ const {
   AUTH_MODE_EASYAUTH,
   AUTH_MODE_REVERSE_PROXY,
   AUTH_MODE_NONE_LOOPBACK,
+  timingSafeEqualStr,
+  redactUpstreamError,
   resolveAuthMode,
   makeRequireAuth,
 } = require('./auth.js');
@@ -1602,6 +1637,8 @@ const requireAuth = makeRequireAuth({
   mode: RESOLVED_AUTH_MODE,
   apiAuthToken: API_AUTH_TOKEN,
   sendJson,
+  isAppService: IS_APP_SERVICE,
+  easyAuthEnabled: process.env.WEBSITE_AUTH_ENABLED === 'True',
 });
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
@@ -1638,7 +1675,7 @@ const server = http.createServer((req, res) => {
   if (parsed.pathname === '/api/summarize' && req.method === 'POST') {
     if (!checkRateLimit(req, res, 5, 60_000)) return;
     readJsonBody(req, (err, body) => {
-      if (err) return sendJson(req, res, 400, { error: err.message });
+      if (err) return sendJson(req, res, err.statusCode || 400, { error: err.message });
       const source = String(body.source || 'unknown').slice(0, 32);
       const itemsIn = Array.isArray(body.items) ? body.items.slice(0, 20) : [];
       if (!itemsIn.length) return sendJson(req, res, 400, { error: 'items[] required (max 20)' });
@@ -1665,7 +1702,7 @@ const server = http.createServer((req, res) => {
       }, (e2, result) => {
         if (e2) {
           console.error('[summarize] error:', e2.message);
-          return sendJson(req, res, 502, { error: e2.message, summaries: [] });
+          return sendAiFailure(req, res, e2, { summaries: [] });
         }
         sendJson(req, res, 200, result, { 'Cache-Control': 'max-age=300, stale-while-revalidate=600' });
       });
@@ -1681,9 +1718,17 @@ const server = http.createServer((req, res) => {
       return sendJson(req, res, 503, { error: 'AI provider not configured. See .env.example.' });
     }
     const source = (parsed.searchParams.get('source') || '').toLowerCase();
-    const limit = Math.max(1, Math.min(10, parseInt(parsed.searchParams.get('limit') || '5', 10)));
-    const windowDays = Math.max(1, Math.min(90, parseInt(parsed.searchParams.get('windowDays') || '14', 10)));
+    const limit = parseBoundedInteger(parsed.searchParams.get('limit'), 5, 1, 10);
+    const windowDays = parseBoundedInteger(parsed.searchParams.get('windowDays'), 14, 1, 90);
     const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+
+    const failSource = (err) => {
+      console.error(`[digest] ${source || 'unknown'} source error:`, err.message);
+      sendJson(req, res, 502, {
+        error: `Unable to load the ${source || 'requested'} source for AI analysis.`,
+        topItems: [],
+      });
+    };
 
     const finish = (items) => {
       if (!items.length) {
@@ -1709,7 +1754,7 @@ const server = http.createServer((req, res) => {
       }, (e, data) => {
         if (e) {
           console.error('[digest] error:', e.message);
-          return sendJson(req, res, 502, { error: e.message, topItems: [] });
+          return sendAiFailure(req, res, e, { topItems: [] });
         }
         const top = (data && Array.isArray(data.topItems) ? data.topItems : []).slice(0, limit);
         sendJson(req, res, 200, {
@@ -1725,9 +1770,19 @@ const server = http.createServer((req, res) => {
 
     // Resolve items based on source.
     if (source === 'azure') {
-      fetchAzureUpdates((e, r) => finish(e ? [] : (r.items || [])));
+      fetchAzureUpdates((e, r) => {
+        if (e || !r || r.error || r.status >= 400) {
+          return failSource(e || new Error((r && r.error) || `HTTP ${(r && r.status) || 'unknown'}`));
+        }
+        finish(r.items || []);
+      });
     } else if (source === 'm365') {
-      fetchM365Updates((e, r) => finish(e ? [] : (r.items || [])));
+      fetchM365Updates((e, r) => {
+        if (e || !r || r.error || r.status >= 400) {
+          return failSource(e || new Error((r && r.error) || `HTTP ${(r && r.status) || 'unknown'}`));
+        }
+        finish(r.items || []);
+      });
     } else if (source === 'messagecenter') {
       if (!AZURE_AUTH_MODE) {
         return sendJson(req, res, 503, {
@@ -1737,8 +1792,13 @@ const server = http.createServer((req, res) => {
         });
       }
       getM365AccessToken((e, token) => {
-        if (e) return sendJson(req, res, 502, { error: e.message, topItems: [] });
-        fetchMessageCenterMessages(token, (e2, r) => finish(e2 ? [] : ((r && r.body && r.body.value) || [])));
+        if (e) return failSource(e);
+        fetchMessageCenterMessages(token, (e2, r) => {
+          if (e2 || !r || r.status >= 400 || (r.body && r.body.error)) {
+            return failSource(e2 || new Error(`Microsoft Graph returned HTTP ${(r && r.status) || 'unknown'}`));
+          }
+          finish((r.body && r.body.value) || []);
+        });
       });
     } else if (source === 'servicehealth') {
       if (!AZURE_AUTH_MODE) {
@@ -1749,9 +1809,11 @@ const server = http.createServer((req, res) => {
         });
       }
       getM365AccessToken((e, token) => {
-        if (e) return sendJson(req, res, 502, { error: e.message, topItems: [] });
+        if (e) return failSource(e);
         fetchServiceHealth(token, (e2, r) => {
-          if (e2) return finish([]);
+          if (e2 || !r || r.status >= 400 || (r.body && r.body.error)) {
+            return failSource(e2 || new Error(`Microsoft Graph returned HTTP ${(r && r.status) || 'unknown'}`));
+          }
           // Service health: flatten issues out of healthOverviews so the AI sees individual events.
           const services = (r && r.body && r.body.value) || [];
           const issues = [];
@@ -1765,7 +1827,7 @@ const server = http.createServer((req, res) => {
       });
     } else if (source === 'fabricroadmap') {
       fetchFabricRoadmap((e, r) => {
-        if (e) return finish([]);
+        if (e || !r) return failSource(e || new Error('Fabric roadmap returned no response'));
         // Normalize Fabric items so the AI normalizer can find standard fields.
         const items = (r.items || []).map(it => ({
           id: it.ReleaseItemID,
@@ -1838,7 +1900,7 @@ const server = http.createServer((req, res) => {
           value: subs,
           count: subs.length,
           selected: getSessionSelection(ensureSessionCookie(req, res)),
-          error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+          error: body && body.error ? redactUpstreamError(body.error) : null,
         }, { 'Cache-Control': 'max-age=300, stale-while-revalidate=600' });
       });
     });
@@ -1864,7 +1926,7 @@ const server = http.createServer((req, res) => {
         }
       }
       readJsonBody(req, (bodyErr, data) => {
-        if (bodyErr) return sendJson(req, res, 400, { error: bodyErr.message });
+        if (bodyErr) return sendJson(req, res, bodyErr.statusCode || 400, { error: bodyErr.message });
         if (!Array.isArray(data.selected)) {
           return sendJson(req, res, 400, { error: 'Body must contain "selected" array of {id, displayName} objects' });
         }
@@ -1902,7 +1964,7 @@ const server = http.createServer((req, res) => {
         }
 
         sessionSubscriptions.set(sid, { selected: cleaned, ts: Date.now() });
-        console.log(`[subscriptions] Session ${sid.slice(0, 8)}… selection updated: ${cleaned.length} subscription(s) — ${cleaned.map(s => s.displayName || s.id.slice(0, 8)).join(', ')}`);
+        console.log(`[subscriptions] Session ${sid.slice(0, 8)}… selection updated: ${cleaned.length} subscription(s)`);
         sendJson(req, res, 200, { selected: cleaned, count: cleaned.length });
       });
       return;
@@ -1912,7 +1974,7 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Message Center API endpoint ──────────────────────────────────────────
-  if (parsed.pathname === '/api/messagecenter' || parsed.pathname === '/api/servicemessages' || parsed.pathname === '/servicemessages') {
+  if (parsed.pathname === '/api/messagecenter' || parsed.pathname === '/api/servicemessages') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
     if (!AZURE_AUTH_MODE) {
       sendJson(req, res, 503, {
@@ -2018,22 +2080,20 @@ const server = http.createServer((req, res) => {
   // ── M365 Updates (M365 roadmap) RSS endpoint ───────────────────────
   if (parsed.pathname === '/api/m365updates') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
-    fetchM365Updates((err, result) => {
+    const refresh = parsed.searchParams.get('refresh') === '1';
+    fetchM365Updates({ force: refresh, staleIfErrorMs: 24 * 60 * 60_000 }, (err, result, cacheMeta) => {
       if (err) {
         console.error('[m365updates] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
-        res.end(JSON.stringify({ items: [], error: err.message }));
-        return;
+        return sendJson(req, res, 502, {
+          items: [],
+          error: 'Microsoft 365 Roadmap is temporarily unavailable. Try again shortly.',
+        }, corsHeaders(req));
       }
-      const { status, items, error } = result;
+      const { status, items } = result;
+      const meta = feedMetadata('Microsoft 365 Roadmap RSS', cacheMeta);
       console.log(`[m365updates] ${status} \u2192 ${items.length} items`);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-        ...corsHeaders(req),
-      });
-      res.end(JSON.stringify({ items, count: items.length, error: error || null }));
+      sendJson(req, res, 200, { items, count: items.length, error: null, meta },
+        feedHeaders(req, meta, 300, refresh));
     });
     return;
   }
@@ -2041,22 +2101,20 @@ const server = http.createServer((req, res) => {
   // ── Azure Updates RSS endpoint ─────────────────────────────────────
   if (parsed.pathname === '/api/azureupdates') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
-    fetchAzureUpdates((err, result) => {
+    const refresh = parsed.searchParams.get('refresh') === '1';
+    fetchAzureUpdates({ force: refresh, staleIfErrorMs: 24 * 60 * 60_000 }, (err, result, cacheMeta) => {
       if (err) {
         console.error('[azureupdates] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
-        res.end(JSON.stringify({ items: [], error: err.message }));
-        return;
+        return sendJson(req, res, 502, {
+          items: [],
+          error: 'Azure Updates is temporarily unavailable. Try again shortly.',
+        }, corsHeaders(req));
       }
-      const { status, items, error } = result;
+      const { status, items } = result;
+      const meta = feedMetadata('Azure Updates RSS', cacheMeta);
       console.log(`[azureupdates] ${status} \u2192 ${items.length} items`);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-        ...corsHeaders(req),
-      });
-      res.end(JSON.stringify({ items, count: items.length, error: error || null }));
+      sendJson(req, res, 200, { items, count: items.length, error: null, meta },
+        feedHeaders(req, meta, 300, refresh));
     });
     return;
   }
@@ -2065,12 +2123,14 @@ const server = http.createServer((req, res) => {
   if (parsed.pathname === '/api/fabricroadmap') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
     const productFilter = parsed.searchParams.get('product') || '';
-    fetchFabricRoadmap((err, result) => {
+    const refresh = parsed.searchParams.get('refresh') === '1';
+    fetchFabricRoadmap({ force: refresh, staleIfErrorMs: 24 * 60 * 60_000 }, (err, result, cacheMeta) => {
       if (err) {
         console.error('[fabricroadmap] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
-        res.end(JSON.stringify({ items: [], error: err.message }));
-        return;
+        return sendJson(req, res, 502, {
+          items: [],
+          error: 'Microsoft Fabric Roadmap is temporarily unavailable. Try again shortly.',
+        }, corsHeaders(req));
       }
       let items = result.items || [];
       // Optional product filter (by queryString)
@@ -2080,14 +2140,14 @@ const server = http.createServer((req, res) => {
           items = items.filter(it => it.ProductID === product.id);
         }
       }
+      const meta = feedMetadata(
+        'Microsoft Fabric Roadmap API',
+        cacheMeta,
+        result.partial ? 'Some product areas could not be refreshed.' : null
+      );
       console.log(`[fabricroadmap] ${items.length} items${productFilter ? ` (product=${productFilter})` : ''}`);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-        ...corsHeaders(req),
-      });
-      res.end(JSON.stringify({ items, count: items.length, products: FABRIC_PRODUCTS }));
+      sendJson(req, res, 200, { items, count: items.length, products: FABRIC_PRODUCTS, meta },
+        feedHeaders(req, meta, 300, refresh));
     });
     return;
   }
@@ -2095,21 +2155,18 @@ const server = http.createServer((req, res) => {
   // ── Feature availability by geography JSON endpoint ────────────────────
   if (parsed.pathname === '/api/featuregeo') {
     if (!checkRateLimit(req, res, 60, 60_000)) return;
-    fetchFeatureGeo((err, payload) => {
+    const refresh = parsed.searchParams.get('refresh') === '1';
+    fetchFeatureGeo({ force: refresh, staleIfErrorMs: 7 * 24 * 60 * 60_000 }, (err, payload, cacheMeta) => {
       if (err) {
         console.error('[featuregeo] fetch error:', err.message);
-        res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
-        res.end(JSON.stringify({ items: [], error: err.message }));
-        return;
+        return sendJson(req, res, 502, {
+          items: [],
+          error: 'Regional release-plan data is temporarily unavailable. Try again shortly.',
+        }, corsHeaders(req));
       }
+      const meta = feedMetadata('Microsoft Release Plans', cacheMeta);
       console.log(`[featuregeo] ${payload.items.length} features across ${payload.geos.length} geographies`);
-      res.writeHead(200, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Cache-Control': 'max-age=900, stale-while-revalidate=1800',
-        ...corsHeaders(req),
-      });
-      res.end(JSON.stringify(payload));
+      sendJson(req, res, 200, { ...payload, meta }, feedHeaders(req, meta, 900, refresh));
     });
     return;
   }
@@ -2353,9 +2410,13 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Static assets under /public/ (product/service icons, etc.) ───────────
-  if (parsed.pathname.startsWith('/public/')) {
+  if (parsed.pathname === '/favicon.ico' || parsed.pathname.startsWith('/public/')) {
     let rel;
-    try { rel = decodeURIComponent(parsed.pathname.slice('/public/'.length)); }
+    try {
+      rel = parsed.pathname === '/favicon.ico'
+        ? 'siteicon.png'
+        : decodeURIComponent(parsed.pathname.slice('/public/'.length));
+    }
     catch { res.writeHead(400); res.end('Bad path'); return; }
     if (!rel || rel.length > 256 || rel.includes('..') || rel.includes('\\') || !/^[\w .+()-]+\.(svg|png|jpe?g|gif|webp|ico)$/i.test(rel)) {
       res.writeHead(400); res.end('Bad path'); return;
@@ -2427,7 +2488,7 @@ const server = http.createServer((req, res) => {
           sendJson(req, res, status >= 400 ? status : 200, {
             value: (body && body.value) || [],
             count: ((body && body.value) || []).length,
-            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+            error: body && body.error ? redactUpstreamError(body.error) : null,
           }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
@@ -2465,7 +2526,7 @@ const server = http.createServer((req, res) => {
             value: (body && body.value) || [],
             count: ((body && body.value) || []).length,
             subscriptionId,
-            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+            error: body && body.error ? redactUpstreamError(body.error) : null,
           }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
@@ -2503,7 +2564,7 @@ const server = http.createServer((req, res) => {
             value: (body && body.value) || [],
             count: ((body && body.value) || []).length,
             subscriptionId,
-            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+            error: body && body.error ? redactUpstreamError(body.error) : null,
           }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
@@ -2544,7 +2605,7 @@ const server = http.createServer((req, res) => {
             count: ((body && body.value) || []).length,
             subscriptionId,
             eventTrackingId,
-            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+            error: body && body.error ? redactUpstreamError(body.error) : null,
           }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
@@ -2579,7 +2640,7 @@ const server = http.createServer((req, res) => {
             value: (body && body.value) || [],
             count: ((body && body.value) || []).length,
             resourceUri,
-            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+            error: body && body.error ? redactUpstreamError(body.error) : null,
           }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
@@ -2615,7 +2676,7 @@ const server = http.createServer((req, res) => {
             value: (body && body.value) || [],
             count: ((body && body.value) || []).length,
             resourceUri,
-            error: body && body.error ? body.error.message || JSON.stringify(body.error) : null,
+            error: body && body.error ? redactUpstreamError(body.error) : null,
           }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
@@ -2647,7 +2708,12 @@ const server = http.createServer((req, res) => {
             return sendJson(req, res, 502, { error: err2.message });
           }
           const { status, body } = result;
-          sendJson(req, res, status >= 400 ? status : 200, body || {}, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
+          if (status >= 400) {
+            return sendJson(req, res, status, {
+              error: body && body.error ? redactUpstreamError(body.error) : `ARM API error (HTTP ${status})`,
+            });
+          }
+          sendJson(req, res, 200, body || {}, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
         });
       });
       return;

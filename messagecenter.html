@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js" defer></script>
+  <script src="/static/util.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/messagecenter.css">
 </head>
@@ -28,8 +28,8 @@
                aria-label="Search messages by title or description">
       </div>
       <div class="mc-toolbar-actions">
-        <span id="mc-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="mc-export-btn" type="button">⬇ Export</button>
+        <span id="mc-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
+        <button class="export-btn" id="mc-export-btn" type="button" disabled>⬇ Export</button>
         <button class="export-btn" id="mc-refresh-btn">↻ Refresh</button>
       </div>
     </div>
@@ -238,6 +238,17 @@
         if (toggle) toggle.setAttribute('aria-expanded', 'false');
       }
     });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const m = document.getElementById('mc-service-multi');
+      if (!m || !m.classList.contains('open')) return;
+      m.classList.remove('open');
+      const toggle = document.getElementById('mc-service-toggle');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        if (m.contains(document.activeElement)) toggle.focus();
+      }
+    });
 
     function getMessageDate(msg) {
       return new Date(msg.startDateTime || msg.lastModifiedDateTime || 0);
@@ -293,6 +304,11 @@
 
       const countEl = document.getElementById('mc-result-count');
       if (countEl) countEl.textContent = `${filtered.length} of ${allMessages.length}`;
+      const exportBtn = document.getElementById('mc-export-btn');
+      if (exportBtn) {
+        exportBtn.disabled = filtered.length === 0;
+        exportBtn.title = filtered.length ? '' : 'No filtered items to export';
+      }
       renderMessages(filtered);
     }
 
@@ -655,7 +671,6 @@
       };
 
       const tableRows = rows.map(msg => {
-        const messageId = String(msg.id || '').trim();
         const tags = (msg.tags || []).map(t => String(t).toLowerCase());
         const isUpdated = tags.some(t => t.includes('updated'));
         const isMajor = !!msg.isMajorChange || tags.some(t => t.includes('major'));

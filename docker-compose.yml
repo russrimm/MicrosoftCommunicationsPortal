@@ -9,7 +9,12 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     env_file:
-      - .env                          # optional — create from .env.example
+      # required: false means Compose silently skips this file when it's
+      # absent, matching the "optional — create from .env.example" guidance
+      # below. Without it, `docker compose up` fails outright if no .env
+      # exists yet. Requires Docker Compose 2.20.0+.
+      - path: .env
+        required: false
     environment:
       - NODE_ENV=production
       - PORT=3000

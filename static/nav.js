@@ -104,6 +104,21 @@
         allOpen[k].querySelector('.nav-dropdown-toggle').setAttribute('aria-expanded', 'false');
       }
     });
+    // Escape closes any open dropdown and returns focus to its toggle button,
+    // matching standard menu-button keyboard behavior (WAI-ARIA APG).
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var allOpen = document.querySelectorAll('.nav-dropdown.open');
+      if (!allOpen.length) return;
+      for (var k = 0; k < allOpen.length; k++) {
+        var toggle = allOpen[k].querySelector('.nav-dropdown-toggle');
+        allOpen[k].classList.remove('open');
+        if (toggle) {
+          toggle.setAttribute('aria-expanded', 'false');
+          if (allOpen[k].contains(document.activeElement)) toggle.focus();
+        }
+      }
+    });
   }
 
   function init() {

@@ -268,3 +268,16 @@ body {
   .nav-tab { font-size: 13px; padding: 0 0.75rem; }
   .page-tabs { justify-content: flex-start; gap: 0; }
 }
+
+/* ── Reduced motion ──
+   Neutralizes decorative animations/transitions (spinners, dropdown carets,
+   modal fade/slide-ins, etc.) for users who have asked the OS/browser for
+   reduced motion, without changing default appearance for everyone else. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

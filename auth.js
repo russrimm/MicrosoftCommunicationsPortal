@@ -39,6 +39,7 @@ const AUTH_EXEMPT_API_ROUTES = new Set([
   '/api/m365updates',    // public RSS proxy
   '/api/azureupdates',   // public RSS proxy
   '/api/fabricroadmap',  // public feed proxy
+  '/api/featuregeo',     // public release-plans feed
   '/api/empty-products', // static data (GET only; DELETE still requires ADMIN_TOKEN)
 ]);
 
@@ -52,6 +53,20 @@ function timingSafeEqualStr(a, b) {
     return false;
   }
   return crypto.timingSafeEqual(ab, bb);
+}
+
+function redactUpstreamError(error) {
+  let raw = '';
+  if (typeof error === 'string') {
+    raw = error;
+  } else if (error && typeof error.message === 'string') {
+    raw = error.message;
+  } else if (error) {
+    raw = JSON.stringify(error);
+  }
+  return String(raw || '')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<redacted-guid>')
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<redacted-email>');
 }
 
 // Resolve and validate AUTH_MODE against the current environment.
@@ -109,12 +124,12 @@ function resolveAuthMode(env) {
     );
   }
   if (mode === AUTH_MODE_EASYAUTH && isAppService &&
-      env.WEBSITE_AUTH_ENABLED && env.WEBSITE_AUTH_ENABLED !== 'True') {
+      env.WEBSITE_AUTH_ENABLED !== 'True') {
     warnings.push(
-      'AUTH_MODE=easyauth but WEBSITE_AUTH_ENABLED="' + env.WEBSITE_AUTH_ENABLED +
-      '" (expected "True"). Easy Auth may be disabled on this App Service — ' +
-      'requests with a spoofed X-MS-CLIENT-PRINCIPAL header could bypass ' +
-      'authentication if the platform is not injecting/validating the header.'
+      'AUTH_MODE=easyauth but WEBSITE_AUTH_ENABLED="' +
+      (env.WEBSITE_AUTH_ENABLED || '<unset>') +
+      '" (expected "True"). Protected API requests will be rejected because ' +
+      'App Service is not enforcing Easy Auth.'
     );
   }
 
@@ -184,7 +199,13 @@ function validatePrincipal(principalHeader, principalIdHeader) {
 // Build a requireAuth function bound to the resolved mode and the API token.
 // `sendJson` is injected so this module can reuse the caller's response helper
 // without duplicating the header-writing / CSP logic.
-function makeRequireAuth({ mode, apiAuthToken, sendJson }) {
+function makeRequireAuth({
+  mode,
+  apiAuthToken,
+  sendJson,
+  isAppService = false,
+  easyAuthEnabled = false,
+}) {
   if (!VALID_AUTH_MODES.has(mode)) {
     throw new Error('makeRequireAuth: unknown mode "' + mode + '"');
   }
@@ -193,6 +214,13 @@ function makeRequireAuth({ mode, apiAuthToken, sendJson }) {
     if (AUTH_EXEMPT_API_ROUTES.has(pathname)) return true;
 
     if (mode === AUTH_MODE_EASYAUTH) {
+      if (isAppService && !easyAuthEnabled) {
+        sendJson(req, res, 401, {
+          error: 'Easy Auth is not enforced by App Service; refusing to trust client principal headers.',
+          code: 'AUTH_NOT_ENFORCED',
+        });
+        return false;
+      }
       const principal = req.headers['x-ms-client-principal'];
       const principalId = req.headers['x-ms-client-principal-id'];
       const check = validatePrincipal(principal, principalId);
@@ -232,6 +260,7 @@ module.exports = {
   VALID_AUTH_MODES,
   AUTH_EXEMPT_API_ROUTES,
   timingSafeEqualStr,
+  redactUpstreamError,
   resolveAuthMode,
   validatePrincipal,
   makeRequireAuth,

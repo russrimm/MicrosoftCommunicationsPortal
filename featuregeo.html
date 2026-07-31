@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js" defer></script>
+  <script src="/static/util.js"></script>
   <script src="/static/worldmap.js" defer></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
@@ -85,9 +85,10 @@
           <input type="text" class="au-search-input" id="fg-search"
                  placeholder="Search features or products…"
                  aria-label="Search features or products" data-act="onSearch" data-on="input">
+          <span id="fg-source-status" class="au-source-status" role="status" aria-live="polite"></span>
           <span class="fg-count" id="fg-count" aria-live="polite"></span>
-          <button class="export-btn" type="button" data-act="exportCsv">⬇ CSV</button>
-          <button class="export-btn" type="button" data-act="loadFeatureGeo">↻ Refresh</button>
+          <button class="export-btn" id="fg-export-btn" type="button" data-act="exportCsv" disabled>⬇ CSV</button>
+          <button class="export-btn" id="fg-refresh-btn" type="button" data-act="loadFeatureGeo">↻ Refresh</button>
         </div>
 
         <div class="fg-table-wrap" id="fg-table-wrap">
@@ -162,7 +163,8 @@
 
     // Registered once the deferred util.js has installed window.CPActions.
     const ACTIONS = {
-      loadFeatureGeo,
+      loadFeatureGeo: () => loadFeatureGeo(true),
+      retry: () => loadFeatureGeo(true),
       exportCsv,
       resetProducts,
       onSearch:      (e, el) => { filters.search = el.value.trim().toLowerCase(); applyFilters(); },
@@ -205,23 +207,36 @@
       return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}`;
     }
 
-    async function loadFeatureGeo() {
+    async function loadFeatureGeo(refresh) {
       const wrap = document.getElementById('fg-table-wrap');
+      const refreshBtn = document.getElementById('fg-refresh-btn');
+      if (refreshBtn) refreshBtn.disabled = true;
       wrap.innerHTML = window.CPUtil.renderLoading('Loading geography data…');
       try {
-        const res = await fetch('/api/featuregeo');
+        const url = refresh ? `/api/featuregeo?refresh=1&_t=${Date.now()}` : '/api/featuregeo';
+        const res = await fetch(url, { cache: refresh ? 'no-store' : 'default' });
         const data = await res.json();
-        if (data.error && (!data.items || !data.items.length)) {
-          wrap.innerHTML = window.CPUtil.renderError(data.error);
-          return;
+        if (!res.ok || (data.error && (!data.items || !data.items.length))) {
+          throw new Error(data.error || `HTTP ${res.status}`);
         }
         DATA = data;
         DATA.items = DATA.items.filter(it => !it.d || it.d >= releaseDateCutoff());
+        window.CPUtil.renderFeedStatus('fg-source-status', data.meta);
         buildMarkerIndex();
         buildFilterControls();
         applyFilters();
       } catch (err) {
-        wrap.innerHTML = window.CPUtil.renderError(`Failed to load: ${err.message}`);
+        const message = navigator.onLine === false
+          ? 'You appear to be offline. Reconnect and retry.'
+          : `Could not load regional release plans. ${err.message}`;
+        window.CPUtil.renderFeedStatus('fg-source-status', {
+          source: 'Microsoft Release Plans',
+          unavailable: true,
+          warning: message,
+        });
+        wrap.innerHTML = window.CPUtil.renderError(message, 'Retry');
+      } finally {
+        if (refreshBtn) refreshBtn.disabled = false;
       }
     }
 
@@ -382,6 +397,11 @@
         return true;
       });
       rows = matches;
+      const exportBtn = document.getElementById('fg-export-btn');
+      if (exportBtn) {
+        exportBtn.disabled = rows.length === 0;
+        exportBtn.title = rows.length ? '' : 'No filtered items to export';
+      }
       sortRows();
       visibleRows = PAGE_SIZE;
       syncFilterControls();
@@ -500,7 +520,7 @@
       const svg = panel.querySelector('svg');
       const tooltip = document.getElementById('fg-tooltip');
       panel.querySelectorAll('.fg-marker').forEach(marker => {
-        marker.addEventListener('mouseenter', () => {
+        const showTooltip = () => {
           const rect = svg.getBoundingClientRect();
           const scale = rect.width / window.CPWorldMap.width;
           const count = Number(marker.dataset.count);
@@ -509,8 +529,14 @@
           tooltip.style.left = `${Number(marker.dataset.x) * scale}px`;
           tooltip.style.top = `${Number(marker.dataset.y) * scale - MARKER_RADIUS * scale}px`;
           tooltip.hidden = false;
-        });
-        marker.addEventListener('mouseleave', () => { tooltip.hidden = true; });
+        };
+        const hideTooltip = () => { tooltip.hidden = true; };
+        marker.addEventListener('mouseenter', showTooltip);
+        marker.addEventListener('mouseleave', hideTooltip);
+        // Keyboard-equivalent: show/hide the same tooltip on focus/blur so
+        // keyboard users tabbing through markers get the same feature count.
+        marker.addEventListener('focus', showTooltip);
+        marker.addEventListener('blur', hideTooltip);
       });
     }
 
@@ -602,7 +628,7 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       window.CPActions.register(ACTIONS);
-      loadFeatureGeo();
+      loadFeatureGeo(false);
     });
   </script>
 </body>

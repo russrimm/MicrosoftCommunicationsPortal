@@ -122,7 +122,9 @@
       el('span', { class: 'cp-ai-meta' }, [`${status.provider || 'AI'} · ${status.model || ''}`]),
     ]);
     panel.appendChild(header);
-    const body = el('div', { class: 'cp-ai-top' });
+    // aria-live so screen reader users hear the digest once it finishes loading
+    // or is regenerated, without needing to re-discover the panel.
+    const body = el('div', { class: 'cp-ai-top', 'aria-live': 'polite' });
     panel.appendChild(body);
     body.appendChild(el('div', { class: 'cp-ai-headline' }, [
       el('span', { class: 'cp-ai-spinner', 'aria-hidden': 'true' }),
@@ -145,6 +147,11 @@
   async function loadDigest(panel, source, status, force) {
     const body = panel.querySelector('.cp-ai-top');
     if (!body) return;
+    // Guard against overlapping requests (e.g. rapid Regenerate clicks): only
+    // the most recent call for this panel is allowed to render its result.
+    const token = (panel._digestToken = (panel._digestToken || 0) + 1);
+    const regenBtn = panel.querySelector('.cp-ai-actions .cp-ai-btn');
+    if (regenBtn) regenBtn.disabled = true;
     body.innerHTML = '<div class="cp-ai-headline"><span class="cp-ai-spinner" aria-hidden="true"></span>Analyzing the latest changes…</div>';
     try {
       const url = `/api/impact-digest?source=${encodeURIComponent(source)}&limit=5&windowDays=14${force ? '&_t=' + Date.now() : ''}`;
@@ -154,6 +161,7 @@
         throw new Error(errBody.error || `HTTP ${r.status}`);
       }
       const data = await r.json();
+      if (panel._digestToken !== token) return; // superseded by a newer request
       body.innerHTML = '';
       if (data.headline) {
         body.insertAdjacentHTML('beforeend', `<div class="cp-ai-headline">${esc(data.headline)}</div>`);
@@ -188,7 +196,10 @@
         });
       }
     } catch (e) {
+      if (panel._digestToken !== token) return; // superseded by a newer request
       body.innerHTML = `<div class="cp-ai-error">⚠️ Could not generate digest: ${esc(e.message)}</div>`;
+    } finally {
+      if (regenBtn && panel._digestToken === token) regenBtn.disabled = false;
     }
   }
 

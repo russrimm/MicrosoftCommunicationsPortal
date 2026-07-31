@@ -12,9 +12,8 @@ param location string
 @description('App Service Plan SKU')
 param planSku string = 'B1'
 
-@minLength(1)
-@description('Entra ID app registration client ID for Easy Auth. Required — all requests must go through Entra ID sign-in to protect tenant data and AI endpoints.')
-param authClientId string
+@description('Optional Entra ID app registration client ID for Easy Auth. When omitted, public feeds remain available while tenant and AI APIs fail closed in the application.')
+param authClientId string = ''
 
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))

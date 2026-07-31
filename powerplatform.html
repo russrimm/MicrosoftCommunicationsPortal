@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js" defer></script>
+  <script src="/static/util.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -137,8 +137,8 @@
         </label>
       </div>
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
-        <span id="au-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="export-btn" type="button" data-act="openExportModal">⬇ Export</button>
+        <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
+        <button class="export-btn" id="export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
         <button class="export-btn" data-act="reloadAll">↻ Refresh</button>
       </div>
     </div>
@@ -766,6 +766,17 @@
         if (t) t.setAttribute('aria-expanded', 'false');
       });
     });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      document.querySelectorAll('.au-multi.open').forEach(el => {
+        el.classList.remove('open');
+        const t = el.querySelector('.au-multi-toggle');
+        if (t) {
+          t.setAttribute('aria-expanded', 'false');
+          if (el.contains(document.activeElement)) t.focus();
+        }
+      });
+    });
 
     function handleAiToggle(ev) {
       aiOnly = !!ev.target.checked;
@@ -823,6 +834,11 @@
       const sort = document.getElementById('au-sort').value;
 
       currentFiltered = filtered;
+      const exportBtn = document.getElementById('export-btn');
+      if (exportBtn) {
+        exportBtn.disabled = filtered.length === 0;
+        exportBtn.title = filtered.length ? '' : 'No filtered items to export';
+      }
 
       document.getElementById('au-result-count').textContent =
         `${filtered.length} of ${allFeatures.length}`;

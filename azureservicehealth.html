@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js" defer></script>
+  <script src="/static/util.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/azureservicehealth.css">
 </head>
@@ -591,6 +591,12 @@
             filterEl.classList.remove('open');
             filterBtn.setAttribute('aria-expanded', 'false');
           }
+        });
+        document.addEventListener('keydown', function(e) {
+          if (e.key !== 'Escape' || !filterEl.classList.contains('open')) return;
+          filterEl.classList.remove('open');
+          filterBtn.setAttribute('aria-expanded', 'false');
+          if (filterEl.contains(document.activeElement)) filterBtn.focus();
         });
       })();
 
