@@ -7,10 +7,21 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
+const { once } = require('node:events');
+const fs = require('node:fs');
+const net = require('node:net');
+const os = require('node:os');
+const path = require('node:path');
+const {
+  parseBoundedInteger,
+  rateLimitBucketKey,
+} = require('../runtime-utils.js');
 const {
   AUTH_MODE_EASYAUTH,
   AUTH_MODE_REVERSE_PROXY,
   AUTH_MODE_NONE_LOOPBACK,
+  redactUpstreamError,
   resolveAuthMode,
   validatePrincipal,
   makeRequireAuth,
@@ -19,7 +30,10 @@ const {
 // ── resolveAuthMode ──────────────────────────────────────────────────────────
 
 test('resolveAuthMode infers easyauth on App Service', () => {
-  const r = resolveAuthMode({ WEBSITE_INSTANCE_ID: 'abc123' });
+  const r = resolveAuthMode({
+    WEBSITE_INSTANCE_ID: 'abc123',
+    WEBSITE_AUTH_ENABLED: 'True',
+  });
   assert.equal(r.mode, AUTH_MODE_EASYAUTH);
 });
 
@@ -83,9 +97,60 @@ test('resolveAuthMode warns when WEBSITE_AUTH_ENABLED is not True', () => {
   assert.ok(r.warnings.some(w => /WEBSITE_AUTH_ENABLED/.test(w)));
 });
 
+test('resolveAuthMode warns when WEBSITE_AUTH_ENABLED is unset on App Service', () => {
+  const r = resolveAuthMode({
+    AUTH_MODE: 'easyauth',
+    WEBSITE_INSTANCE_ID: 'abc',
+  });
+  assert.ok(r.warnings.some(w => /<unset>/.test(w)));
+});
+
 test('resolveAuthMode is case-insensitive for AUTH_MODE', () => {
-  const r = resolveAuthMode({ AUTH_MODE: '  EasyAuth  ', WEBSITE_INSTANCE_ID: '1' });
+  const r = resolveAuthMode({
+    AUTH_MODE: '  EasyAuth  ',
+    WEBSITE_INSTANCE_ID: '1',
+    WEBSITE_AUTH_ENABLED: 'True',
+  });
   assert.equal(r.mode, AUTH_MODE_EASYAUTH);
+});
+
+// ── upstream error redaction ─────────────────────────────────────────────────
+
+test('redactUpstreamError removes GUIDs and email addresses', () => {
+  const redacted = redactUpstreamError({
+    message: 'Client 11111111-2222-3333-4444-555555555555 owned by admin@example.com was denied.',
+  });
+  assert.equal(
+    redacted,
+    'Client <redacted-guid> owned by <redacted-email> was denied.'
+  );
+});
+
+test('redactUpstreamError serializes message-less error objects safely', () => {
+  const redacted = redactUpstreamError({
+    code: 'Denied',
+    target: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+  });
+  assert.match(redacted, /"code":"Denied"/);
+  assert.doesNotMatch(redacted, /aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/);
+});
+
+// ── runtime validation helpers ────────────────────────────────────────────────
+
+test('parseBoundedInteger applies defaults and bounds', () => {
+  assert.equal(parseBoundedInteger(undefined, 5, 1, 10), 5);
+  assert.equal(parseBoundedInteger('not-a-number', 5, 1, 10), 5);
+  assert.equal(parseBoundedInteger('9', 5, 1, 10), 9);
+  assert.equal(parseBoundedInteger('999', 5, 1, 10), 10);
+  assert.equal(parseBoundedInteger('-2', 5, 1, 10), 1);
+});
+
+test('rate limit keys isolate fixed endpoint policies without using request paths', () => {
+  assert.equal(rateLimitBucketKey('127.0.0.1', 5, 60_000), '127.0.0.1:5:60000');
+  assert.notEqual(
+    rateLimitBucketKey('127.0.0.1', 5, 60_000),
+    rateLimitBucketKey('127.0.0.1', 60, 60_000)
+  );
 });
 
 // ── validatePrincipal ────────────────────────────────────────────────────────
@@ -237,6 +302,7 @@ test('requireAuth allows exempt API routes without auth', () => {
   });
   assert.equal(guard(fakeReq(), fakeRes(), '/api/ai-status'), true);
   assert.equal(guard(fakeReq(), fakeRes(), '/api/m365updates'), true);
+  assert.equal(guard(fakeReq(), fakeRes(), '/api/featuregeo'), true);
 });
 
 test('requireAuth (none-loopback-only) allows sensitive routes without auth', () => {
@@ -284,6 +350,41 @@ test('requireAuth (easyauth) rejects requests with no principal header', () => {
   assert.equal(res._payload.code, 'AUTH_REQUIRED');
 });
 
+test('requireAuth (easyauth) rejects spoofed principals when App Service auth is disabled', () => {
+  const p = encode(makePrincipal());
+  const res = fakeRes();
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_EASYAUTH,
+    apiAuthToken: '',
+    sendJson: fakeSendJson,
+    isAppService: true,
+    easyAuthEnabled: false,
+  });
+  const req = fakeReq({
+    'x-ms-client-principal': p,
+    'x-ms-client-principal-id': 'aaa-oid',
+  });
+  assert.equal(guard(req, res, '/api/messagecenter'), false);
+  assert.equal(res._status, 401);
+  assert.equal(res._payload.code, 'AUTH_NOT_ENFORCED');
+});
+
+test('requireAuth (easyauth) accepts valid App Service principals when auth is enabled', () => {
+  const p = encode(makePrincipal());
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_EASYAUTH,
+    apiAuthToken: '',
+    sendJson: fakeSendJson,
+    isAppService: true,
+    easyAuthEnabled: true,
+  });
+  const req = fakeReq({
+    'x-ms-client-principal': p,
+    'x-ms-client-principal-id': 'aaa-oid',
+  });
+  assert.equal(guard(req, fakeRes(), '/api/messagecenter'), true);
+});
+
 test('requireAuth (easyauth) rejects header-only spoof attempts', () => {
   const res = fakeRes();
   const guard = makeRequireAuth({
@@ -321,4 +422,109 @@ test('requireAuth (easyauth) rejects when principal-id header disagrees with oid
   });
   assert.equal(guard(req, res, '/api/messagecenter'), false);
   assert.equal(res._payload.code, 'AUTH_INVALID_PRINCIPAL');
+});
+
+test('tenant Message Center routes stay within the authenticated API namespace', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.doesNotMatch(source, /parsed\.pathname\s*===\s*['"]\/servicemessages['"]/);
+});
+
+async function getUnusedPort() {
+  const listener = net.createServer();
+  listener.listen(0, '127.0.0.1');
+  await once(listener, 'listening');
+  const { port } = listener.address();
+  await new Promise((resolve, reject) => listener.close(err => err ? reject(err) : resolve()));
+  return port;
+}
+
+async function withServer(overrides, run) {
+  const port = await getUnusedPort();
+  const serverPath = path.join(__dirname, '..', 'server.js');
+  const env = {
+    PATH: process.env.PATH,
+    SystemRoot: process.env.SystemRoot,
+    TEMP: process.env.TEMP,
+    TMP: process.env.TMP,
+    NODE_ENV: 'test',
+    HOST: '127.0.0.1',
+    PORT: String(port),
+    ...overrides,
+  };
+  const child = spawn(process.execPath, [serverPath], {
+    cwd: os.tmpdir(),
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', chunk => { output += chunk; });
+  child.stderr.on('data', chunk => { output += chunk; });
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(`Server exited before startup (code ${child.exitCode}):\n${output}`);
+    }
+    try {
+      const response = await fetch(`${baseUrl}/healthz`);
+      if (response.ok) break;
+    } catch (_) {
+      // Startup can take a few polling intervals.
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+
+  try {
+    await run(baseUrl);
+  } finally {
+    if (child.exitCode === null) child.kill();
+    await Promise.race([
+      once(child, 'exit'),
+      new Promise(resolve => setTimeout(resolve, 2000)),
+    ]);
+  }
+}
+
+test('server rejects the legacy tenant-data alias and isolates rate-limit tiers', async () => {
+  await withServer({ AUTH_MODE: 'none-loopback-only' }, async (baseUrl) => {
+    const legacy = await fetch(`${baseUrl}/servicemessages`);
+    assert.equal(legacy.status, 404);
+
+    for (let i = 0; i < 6; i++) {
+      const health = await fetch(`${baseUrl}/healthz`);
+      assert.equal(health.status, 200);
+    }
+    const summarize = await fetch(`${baseUrl}/api/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [{ id: '1', title: 'Test' }] }),
+    });
+    assert.equal(summarize.status, 503);
+
+    const oversized = await fetch(`${baseUrl}/api/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [{ id: '1', description: 'x'.repeat(300_000) }] }),
+    });
+    assert.equal(oversized.status, 413);
+  });
+});
+
+test('server rejects spoofed Easy Auth principals when App Service auth is disabled', async () => {
+  await withServer({
+    AUTH_MODE: 'easyauth',
+    WEBSITE_INSTANCE_ID: 'test-instance',
+  }, async (baseUrl) => {
+    const principal = encode(makePrincipal());
+    const response = await fetch(`${baseUrl}/api/messagecenter`, {
+      headers: {
+        'X-MS-CLIENT-PRINCIPAL': principal,
+        'X-MS-CLIENT-PRINCIPAL-ID': 'aaa-oid',
+      },
+    });
+    assert.equal(response.status, 401);
+    const body = await response.json();
+    assert.equal(body.code, 'AUTH_NOT_ENFORCED');
+  });
 });

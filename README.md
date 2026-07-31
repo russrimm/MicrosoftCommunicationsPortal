@@ -47,7 +47,7 @@ The site root (`/`) redirects to `/home`.
 
 ## Quick Deploy
 
-Six of nine pages work with **zero credentials** — you can be up and running in
+Seven of ten pages work with **zero credentials** — you can be up and running in
 under a minute. The remaining pages need extra setup, and each is optional:
 
 | Pages | What you need | Who should care |
@@ -55,7 +55,7 @@ under a minute. The remaining pages need extra setup, and each is optional:
 | Home, Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap, Guided Report | **Nothing** — works immediately | Everyone |
 | Message Center, Service Health | An **Entra app registration** that can read your tenant's Microsoft Graph data (see [Setup step 2](#setup)) | IT admins who want tenant-specific M365 announcements and incident reports |
 | Azure Service Health | The same Entra credentials **plus** an Azure role assignment (see [Setup step 3](#setup)) | Teams that also monitor Azure subscription-level health events |
-| AI Insights (available on all pages) | An API key from **Azure OpenAI**, **OpenAI**, or **GitHub Models** (see [AI summarization](#ai-summarization-optional)) | Anyone who wants AI-generated summaries and "top 5 most impactful changes" digests |
+| AI Insights (available on seven feed pages) | An API key from **Azure OpenAI**, **OpenAI**, or **GitHub Models** (see [AI summarization](#ai-summarization-optional)) | Anyone who wants AI-generated summaries and "top 5 most impactful changes" digests |
 
 > **Not sure where to start?** Pick the deployment option below that matches your
 > situation. You can always add Graph credentials, Azure Service Health, or AI later.
@@ -84,21 +84,28 @@ azd up
 After `azd up` finishes, the post-provision hook will offer to set up Graph
 permissions for Message Center and Service Health automatically.
 
-**Enable Entra ID authentication (recommended for shared deployments):**
-
-By default the App Service is deployed without login requirements — anyone with the
-URL can access it. To require users to sign in with their organizational account
-before using the portal, set the `authClientId` parameter:
+**Enable Entra ID authentication for shared deployments:** Create or reuse a
+single-tenant Entra app registration, copy its **Application (client) ID**, and
+set it before deployment:
 
 ```bash
 azd env set AUTH_CLIENT_ID <your-entra-app-client-id>
 azd up
 ```
 
-This turns on "Easy Auth" on the App Service, so unauthenticated visitors are
-redirected to the Entra ID login page. **Strongly recommended** if the portal will
-hold Graph credentials or AI API keys, since those enable access to tenant data and
-billed API calls.
+The post-provision hook reuses that app and registers
+`<app-url>/.auth/login/aad/callback`. Easy Auth then redirects unauthenticated
+visitors to organizational sign-in. If `AUTH_CLIENT_ID` is omitted, the seven
+public pages remain available, but tenant-specific Graph/ARM and billed AI API
+routes reject requests because the application refuses to trust Easy Auth
+headers unless App Service reports that authentication is enabled.
+
+> **Production Easy Auth:** This reference template configures the client ID and
+> callback URI but does not create an authentication client secret or a
+> user-assigned managed-identity federated credential. Microsoft recommends one
+> of those assertion methods instead of the legacy implicit flow. Complete that
+> identity-provider setting before production use; see
+> [Use a managed identity instead of a secret](https://learn.microsoft.com/azure/app-service/configure-authentication-provider-aad#use-a-managed-identity-instead-of-a-secret).
 
 ### Option 2 — Docker *(recommended for quick trials or on-prem)*
 
@@ -125,7 +132,7 @@ docker build -t mcp .
 docker run -p 127.0.0.1:3000:3000 mcp
 ```
 
-Open http://localhost:3000. Six pages work immediately — no credentials needed.
+Open http://localhost:3000. Seven pages work immediately — no credentials needed.
 
 > **Security note:** The examples above bind to `127.0.0.1` (loopback), so only
 > your local machine can reach the portal, and `AUTH_MODE` is auto-inferred as
@@ -182,13 +189,14 @@ npm start            # production mode
 npm run dev           # watch mode — auto-restarts on file changes
 ```
 
-Open http://localhost:3000. Six of nine pages work immediately with no credentials.
+Open http://localhost:3000. Seven of ten pages work immediately with no credentials.
 
 For Graph-backed pages (Message Center, Service Health), copy `.env.example` to `.env` and fill in your Entra app credentials — or run `pwsh scripts/create-entra-app.ps1` to automate it.
 
 ## Screenshots
 
-All 9 pages are shown in light and dark mode below (18 screenshots). Regenerate with
+Nine of the ten pages are shown in light and dark mode below (18 screenshots).
+The Feature Geography page does not yet have checked-in screenshots. Regenerate with
 `node scripts/capture-screenshots.js` (Playwright) while the server is running
 on `http://localhost:3000`. The script visits each route with both theme query
 strings, waits for any visible "Loading…" banner to clear (up to 45 s, since
@@ -264,8 +272,8 @@ server can start.
 
 ### Step 2 — Configure Microsoft Graph authentication
 
-*(Required only for the Message Center and Service Health pages. Skip this if
-you only need the other six pages.)*
+*(Required only for the Message Center, Service Health, and Azure Service Health
+pages. Skip this if you only need the seven public pages.)*
 
 The Message Center and Service Health pages pull data from
 [Microsoft Graph](https://learn.microsoft.com/graph/overview) — Microsoft's API
@@ -619,7 +627,7 @@ the `AUTH_MODE` environment variable (auto-inferred when it can be done safely):
 
 | `AUTH_MODE` | When to use | What it enforces |
 |-------------|-------------|------------------|
-| `easyauth` | Azure App Service with Entra ID Easy Auth enabled. **Auto-inferred** when `WEBSITE_INSTANCE_ID` is present. | Every `/api/*` request must carry a valid `X-MS-CLIENT-PRINCIPAL` header. The server base64-decodes the header, JSON-parses it, and requires `auth_typ=aad` plus an `oid` claim that matches the platform-injected `X-MS-CLIENT-PRINCIPAL-ID` header. **Header presence alone is not sufficient.** Additionally, the server warns at startup if `WEBSITE_AUTH_ENABLED` is not `True`. |
+| `easyauth` | Azure App Service with Entra ID Easy Auth enabled. **Auto-inferred** when `WEBSITE_INSTANCE_ID` is present. | Every `/api/*` request must carry a valid `X-MS-CLIENT-PRINCIPAL` header. The server base64-decodes the header, JSON-parses it, and requires `auth_typ=aad` plus an `oid` claim that matches the platform-injected `X-MS-CLIENT-PRINCIPAL-ID` header. **Header presence alone is not sufficient.** On App Service, protected requests are rejected with `AUTH_NOT_ENFORCED` unless the read-only platform signal `WEBSITE_AUTH_ENABLED` is `True`. |
 | `reverse-proxy` | Docker / VM / on-prem behind an authenticating reverse proxy (nginx, Traefik, Azure Front Door, etc.) on a trusted network. | Every `/api/*` request must carry `Authorization: Bearer <API_AUTH_TOKEN>`. `API_AUTH_TOKEN` is **required** — the server refuses to start without it. Compared in constant time. This is defense-in-depth between the proxy and the app: even if the proxy misroutes an unauthenticated request, the token still gates access. |
 | `none-loopback-only` | Local development on `127.0.0.1`/`::1`. **Auto-inferred** when `HOST` is loopback. | No token required. The server refuses to start under this mode if `HOST` is non-loopback. |
 
@@ -643,7 +651,7 @@ proper cryptographic-style header validator: spoofed values like
 
 | Feature | What it does | What it prevents |
 |---------|-------------|-----------------|
-| **Entra ID Easy Auth** | The Bicep infrastructure supports enabling Entra ID authentication on the App Service via the `authClientId` parameter. When set, all requests require an organizational sign-in before reaching the app. See [Quick Deploy](#quick-deploy). | Unauthorized access to tenant-sensitive Graph data, Azure Resource Health endpoints, and billed LLM API calls. |
+| **Entra ID Easy Auth** | Set the optional `authClientId` Bicep parameter to require organizational sign-in before any request reaches the App Service. Without it, public feeds remain available while tenant and AI API routes fail closed in the application. See [Quick Deploy](#quick-deploy). | Unauthorized access to tenant-sensitive Graph data, Azure Resource Health endpoints, and billed LLM API calls. |
 | **Managed identity support** | Preferred for Azure deployments (`USE_MANAGED_IDENTITY=true`). Azure issues and rotates tokens automatically — no client secret stored anywhere. See [Setup → Option A](#setup). | Credential leakage, secret sprawl, and manual rotation failures. |
 | **Admin endpoint auth** | The `/api/empty-products` endpoint is restricted to loopback addresses (`127.0.0.1`, `::1`). When `ADMIN_TOKEN` is set, a bearer token is additionally required for both reads and mutations, compared using `crypto.timingSafeEqual`. | Unauthorized cache manipulation and timing side-channel attacks on token comparison. |
 | **Graph token isolation** | OAuth bearer tokens for Microsoft Graph are **never** sent to any host other than `graph.microsoft.com`. If an `@odata.nextLink` points at a different host, the request is rejected. | Token exfiltration via open-redirect or DNS rebinding on upstream APIs. |
@@ -729,7 +737,7 @@ All responses include defense-in-depth headers:
 ## AI summarization (optional)
 
 The portal can call an LLM (Large Language Model) to surface what actually matters
-in the firehose of Microsoft updates. When enabled, every feed page shows:
+in the firehose of Microsoft updates. When enabled, seven supported feed pages show:
 
 - A **Top 5 most impactful changes** digest at the top of the page (covers the
   last 14 days, refreshed on demand), with one-line themes and an overall headline.
@@ -748,7 +756,7 @@ to `.env.example`.
 
 | Provider | Env vars to set | Pros | Cons | Cost |
 |----------|----------------|------|------|------|
-| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, *(optional)* `AZURE_OPENAI_API_VERSION` | Data stays in your Azure tenant (best for compliance); enterprise SLAs; content filtering built in | Requires an Azure OpenAI resource (need to [apply for access](https://aka.ms/oai/access) if you don't have one); most setup steps | Pay-per-token (very low with `gpt-4o-mini`) |
+| **Azure OpenAI** | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, *(optional)* `AZURE_OPENAI_API_VERSION` | Azure-managed data privacy controls; enterprise SLAs; content filtering built in | Requires an Azure OpenAI resource and organizational review of the selected region/model; most setup steps | Pay-per-token (very low with `gpt-4o-mini`) |
 | **OpenAI** | `OPENAI_API_KEY`, *(optional)* `OPENAI_MODEL`, `OPENAI_BASE_URL` | Fastest setup — just paste an API key; no Azure subscription needed | Data leaves your tenant; usage is billed to your OpenAI account | Pay-per-token |
 | **GitHub Models** | `GITHUB_TOKEN`, *(optional)* `GITHUB_MODEL` | **Free tier** — great for trying it out; no billing setup | Rate limits on free tier; data processed by GitHub; not for production workloads | Free (with limits) |
 
@@ -771,7 +779,10 @@ GITHUB_TOKEN=ghp_...
 ```
 
 Responses are cached in memory (summaries for 10 minutes, digests for 15 minutes)
-so repeat views don't burn tokens.
+so repeat views don't burn tokens. A per-process daily call budget defaults to 200
+and can be lowered with `LLM_DAILY_LIMIT`. Feed content, including tenant-specific
+Message Center or Service Health text, is sent to the provider you configure; use
+only a provider and region approved for that data.
 
 ## API Endpoints
 
@@ -807,7 +818,9 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /public/<file>` | Microsoft product / service SVG icons | None | — |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
-Rate limits are per-IP fixed-window counters; set `TRUST_PROXY=true` when running behind a reverse proxy so the limiter reads the client IP from `X-Forwarded-For`.
+Rate limits are per-IP fixed-window counters; set `TRUST_PROXY=true` only behind a
+trusted reverse proxy. The server prefers App Service's `X-Azure-ClientIP`, then the
+last `X-Forwarded-For` hop appended by the proxy.
 AI provider responses are cached in-memory (summarize: 10 min, digest: 15 min, hashed by input).
 The known-empty product cache is persisted to [`empty-products.json`](empty-products.json) so
 restarts don't lose the auto-skip list.

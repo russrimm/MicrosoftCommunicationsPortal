@@ -28,9 +28,8 @@ param runtimeVersion string = '24-lts'
 @description('App settings key-value pairs')
 param appSettings object = {}
 
-@minLength(1)
-@description('Entra ID (AAD) client ID for Easy Auth. Required to protect tenant-specific API endpoints.')
-param authClientId string
+@description('Optional Entra ID (AAD) client ID for Easy Auth. Tenant-specific APIs remain fail-closed when omitted.')
+param authClientId string = ''
 
 @description('Entra ID tenant ID for Easy Auth. Defaults to the deployment tenant.')
 param authTenantId string = tenant().tenantId
@@ -71,6 +70,12 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
       alwaysOn: true
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
+      // Lets App Service ping the app's existing /healthz endpoint every
+      // minute, remove unhealthy instances from the load balancer once
+      // scaled out, and auto-replace an instance unhealthy for 1h+. Safe
+      // with Easy Auth enabled — health check pings bypass it automatically.
+      // https://learn.microsoft.com/azure/app-service/monitor-instances-health-check
+      healthCheckPath: '/healthz'
       appCommandLine: 'node server.js'
       appSettings: concat(
         configuredAppSettings,
@@ -144,8 +149,10 @@ output principalId string = appService.identity.principalId
 output uri string = 'https://${appService.properties.defaultHostName}'
 
 // ── Entra ID Easy Auth (authsettingsV2) ─────────────────────────────────────
-// When authClientId is provided, require Entra ID sign-in for all requests.
-// Unauthenticated requests receive a 401/302 instead of reaching the app.
+// Optional for public-feed-only deployments. When omitted, the application
+// checks WEBSITE_AUTH_ENABLED before trusting Easy Auth headers and rejects
+// every protected API route with AUTH_NOT_ENFORCED.
+// https://learn.microsoft.com/azure/app-service/reference-app-settings#authentication-and-authorization
 resource authSettings 'Microsoft.Web/sites/config@2023-12-01' = if (!empty(authClientId)) {
   parent: appService
   name: 'authsettingsV2'
@@ -160,10 +167,11 @@ resource authSettings 'Microsoft.Web/sites/config@2023-12-01' = if (!empty(authC
         enabled: true
         registration: {
           clientId: authClientId
-          openIdIssuer: 'https://sts.windows.net/${authTenantId}/v2.0'
+          openIdIssuer: '${environment().authentication.loginEndpoint}${authTenantId}/v2.0'
         }
         validation: {
           allowedAudiences: [
+            authClientId
             'api://${authClientId}'
           ]
         }

@@ -74,7 +74,7 @@
       <div class="pptx-options">
         <h3>Report Options</h3>
         <div class="option-row">
-          <div class="option-label">Report Title</div>
+          <label class="option-label" for="reportTitle">Report Title</label>
           <input type="text" class="option-input" id="reportTitle" value="Microsoft Communications Report">
         </div>
         <div class="option-row">
@@ -384,7 +384,7 @@
           <button class="bulk-btn" data-act="selectAll" type="button">Select All</button>
           <button class="bulk-btn" data-act="clear" type="button">Clear</button>
         </div>
-        <input type="text" class="product-filter" placeholder="Filter ${items.length} items…" data-filter="${key}">
+        <input type="text" class="product-filter" placeholder="Filter ${items.length} items…" aria-label="Filter ${items.length} items" data-filter="${key}">
       `;
 
       groupKeys.forEach(g => {
@@ -807,20 +807,5 @@
   })();
   </script>
 
-  <!-- Theme toggle -->
-  <script>
-    (() => {
-      const btn = document.getElementById('theme-btn');
-      function applyTheme(t) {
-        document.documentElement.setAttribute('data-theme', t);
-        btn.textContent = t === 'dark' ? '☀️ Light' : '🌙 Dark';
-      }
-      applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
-      btn.addEventListener('click', () => {
-        const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-        applyTheme(next);
-      });
-    })();
-  </script>
 </body>
 </html>

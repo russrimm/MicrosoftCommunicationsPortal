@@ -9,6 +9,7 @@
 # Optional overrides:
 #   $env:APP_NAME    = 'Microsoft Communications Portal'
 #   $env:SECRET_DAYS = '180'  # client secret lifetime in days (default 180, local dev only)
+#   $env:AUTH_CLIENT_ID = '<existing-app-id>'  # required by the azd deployment
 
 [CmdletBinding()]
 param(
@@ -39,9 +40,18 @@ Write-Host "User   : $($acct.user.name)"
 # 2. Create or reuse the app registration
 Write-Host ""
 Write-Host "[1/6] App registration: $AppName" -ForegroundColor Yellow
-$existing = az ad app list --display-name "$AppName" --only-show-errors --query "[0]" | ConvertFrom-Json
+$existing = $null
+if ($env:AUTH_CLIENT_ID) {
+    $appJson = az ad app show --id $env:AUTH_CLIENT_ID --only-show-errors 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $appJson) {
+        throw "AUTH_CLIENT_ID does not identify an app registration accessible in the current tenant."
+    }
+    $existing = $appJson | ConvertFrom-Json
+} else {
+    $existing = az ad app list --display-name "$AppName" --only-show-errors --query "[0]" | ConvertFrom-Json
+}
 if ($existing) {
-    Write-Host "  Reusing existing app appId=$($existing.appId)"
+    Write-Host "  Reusing existing app '$($existing.displayName)' appId=$($existing.appId)"
     $appId = $existing.appId
 } else {
     $created = az ad app create `
@@ -87,6 +97,23 @@ Write-Host "[4/6] Admin consent" -ForegroundColor Yellow
 $webAppName = $env:SERVICE_WEB_NAME
 $azdEnvName = $env:AZURE_ENV_NAME
 $isAzdDeploy = $webAppName -and $azdEnvName
+
+if ($isAzdDeploy -and $env:SERVICE_WEB_URI) {
+    $redirectUri = "$($env:SERVICE_WEB_URI.TrimEnd('/'))/.auth/login/aad/callback"
+    $redirectUris = @(
+        az ad app show --id $appId --query "web.redirectUris" -o tsv --only-show-errors |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+    if ($redirectUri -notin $redirectUris) {
+        az ad app update --id $appId --web-redirect-uris @($redirectUris + $redirectUri) --only-show-errors | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not register the App Service Easy Auth callback URI on app $appId."
+        }
+        Write-Host "  Easy Auth callback registered: $redirectUri" -ForegroundColor Green
+    } else {
+        Write-Host "  Easy Auth callback already registered." -ForegroundColor DarkGray
+    }
+}
 
 if ($isAzdDeploy) {
     Write-Host "  Skipped (azd deploy detected — MI-only Graph access)." -ForegroundColor DarkGray
@@ -162,6 +189,11 @@ if ($isAzdDeploy) {
     Write-Host "AZURE_TENANT_ID = $tenantId"
     Write-Host "AZURE_CLIENT_ID = $appId"
     Write-Host "Azure deployment uses managed identity — no client secret created." -ForegroundColor Cyan
+    if (-not $env:AUTH_CLIENT_ID) {
+        Write-Warning "Easy Auth was not enabled for this deployment. To enable tenant sign-in, run:"
+        Write-Warning "  azd env set AUTH_CLIENT_ID $appId"
+        Write-Warning "  azd up"
+    }
 } else {
     $endDate = (Get-Date).AddDays($SecretDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
     Write-Host "[6/6] Client secret (valid $SecretDays days, expires $(($endDate).Substring(0,10)))" -ForegroundColor Yellow

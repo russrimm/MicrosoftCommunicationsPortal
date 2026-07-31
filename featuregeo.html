@@ -500,7 +500,7 @@
       const svg = panel.querySelector('svg');
       const tooltip = document.getElementById('fg-tooltip');
       panel.querySelectorAll('.fg-marker').forEach(marker => {
-        marker.addEventListener('mouseenter', () => {
+        const showTooltip = () => {
           const rect = svg.getBoundingClientRect();
           const scale = rect.width / window.CPWorldMap.width;
           const count = Number(marker.dataset.count);
@@ -509,8 +509,14 @@
           tooltip.style.left = `${Number(marker.dataset.x) * scale}px`;
           tooltip.style.top = `${Number(marker.dataset.y) * scale - MARKER_RADIUS * scale}px`;
           tooltip.hidden = false;
-        });
-        marker.addEventListener('mouseleave', () => { tooltip.hidden = true; });
+        };
+        const hideTooltip = () => { tooltip.hidden = true; };
+        marker.addEventListener('mouseenter', showTooltip);
+        marker.addEventListener('mouseleave', hideTooltip);
+        // Keyboard-equivalent: show/hide the same tooltip on focus/blur so
+        // keyboard users tabbing through markers get the same feature count.
+        marker.addEventListener('focus', showTooltip);
+        marker.addEventListener('blur', hideTooltip);
       });
     }
 

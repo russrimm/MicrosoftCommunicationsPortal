@@ -228,6 +228,9 @@ window.SubscriptionPicker = (() => {
     modal.querySelector('.sp-search').value = '';
     _loading = true;
     renderList('');
+    // Trap Tab focus inside the dialog (matches the export-modal pattern used
+    // elsewhere in the app) and remember the trigger so we can restore focus on close.
+    if (window.trapFocus) window.trapFocus(modal);
 
     try {
       const data = await fetchSubscriptions();
@@ -249,6 +252,7 @@ window.SubscriptionPicker = (() => {
 
   function close() {
     if (_modal) _modal.style.display = 'none';
+    if (window.releaseFocus) window.releaseFocus();
   }
 
   // ── Get current selection (for other scripts) ───────────────────────────

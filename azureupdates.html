@@ -72,7 +72,7 @@
         </label>
       </div>
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
-        <span id="au-result-count" style="font-size:12px;color:var(--cp-text-muted)"></span>
+        <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
         <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal">⬇ Export</button>
         <button class="export-btn" data-act="loadAzureUpdates">↻ Refresh</button>
       </div>
@@ -285,6 +285,17 @@
         el.classList.remove('open');
         const t = el.querySelector('.au-multi-toggle');
         if (t) t.setAttribute('aria-expanded', 'false');
+      });
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      document.querySelectorAll('.au-multi.open').forEach(el => {
+        el.classList.remove('open');
+        const t = el.querySelector('.au-multi-toggle');
+        if (t) {
+          t.setAttribute('aria-expanded', 'false');
+          if (el.contains(document.activeElement)) t.focus();
+        }
       });
     });
 

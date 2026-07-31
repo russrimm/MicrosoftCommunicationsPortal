@@ -1,17 +1,37 @@
 name: Build and push Docker image
 
 on:
-  push:
-    branches: [main]
+  pull_request:
     paths:
-      - 'server.js'
+      - '*.js'
       - '*.html'
       - 'static/**'
       - 'public/**'
+      - 'scripts/test-auth.js'
       - 'package.json'
       - 'package-lock.json'
+      - 'infra/**'
       - 'Dockerfile'
       - '.dockerignore'
+      - 'docker-compose.yml'
+      - 'azure.yaml'
+      - '.github/workflows/**'
+  push:
+    branches: [main]
+    paths:
+      - '*.js'
+      - '*.html'
+      - 'static/**'
+      - 'public/**'
+      - 'scripts/test-auth.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'infra/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker-compose.yml'
+      - 'azure.yaml'
+      - '.github/workflows/**'
   release:
     types: [published]
   workflow_dispatch:
@@ -20,24 +40,50 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+# Default to read-only; jobs elevate only the specific permission they need.
+permissions:
+  contents: read
+
 jobs:
+  # Gate: pull requests and every publish trigger must pass application and
+  # infrastructure validation.
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: az bicep build --file infra/main.bicep --stdout > /dev/null
+
   build-and-push:
+    if: github.event_name != 'pull_request'
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         id: meta
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -47,7 +93,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           push: true

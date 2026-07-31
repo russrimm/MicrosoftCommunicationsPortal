@@ -1,4 +1,8 @@
-# Pinned to a specific minor for reproducible builds; bump deliberately.
+# Pinned to the Node 24 major line on Alpine; bump deliberately. Note this
+# tag floats at the minor/patch level (mutable) — for byte-for-byte
+# reproducible builds, pin FROM to an immutable digest instead, e.g.
+# `node:24-alpine@sha256:<digest>` (see
+# https://docs.docker.com/build/building/best-practices/#pin-base-image-versions).
 FROM node:24-alpine
 
 ENV NODE_ENV=production
@@ -25,7 +29,11 @@ RUN mkdir -p /app && chown node:node /app
 WORKDIR /app
 
 COPY --chown=node:node package.json package-lock.json ./
-RUN npm ci --omit=dev
+# --ignore-scripts blocks arbitrary install/postinstall scripts from prod
+# dependencies (supply-chain hardening; see
+# https://docs.npmjs.com/cli/v10/commands/npm-ci#ignore-scripts). Safe here:
+# the only production dependency (dotenv) ships no install scripts.
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY --chown=node:node . .
 

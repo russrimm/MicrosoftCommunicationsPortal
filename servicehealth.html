@@ -654,7 +654,7 @@
         const timeStr = last ? `${formatShortDate(last)} · ${formatShortTime(last)}` : '';
         return `
           <div class="sh-modal-post" style="cursor:pointer" role="button" tabindex="0"
-               onclick="closeIssueModal(); setTimeout(function(){ openIssueModal('${escapeHtml(it.id)}'); }, 160)">
+               data-issue-id="${escapeHtml(it.id)}">
             <div class="sh-modal-post-head">
               <span class="sh-issue-pill sev-${sev}" style="font-size:10px"><span class="sh-issue-pill-dot"></span>${escapeHtml(status)}</span>
               <span>${escapeHtml(timeStr)}</span>
@@ -949,6 +949,26 @@
       ev.preventDefault();
       const id = card.getAttribute('data-issue-id');
       if (id) openIssueModal(id);
+    });
+    // Delegated handler for the "multiple issues on this day" heatmap picker
+    // list rendered by openHeatmapIssuePicker(). Regular issue update posts
+    // (rendered by openIssueModal) never carry data-issue-id, so they're
+    // inert here — only picker rows respond.
+    function openIssueFromPicker(id) {
+      if (!id) return;
+      closeIssueModal();
+      setTimeout(() => openIssueModal(id), 160);
+    }
+    document.getElementById('sh-modal-posts').addEventListener('click', (ev) => {
+      const row = ev.target.closest('.sh-modal-post[data-issue-id]');
+      if (row) openIssueFromPicker(row.getAttribute('data-issue-id'));
+    });
+    document.getElementById('sh-modal-posts').addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      const row = ev.target.closest('.sh-modal-post[data-issue-id]');
+      if (!row) return;
+      ev.preventDefault();
+      openIssueFromPicker(row.getAttribute('data-issue-id'));
     });
     document.getElementById('sh-modal-backdrop').addEventListener('click', (ev) => {
       if (ev.target === ev.currentTarget) closeIssueModal();
