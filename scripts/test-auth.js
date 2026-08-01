@@ -719,6 +719,20 @@ test('refreshable surfaces prevent stale responses', () => {
   assert.match(powerPlatform, /refreshBtn\.disabled = true/);
 });
 
+test('CI runs tests and lint on every push and pull request without publishing feature branches', () => {
+  const workflow = fs.readFileSync(
+    path.join(__dirname, '..', '.github', 'workflows', 'docker-publish.yml'),
+    'utf8'
+  );
+  assert.match(workflow, /pull_request:\s*\n/);
+  assert.match(workflow, /\n  push:\s*\n    paths:/);
+  assert.doesNotMatch(workflow, /\n  push:\s*\n    branches:/);
+  assert.match(workflow, /- run: npm test/);
+  assert.match(workflow, /- run: npm run lint/);
+  assert.match(workflow,
+    /github\.event_name != 'push' \|\| github\.ref == 'refs\/heads\/main'/);
+});
+
 test('every page has one primary heading and dynamic errors are announced', () => {
   const pages = fs.readdirSync(path.join(__dirname, '..'))
     .filter(name => name.endsWith('.html'));
