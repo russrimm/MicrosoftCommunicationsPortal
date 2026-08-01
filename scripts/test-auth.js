@@ -733,6 +733,15 @@ test('CI runs tests and lint on every push and pull request without publishing f
     /github\.event_name != 'push' \|\| github\.ref == 'refs\/heads\/main'/);
 });
 
+test('dependency provenance stays on the public npm registry', () => {
+  const npmrc = fs.readFileSync(path.join(__dirname, '..', '.npmrc'), 'utf8');
+  assert.equal(npmrc.trim(), 'registry=https://registry.npmjs.org/');
+
+  const lockfile = fs.readFileSync(path.join(__dirname, '..', 'package-lock.json'), 'utf8');
+  assert.doesNotMatch(lockfile, /ms-feed-\d+|visualstudio\.com|packagefeedproxy/i);
+  assert.doesNotMatch(lockfile, /"resolved":\s*"(?!https:\/\/registry\.npmjs\.org\/)/);
+});
+
 test('every page has one primary heading and dynamic errors are announced', () => {
   const pages = fs.readdirSync(path.join(__dirname, '..'))
     .filter(name => name.endsWith('.html'));
