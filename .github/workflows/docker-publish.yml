@@ -7,7 +7,8 @@ on:
       - '*.html'
       - 'static/**'
       - 'public/**'
-      - 'scripts/test-auth.js'
+      - 'scripts/**'
+      - 'eslint.config.js'
       - 'package.json'
       - 'package-lock.json'
       - 'infra/**'
@@ -17,13 +18,13 @@ on:
       - 'azure.yaml'
       - '.github/workflows/**'
   push:
-    branches: [main]
     paths:
       - '*.js'
       - '*.html'
       - 'static/**'
       - 'public/**'
-      - 'scripts/test-auth.js'
+      - 'scripts/**'
+      - 'eslint.config.js'
       - 'package.json'
       - 'package-lock.json'
       - 'infra/**'
@@ -63,10 +64,12 @@ jobs:
 
       - run: npm test
 
+      - run: npm run lint
+
       - run: az bicep build --file infra/main.bicep --stdout > /dev/null
 
   build-and-push:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (github.event_name != 'push' || github.ref == 'refs/heads/main')
     needs: test
     runs-on: ubuntu-latest
     permissions:

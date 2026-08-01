@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
+  <script src="/static/util.js?v=20260411-audit2"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -640,7 +640,7 @@
       window.ExportFormats.download({
         title:    'Microsoft Fabric Roadmap',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' feature' + (rows.length !== 1 ? 's' : ''),
-        baseFilename: 'fabric-roadmap-export-' + new Date().toISOString().slice(0, 10),
+        baseFilename: 'fabric-roadmap-export-' + window.CPUtil.formatDateInput(new Date()),
         columns:  ['Product', 'Feature', 'Status', 'Release Type', 'Timeline', 'Release Wave', 'Description'],
         rows: tableRows,
         format: format || 'html',
@@ -677,7 +677,7 @@
     <div class="gen-modal-backdrop" data-act="closeExportModal"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
+        <h2 class="gen-modal-title" id="gen-modal-title">Export</h2>
         <button class="gen-modal-close" type="button" data-act="closeExportModal" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
@@ -710,9 +710,9 @@
   </div>
 
   <script src="/static/product-icons.js" defer></script>
-  <script src="/static/outlook-export.js" defer></script>
-  <script src="/static/export-formats.js" defer></script>
+  <script src="/static/outlook-export.js?v=20260411-audit2" defer></script>
+  <script src="/static/export-formats.js?v=20260411-audit2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
-  <script src="/static/subscription-picker.js" defer></script>
+  <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>
 </html>

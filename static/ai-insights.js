@@ -6,6 +6,7 @@
   'use strict';
 
   const STATE = { enabled: null, provider: null, model: null, checked: false };
+  let statusRequest = null;
 
   function el(tag, attrs, children) {
     const e = document.createElement(tag);
@@ -87,20 +88,24 @@
 
   async function checkStatus() {
     if (STATE.checked) return STATE;
-    try {
-      const r = await fetch('/api/ai-status', { headers: { Accept: 'application/json' } });
-      const j = await r.json();
-      STATE.enabled = !!j.enabled;
-      STATE.provider = j.provider;
-      STATE.model = j.model;
-    } catch (_e) {
-      STATE.enabled = false;
+    if (!statusRequest) {
+      statusRequest = (async () => {
+        let next = { enabled: false, provider: null, model: null, checked: true };
+        try {
+          const r = await fetch('/api/ai-status', { headers: { Accept: 'application/json' } });
+          const j = await r.json();
+          next = { enabled: !!j.enabled, provider: j.provider, model: j.model, checked: true };
+        } catch (_e) {
+          // Keep the disabled state when status discovery is unavailable.
+        }
+        Object.assign(STATE, next);
+        return STATE;
+      })();
     }
-    STATE.checked = true;
-    return STATE;
+    return statusRequest;
   }
 
-  function renderDisabledPanel(panel, hostName) {
+  function renderDisabledPanel(panel) {
     panel.innerHTML = '';
     panel.appendChild(el('div', { class: 'cp-ai-header' }, [
       el('span', { class: 'cp-ai-title' }, ['✨ AI Insights']),
@@ -162,6 +167,8 @@
       }
       const data = await r.json();
       if (panel._digestToken !== token) return; // superseded by a newer request
+      // The token check makes this DOM write atomic with respect to newer requests.
+      // eslint-disable-next-line require-atomic-updates
       body.innerHTML = '';
       if (data.headline) {
         body.insertAdjacentHTML('beforeend', `<div class="cp-ai-headline">${esc(data.headline)}</div>`);
@@ -197,6 +204,8 @@
       }
     } catch (e) {
       if (panel._digestToken !== token) return; // superseded by a newer request
+      // The token check makes this DOM write atomic with respect to newer requests.
+      // eslint-disable-next-line require-atomic-updates
       body.innerHTML = `<div class="cp-ai-error">⚠️ Could not generate digest: ${esc(e.message)}</div>`;
     } finally {
       if (regenBtn && panel._digestToken === token) regenBtn.disabled = false;
@@ -271,7 +280,7 @@
     if (!mount) return;
     mount.parentNode.insertBefore(panel, mount);
     if (!status.enabled) {
-      renderDisabledPanel(panel, opts.source);
+      renderDisabledPanel(panel);
       return;
     }
     renderDigest(panel, opts.source, status);

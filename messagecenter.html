@@ -11,9 +11,9 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
+  <script src="/static/util.js?v=20260411-audit2"></script>
   <link rel="stylesheet" href="/static/common.css">
-  <link rel="stylesheet" href="/static/messagecenter.css">
+  <link rel="stylesheet" href="/static/messagecenter.css?v=20260411-audit2">
 </head>
 <body>
   <script src="/static/nav.js" defer></script>
@@ -85,6 +85,7 @@
         </div>
       </div>
     </div>
+    <div class="mc-data-warning" id="mc-data-warning" role="status" hidden></div>
     <div class="mc-messages" id="mc-messages-container">
       <div class="mc-loading" role="status" aria-live="polite">
         <div class="spinner" aria-hidden="true"></div>
@@ -110,24 +111,41 @@
 
   <script>
     let allMessages = [];
+    let messageCenterWarning = '';
+    let messageCenterRequest = null;
 
     // toggleTheme() and escapeHtml() are provided by /static/util.js.
 
     async function loadMessageCenter() {
+      if (messageCenterRequest) messageCenterRequest.abort();
+      const request = new AbortController();
+      messageCenterRequest = request;
       const container = document.getElementById('mc-messages-container');
+      const warningEl = document.getElementById('mc-data-warning');
+      const refreshBtn = document.getElementById('mc-refresh-btn');
+      refreshBtn.disabled = true;
       container.innerHTML = '<div class="mc-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading…</span></div>';
       try {
-        const res = await fetch('/api/messagecenter');
+        const res = await fetch('/api/messagecenter', { signal: request.signal });
         const data = await res.json();
         if (data.error) {
           container.innerHTML = `<div class="mc-empty">⚠️ ${escapeHtml(data.error)}</div>`;
           return;
         }
+        messageCenterWarning = data.warning || '';
+        warningEl.textContent = messageCenterWarning;
+        warningEl.hidden = !messageCenterWarning;
         allMessages = data.messages || [];
         populateServiceFilter();
         filterMessages();
       } catch (err) {
+        if (err.name === 'AbortError') return;
         container.innerHTML = `<div class="mc-empty">❌ Failed to load: ${escapeHtml(err.message)}</div>`;
+      } finally {
+        if (messageCenterRequest === request) {
+          messageCenterRequest = null;
+          refreshBtn.disabled = false;
+        }
       }
     }
 
@@ -258,8 +276,8 @@
       const now = new Date();
       const from = new Date(now); from.setDate(from.getDate() - days);
       const to   = new Date(now); to.setDate(to.getDate() + days);
-      document.getElementById('mc-date-from').value = from.toISOString().slice(0, 10);
-      document.getElementById('mc-date-to').value   = to.toISOString().slice(0, 10);
+      document.getElementById('mc-date-from').value = window.CPUtil.formatDateInput(from);
+      document.getElementById('mc-date-to').value   = window.CPUtil.formatDateInput(to);
       updateDatePresetButtons(days);
       filterMessages();
     }
@@ -280,8 +298,10 @@
       const severity = document.getElementById('mc-severity-filter').value;
       const sortBy   = document.getElementById('mc-sort').value;
       const search   = (document.getElementById('mc-search').value || '').toLowerCase().trim();
-      const dateFrom = new Date(document.getElementById('mc-date-from').value || '1970-01-01');
-      const dateTo   = new Date(document.getElementById('mc-date-to').value || '2099-12-31');
+      const dateBounds = window.CPUtil.dateInputBounds(
+        document.getElementById('mc-date-from').value,
+        document.getElementById('mc-date-to').value
+      );
       const serviceFilterActive = selectedServices.size > 0 && selectedServices.size < allServiceNames.length;
 
       const filtered = allMessages.filter(msg => {
@@ -290,7 +310,7 @@
         const msgServices = (msg.services || []).map(s => getServiceName(s)).filter(Boolean);
         const msgText     = ((msg.title || '') + ' ' + (msg.details || msg.description || msg.summary || '')).toLowerCase();
 
-        return msgDate >= dateFrom && msgDate <= dateTo &&
+        return msgDate.getTime() >= dateBounds.from && msgDate.getTime() < dateBounds.toExclusive &&
                (!severity || msgSeverity === severity) &&
                (!serviceFilterActive || msgServices.some(s => selectedServices.has(s))) &&
                (!search   || msgText.includes(search));
@@ -523,16 +543,6 @@
       if (e.key === 'Escape') closeMessage();
     });
 
-    function safeUrl(value) {
-      if (!value) return '#';
-      const trimmed = String(value).trim();
-      // Reject javascript:, data:, vbscript:, file:, and other non-safe schemes.
-      if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
-        if (!/^(https?|mailto|tel):/i.test(trimmed)) return '#';
-      }
-      return trimmed;
-    }
-
     function formatMcHeadings(html) {
       // Convert bracket-wrapped headings like [What and Why] into styled heading elements
       return html.replace(/\[([A-Za-z][A-Za-z0-9 ,/&:'\-–—]{0,80})\]/g, (_, heading) => {
@@ -609,8 +619,8 @@
       const now = new Date();
       const from = new Date(now); from.setDate(from.getDate() - days);
       const to   = new Date(now); to.setDate(to.getDate() + days);
-      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
-      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
+      document.getElementById('gen-from-date').value = window.CPUtil.formatDateInput(from);
+      document.getElementById('gen-to-date').value   = window.CPUtil.formatDateInput(to);
       updateExportCount();
     }
     function filterExportProductSearch() {
@@ -625,8 +635,7 @@
     function computeExportRows() {
       const fromVal = document.getElementById('gen-from-date').value;
       const toVal   = document.getElementById('gen-to-date').value;
-      const from = fromVal ? new Date(fromVal).getTime() : -Infinity;
-      const to   = toVal ? (new Date(toVal).getTime() + 86399999) : Infinity;
+      const bounds = window.CPUtil.dateInputBounds(fromVal, toVal);
       const datesActive = !!(fromVal || toVal);
       const selected = getSelectedExportProducts();
       const all = EXPORT_MODAL_CONFIG.getAllRows() || [];
@@ -634,7 +643,7 @@
         const ts = EXPORT_MODAL_CONFIG.getDate(row);
         if (datesActive) {
           if (ts == null) return false;
-          if (ts < from || ts > to) return false;
+          if (ts < bounds.from || ts >= bounds.toExclusive) return false;
         }
         const prods = getExportProducts(row);
         return prods.some(p => selected.has(p));
@@ -685,13 +694,7 @@
           .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         const statusHtml = window.OutlookExport.escapeHtml(status) + (isMajor ? ' <strong>(Major)</strong>' : '');
         return [
-          {
-            html: window.OutlookExport.link(
-              messageId ? 'https://www.mspulse360.app/message/' + encodeURIComponent(messageId) : '',
-              messageId
-            ),
-            nowrap: true,
-          },
+          messageId ? { html: messageLink, nowrap: true } : messageLink,
           services,
           msg.title || '—',
           msg.category || '—',
@@ -706,9 +709,10 @@
       const now = new Date().toLocaleString();
       window.ExportFormats.download({
         title:    'Microsoft 365 Message Center',
-        subtitle: 'Exported ' + now + ' • ' + rows.length + ' message' + (rows.length !== 1 ? 's' : ''),
-        filename: 'messagecenter-export-' + new Date().toISOString().slice(0,10) + '.html',
-        baseFilename: 'messagecenter-export-' + new Date().toISOString().slice(0,10),
+        subtitle: 'Exported ' + now + ' • ' + rows.length + ' message' + (rows.length !== 1 ? 's' : '') +
+          (messageCenterWarning ? ' • Partial data: ' + messageCenterWarning : ''),
+        filename: 'messagecenter-export-' + window.CPUtil.formatDateInput(new Date()) + '.html',
+        baseFilename: 'messagecenter-export-' + window.CPUtil.formatDateInput(new Date()),
         columns:  ['Message ID', 'Product / Service', 'Title', 'Category', 'Severity', 'Status',
                    'Published', 'Last Modified', 'Summary'],
         rows: tableRows,
@@ -771,7 +775,7 @@
     <div class="gen-modal-backdrop" id="gen-modal-backdrop"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
+        <h2 class="gen-modal-title" id="gen-modal-title">Export</h2>
         <button class="gen-modal-close" id="gen-modal-close-btn" type="button" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
@@ -840,9 +844,9 @@
   </script>
 
   <script src="/static/product-icons.js" defer></script>
-  <script src="/static/outlook-export.js" defer></script>
-  <script src="/static/export-formats.js" defer></script>
+  <script src="/static/outlook-export.js?v=20260411-audit2" defer></script>
+  <script src="/static/export-formats.js?v=20260411-audit2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
-  <script src="/static/subscription-picker.js" defer></script>
+  <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>
 </html>

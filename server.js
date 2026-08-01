@@ -10,7 +10,9 @@ const path  = require('path');
 const zlib  = require('zlib');
 const crypto = require('crypto');
 const {
+  collectPaginated,
   createTtlCache,
+  mergeServiceHealth,
   mergeVaryHeaders,
   parseBoundedInteger,
   rateLimitBucketKey,
@@ -710,11 +712,11 @@ function getM365AccessToken(done) {
 // ("/v1.0/...") or an absolute https URL (used for @odata.nextLink).
 function graphGet(token, pathOrUrl, done) {
   let hostname = 'graph.microsoft.com';
-  let path = pathOrUrl;
+  let requestPath = pathOrUrl;
   if (/^https?:\/\//i.test(pathOrUrl)) {
     const u = new URL(pathOrUrl);
     hostname = u.hostname;
-    path = u.pathname + u.search;
+    requestPath = u.pathname + u.search;
   }
   // Only ever send the bearer token to Microsoft Graph. A malicious/misconfigured
   // @odata.nextLink pointing at another host must never receive our access token.
@@ -723,7 +725,7 @@ function graphGet(token, pathOrUrl, done) {
   }
   const options = {
     hostname,
-    path,
+    path: requestPath,
     method: 'GET',
     agent: keepAliveAgent,
     headers: {
@@ -746,31 +748,13 @@ function graphGet(token, pathOrUrl, done) {
 
 // Fetch all pages by following @odata.nextLink. Stops at maxPages as a safety.
 function graphGetAllPages(token, firstPath, maxPages, done) {
-  const collected = [];
-  let lastStatus = 200;
-  let pages = 0;
-
-  function step(pathOrUrl) {
-    graphGet(token, pathOrUrl, (err, result) => {
-      if (err) return done(err);
-      pages++;
-      const { status, body } = result;
-      lastStatus = status;
-      // If the call errored, return what we have plus the error body so the
-      // route can surface a useful message.
-      if (status >= 400 || !body) {
-        return done(null, { status, body: { value: collected, error: body && body.error } });
-      }
-      if (Array.isArray(body.value)) collected.push(...body.value);
-      const next = body['@odata.nextLink'];
-      if (next && pages < maxPages) {
-        return step(next);
-      }
-      done(null, { status: lastStatus, body: { value: collected } });
-    });
-  }
-
-  step(firstPath);
+  collectPaginated(
+    (pathOrUrl, callback) => graphGet(token, pathOrUrl, callback),
+    firstPath,
+    maxPages,
+    body => body['@odata.nextLink'],
+    done
+  );
 }
 
 // Fetch Message Center messages from Microsoft Graph (all pages, last 30 days)
@@ -807,9 +791,6 @@ function fetchServiceHealthIssues(token, done) {
     (cb) => graphGetAllPages(token, `/v1.0/admin/serviceAnnouncement/issues?${query.toString()}`, 10, cb),
     done);
 }
-
-// (legacy kept for shape compatibility)
-function _fetchMessageCenterMessages_shape() { /* removed: superseded by graphGetAllPages */ }
 
 // ── Azure Resource Health (ARM REST API) ─────────────────────────────────────
 // Uses the Azure Management plane (management.azure.com) to query Resource Health
@@ -877,14 +858,17 @@ function getSelectedSubscriptionIds(req) {
   return [];
 }
 
-// Helper: return the set of subscription IDs the service principal can access
-// (from the cached ARM response). Returns null if the cache is cold / expired.
-function getAccessibleSubscriptionIds() {
+// Helper: return the cached subscription access snapshot. Partial discovery
+// results must never be treated as an authoritative authorization list.
+function getAccessibleSubscriptionSnapshot() {
   const hit = upstreamCache.get('arm:subscriptions');
   if (!hit || hit.expires <= Date.now()) return null;
   const body = hit.value && hit.value.body;
   const subs = (body && body.value) || [];
-  return new Set(subs.map(s => (s.subscriptionId || '').toLowerCase()));
+  return {
+    ids: new Set(subs.map(s => (s.subscriptionId || '').toLowerCase())),
+    complete: !!body && !body.truncated && !body.partialFailure,
+  };
 }
 
 // Strict UUID v4-ish format guard for subscription IDs.
@@ -1071,29 +1055,42 @@ function armGet(token, pathOrUrl, done) {
 
 // Fetch all pages from ARM by following nextLink.
 function armGetAllPages(token, firstPath, maxPages, done) {
-  const collected = [];
-  let lastStatus = 200;
-  let pages = 0;
+  collectPaginated(
+    (pathOrUrl, callback) => armGet(token, pathOrUrl, callback),
+    firstPath,
+    maxPages,
+    body => body.nextLink || body['@odata.nextLink'],
+    done
+  );
+}
 
-  function step(pathOrUrl) {
-    armGet(token, pathOrUrl, (err, result) => {
-      if (err) return done(err);
-      pages++;
-      const { status, body } = result;
-      lastStatus = status;
-      if (status >= 400 || !body) {
-        return done(null, { status, body: { value: collected, error: body && body.error } });
-      }
-      if (Array.isArray(body.value)) collected.push(...body.value);
-      const next = body.nextLink || body['@odata.nextLink'];
-      if (next && pages < maxPages) {
-        return step(next);
-      }
-      done(null, { status: lastStatus, body: { value: collected } });
-    });
+function paginationWarning(body, source) {
+  if (!body) return null;
+  if (body.truncated) {
+    return `${source} reached its ${body.pages}-page safety limit; results are partial.`;
   }
+  if (body.partialFailure) {
+    const completedPages = Math.max(1, Number(body.pages || 1) - 1);
+    return `${source} stopped after ${completedPages} successful page${completedPages === 1 ? '' : 's'} because a later page failed; results are partial.`;
+  }
+  return null;
+}
 
-  step(firstPath);
+function paginatedResponseStatus(status, body) {
+  return body && body.partialFailure ? 200 : (status >= 400 ? status : 200);
+}
+
+function armListPayload(body, extra, source) {
+  const value = (body && body.value) || [];
+  const warning = paginationWarning(body, source);
+  return {
+    value,
+    count: value.length,
+    ...(extra || {}),
+    error: !warning && body && body.error ? redactUpstreamError(body.error) : null,
+    partial: !!warning,
+    warning,
+  };
 }
 
 // ── Resource Health fetch functions ──────────────────────────────────────────
@@ -1609,7 +1606,6 @@ loadEmptyProducts();
 const {
   AUTH_MODE_EASYAUTH,
   AUTH_MODE_REVERSE_PROXY,
-  AUTH_MODE_NONE_LOOPBACK,
   timingSafeEqualStr,
   redactUpstreamError,
   resolveAuthMode,
@@ -1896,11 +1892,14 @@ const server = http.createServer((req, res) => {
           state: s.state || '',
           tenantId: s.tenantId || '',
         }));
-        sendJson(req, res, status >= 400 ? status : 200, {
+        const warning = paginationWarning(body, 'Azure subscription discovery');
+        sendJson(req, res, paginatedResponseStatus(status, body), {
           value: subs,
           count: subs.length,
           selected: getSessionSelection(ensureSessionCookie(req, res)),
-          error: body && body.error ? redactUpstreamError(body.error) : null,
+          error: !warning && body && body.error ? redactUpstreamError(body.error) : null,
+          partial: !!warning,
+          warning,
         }, { 'Cache-Control': 'max-age=300, stale-while-revalidate=600' });
       });
     });
@@ -1916,15 +1915,10 @@ const server = http.createServer((req, res) => {
       sendJson(req, res, 200, { selected: getSessionSelection(sid) });
       return;
     }
-    // POST — update selection (scoped to this session's cookie)
-    // When ADMIN_TOKEN is configured, additionally require it for defense-in-depth.
+    // POST — update selection (scoped to this session's cookie). The universal
+    // API auth guard already protects this route; ADMIN_TOKEN is intentionally
+    // reserved for loopback administrative mutations and is never exposed to UI.
     if (req.method === 'POST') {
-      if (process.env.ADMIN_TOKEN) {
-        const auth = req.headers['authorization'] || '';
-        if (!timingSafeEqualStr(auth, `Bearer ${process.env.ADMIN_TOKEN}`)) {
-          return sendJson(req, res, 403, { error: 'Forbidden: valid ADMIN_TOKEN required for state mutations' });
-        }
-      }
       readJsonBody(req, (bodyErr, data) => {
         if (bodyErr) return sendJson(req, res, bodyErr.statusCode || 400, { error: bodyErr.message });
         if (!Array.isArray(data.selected)) {
@@ -1942,9 +1936,14 @@ const server = http.createServer((req, res) => {
         }
 
         // Guard: validate every requested ID is in the set the service principal can actually access
-        const accessible = getAccessibleSubscriptionIds();
+        const accessible = getAccessibleSubscriptionSnapshot();
+        if (accessible && !accessible.complete && cleaned.length > 0) {
+          return sendJson(req, res, 503, {
+            error: 'Subscription discovery is incomplete. Please retry after the Azure subscription list refreshes.'
+          });
+        }
         if (accessible) {
-          const unauthorized = cleaned.filter(s => !accessible.has(s.id.toLowerCase()));
+          const unauthorized = cleaned.filter(s => !accessible.ids.has(s.id.toLowerCase()));
           if (unauthorized.length > 0) {
             return sendJson(req, res, 403, {
               error: 'One or more subscription IDs are not accessible to this service: ' + unauthorized.map(s => s.id).join(', ')
@@ -1990,10 +1989,10 @@ const server = http.createServer((req, res) => {
         return;
       }
 
-      fetchMessageCenterMessages(token, (err, result) => {
-        if (err) {
-          console.error('[messagecenter] fetch error:', err.message);
-          sendJson(req, res, 502, { messages: [], error: err.message });
+      fetchMessageCenterMessages(token, (fetchErr, result) => {
+        if (fetchErr) {
+          console.error('[messagecenter] fetch error:', fetchErr.message);
+          sendJson(req, res, 502, { messages: [], error: fetchErr.message });
           return;
         }
 
@@ -2001,11 +2000,14 @@ const server = http.createServer((req, res) => {
         const error = body && body.error
           ? describeGraphError(status, body.error, 'ServiceMessage.Read.All')
           : null;
+        const warning = paginationWarning(body, 'Message Center');
         if (error) console.error('[messagecenter] graph error:', status, error);
-        sendJson(req, res, status, {
+        sendJson(req, res, paginatedResponseStatus(status, body), {
           messages: body.value || [],
           count: (body.value || []).length,
-          error,
+          error: warning ? null : error,
+          partial: !!warning,
+          warning,
         }, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
       });
     });
@@ -2043,36 +2045,42 @@ const server = http.createServer((req, res) => {
           : null;
         if (error) console.error('[servicehealth] graph error:', status, error);
 
+        const warnings = [];
         let allIssues = [];
-        if (!issuesResult.err && issuesResult.result && issuesResult.result.body && issuesResult.result.body.value) {
-          allIssues = issuesResult.result.body.value;
+        if (issuesResult.err) {
+          warnings.push('Issue history is temporarily unavailable.');
+          console.error('[servicehealth] issues fetch error:', issuesResult.err.message);
+        } else if (issuesResult.result) {
+          const issuesBody = issuesResult.result.body || {};
+          const pagination = paginationWarning(issuesBody, 'Service Health issue history');
+          if (pagination) {
+            allIssues = issuesBody.value || [];
+            warnings.push(pagination);
+            if (issuesBody.error) {
+              console.error('[servicehealth] partial issues graph error:', issuesResult.result.status,
+                describeGraphError(issuesResult.result.status, issuesBody.error, 'ServiceHealth.Read.All'));
+            }
+          } else if (issuesResult.result.status >= 400 || issuesBody.error) {
+            warnings.push('Issue history is temporarily unavailable.');
+            console.error('[servicehealth] issues graph error:', issuesResult.result.status,
+              describeGraphError(issuesResult.result.status, issuesBody.error, 'ServiceHealth.Read.All'));
+          } else {
+            allIssues = issuesBody.value || [];
+          }
         }
 
-        const services = body.value || [];
-        const serviceMap = new Map(services.map(s => [s.service || s.id, s]));
-        for (const issue of allIssues) {
-          const svcName = issue.service || 'Unknown Service';
-          let svc = serviceMap.get(svcName);
-          if (!svc) {
-            svc = { service: svcName, id: svcName, status: 'serviceOperational', issues: [] };
-            serviceMap.set(svcName, svc);
-            services.push(svc);
-          }
-          if (!svc.issues) svc.issues = [];
-          const existingIds = new Set(svc.issues.map(i => i.id));
-          if (!existingIds.has(issue.id)) {
-            svc.issues.push(issue);
-          }
-        }
+        const services = mergeServiceHealth(body.value || [], allIssues);
 
         sendJson(req, res, status, {
           services,
           count: services.length,
           error,
+          partial: warnings.length > 0,
+          warning: warnings.join(' '),
         }, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
       }
-      fetchServiceHealth(token, (err, r) => { healthResult = { err, result: r }; tryFinishServiceHealth(); });
-      fetchServiceHealthIssues(token, (err, r) => { issuesResult = { err, result: r }; tryFinishServiceHealth(); });
+      fetchServiceHealth(token, (healthErr, r) => { healthResult = { err: healthErr, result: r }; tryFinishServiceHealth(); });
+      fetchServiceHealthIssues(token, (issuesErr, r) => { issuesResult = { err: issuesErr, result: r }; tryFinishServiceHealth(); });
     });
     return;
   }
@@ -2211,23 +2219,23 @@ const server = http.createServer((req, res) => {
         // Other product IDs return malformed JSON containing Liquid templating errors —
         // e.g. literal "Liquid error: ..." text inside what should be arrays. We still
         // want to treat those as "no release plan published" rather than fail.
-        let parsed = null;
-        try { parsed = JSON.parse(body); } catch { /* not JSON */ }
+        let parsedBody = null;
+        try { parsedBody = JSON.parse(body); } catch { /* not JSON */ }
         // Recover the "empty results" case from malformed bodies: if strict parse
         // failed but the body unambiguously contains `"results": []`, treat as empty.
-        const looksLikeEmpty = !parsed && /["']results["']\s*:\s*\[\s*\]/.test(body);
-        const count = parsed && Array.isArray(parsed.results) ? parsed.results.length : 0;
-        const isEmpty = (parsed && count === 0) || looksLikeEmpty;
+        const looksLikeEmpty = !parsedBody && /["']results["']\s*:\s*\[\s*\]/.test(body);
+        const count = parsedBody && Array.isArray(parsedBody.results) ? parsedBody.results.length : 0;
+        const isEmpty = (parsedBody && count === 0) || looksLikeEmpty;
       // Only log non-success or noteworthy cases; normal 200 responses stay quiet.
-      if (status !== 200 || looksLikeEmpty || !parsed) {
-        console.log(`[proxy] ${status} ${productId} \u2192 ${count} results (${body.length} bytes)${looksLikeEmpty ? ' [recovered-empty]' : ''}${!parsed ? ' [unparseable]' : ''}`);
+      if (status !== 200 || looksLikeEmpty || !parsedBody) {
+        console.log(`[proxy] ${status} ${productId} \u2192 ${count} results (${body.length} bytes)${looksLikeEmpty ? ' [recovered-empty]' : ''}${!parsedBody ? ' [unparseable]' : ''}`);
       }
         // Update empty-product cache based on this response.
         if (productId) {
           if (isEmpty) recordEmpty(productId);
-          else if (parsed && count > 0) clearEmpty(productId);
+          else if (parsedBody && count > 0) clearEmpty(productId);
         }
-        if (parsed) {
+        if (parsedBody) {
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
             'X-Content-Type-Options': 'nosniff',
@@ -2354,7 +2362,7 @@ const server = http.createServer((req, res) => {
       }
       const headers = {
         'Content-Type': cached.contentType,
-        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+        'Cache-Control': 'public, no-cache',
         'ETag': cached.etag,
         'X-Content-Type-Options': 'nosniff',
         'Vary': 'Accept-Encoding',
@@ -2386,7 +2394,7 @@ const server = http.createServer((req, res) => {
         }
         const headers = {
           'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+          'Cache-Control': 'public, no-cache',
           'ETag': etag,
           'X-Content-Type-Options': 'nosniff',
           'Vary': 'Accept-Encoding',
@@ -2401,7 +2409,7 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, headers); res.end(buf);
       };
       if (shouldGzip) {
-        zlib.gzip(buf, (err, gz) => finalize(err ? null : gz));
+        zlib.gzip(buf, (gzipErr, gz) => finalize(gzipErr ? null : gz));
       } else {
         finalize(null);
       }
@@ -2441,8 +2449,8 @@ const server = http.createServer((req, res) => {
       };
       const accept = (req.headers['accept-encoding'] || '').toLowerCase();
       if (ext === '.svg' && accept.includes('gzip') && buf.length > 4096) {
-        zlib.gzip(buf, (err, gz) => {
-          if (err) { headers['Content-Length'] = buf.length; res.writeHead(200, headers); res.end(buf); return; }
+        zlib.gzip(buf, (gzipErr, gz) => {
+          if (gzipErr) { headers['Content-Length'] = buf.length; res.writeHead(200, headers); res.end(buf); return; }
           headers['Content-Encoding'] = 'gzip';
           headers['Content-Length'] = gz.length;
           res.writeHead(200, headers); res.end(gz);
@@ -2485,11 +2493,9 @@ const server = http.createServer((req, res) => {
             return sendJson(req, res, 502, { error: err2.message });
           }
           const { status, body } = result;
-          sendJson(req, res, status >= 400 ? status : 200, {
-            value: (body && body.value) || [],
-            count: ((body && body.value) || []).length,
-            error: body && body.error ? redactUpstreamError(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
+          sendJson(req, res, paginatedResponseStatus(status, body),
+            armListPayload(body, null, 'Azure emerging issues'),
+            { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2522,12 +2528,9 @@ const server = http.createServer((req, res) => {
             return sendJson(req, res, 502, { error: err2.message });
           }
           const { status, body } = result;
-          sendJson(req, res, status >= 400 ? status : 200, {
-            value: (body && body.value) || [],
-            count: ((body && body.value) || []).length,
-            subscriptionId,
-            error: body && body.error ? redactUpstreamError(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
+          sendJson(req, res, paginatedResponseStatus(status, body),
+            armListPayload(body, { subscriptionId }, 'Azure Resource Health events'),
+            { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2560,12 +2563,9 @@ const server = http.createServer((req, res) => {
             return sendJson(req, res, 502, { error: err2.message });
           }
           const { status, body } = result;
-          sendJson(req, res, status >= 400 ? status : 200, {
-            value: (body && body.value) || [],
-            count: ((body && body.value) || []).length,
-            subscriptionId,
-            error: body && body.error ? redactUpstreamError(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
+          sendJson(req, res, paginatedResponseStatus(status, body),
+            armListPayload(body, { subscriptionId }, 'Azure availability statuses'),
+            { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2600,13 +2600,9 @@ const server = http.createServer((req, res) => {
             return sendJson(req, res, 502, { error: err2.message });
           }
           const { status, body } = result;
-          sendJson(req, res, status >= 400 ? status : 200, {
-            value: (body && body.value) || [],
-            count: ((body && body.value) || []).length,
-            subscriptionId,
-            eventTrackingId,
-            error: body && body.error ? redactUpstreamError(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
+          sendJson(req, res, paginatedResponseStatus(status, body),
+            armListPayload(body, { subscriptionId, eventTrackingId }, 'Azure impacted resources'),
+            { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2636,12 +2632,9 @@ const server = http.createServer((req, res) => {
             return sendJson(req, res, 502, { error: err2.message });
           }
           const { status, body } = result;
-          sendJson(req, res, status >= 400 ? status : 200, {
-            value: (body && body.value) || [],
-            count: ((body && body.value) || []).length,
-            resourceUri,
-            error: body && body.error ? redactUpstreamError(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
+          sendJson(req, res, paginatedResponseStatus(status, body),
+            armListPayload(body, { resourceUri }, 'Azure resource events'),
+            { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;
@@ -2672,12 +2665,9 @@ const server = http.createServer((req, res) => {
             return sendJson(req, res, 502, { error: err2.message });
           }
           const { status, body } = result;
-          sendJson(req, res, status >= 400 ? status : 200, {
-            value: (body && body.value) || [],
-            count: ((body && body.value) || []).length,
-            resourceUri,
-            error: body && body.error ? redactUpstreamError(body.error) : null,
-          }, { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
+          sendJson(req, res, paginatedResponseStatus(status, body),
+            armListPayload(body, { resourceUri }, 'Azure resource availability'),
+            { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
       });
       return;

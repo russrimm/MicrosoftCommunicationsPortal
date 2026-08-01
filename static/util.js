@@ -174,6 +174,52 @@
     }
   }
 
+  function parseDateInput(value) {
+    var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+    if (!match) return null;
+    var year = Number(match[1]);
+    var month = Number(match[2]) - 1;
+    var day = Number(match[3]);
+    var date = new Date(year, month, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
+    return date;
+  }
+
+  function formatDateInput(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+    return [
+      String(date.getFullYear()).padStart(4, '0'),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0')
+    ].join('-');
+  }
+
+  function dateInputBounds(fromValue, toValue) {
+    var fromDate = parseDateInput(fromValue);
+    var toDate = parseDateInput(toValue);
+    var toExclusive = null;
+    if (toDate) {
+      toExclusive = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate() + 1);
+    }
+
+    return {
+      from: fromDate ? fromDate.getTime() : -Infinity,
+      toExclusive: toExclusive ? toExclusive.getTime() : Infinity
+    };
+  }
+
+  function releaseMonthCutoff(now) {
+    var date = now instanceof Date && !isNaN(now.getTime()) ? now : new Date();
+    var cutoff = new Date(date.getFullYear() - 1, date.getMonth(), 1);
+    return formatDateInput(cutoff).slice(0, 7);
+  }
+
+  function csvCell(value) {
+    var text = String(value == null ? '' : value);
+    if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+
   // ── Focus trap for modals ────────────────────────────────────────────────
   var FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
   var _focusTrapState = null;
@@ -316,6 +362,10 @@
     safeUrl: safeUrl,
     sanitizeHtml: sanitizeHtml,
     stripHtml: stripHtml,
+    formatDateInput: formatDateInput,
+    dateInputBounds: dateInputBounds,
+    releaseMonthCutoff: releaseMonthCutoff,
+    csvCell: csvCell,
     renderLoading: renderLoading,
     renderError: renderError,
     renderEmpty: renderEmpty,

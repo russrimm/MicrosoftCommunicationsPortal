@@ -212,7 +212,10 @@
     const url  = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = spec.filename || ('export-' + new Date().toISOString().slice(0, 10) + '.html');
+    const date = window.CPUtil && window.CPUtil.formatDateInput
+      ? window.CPUtil.formatDateInput(new Date())
+      : new Date().toISOString().slice(0, 10);
+    a.download = spec.filename || ('export-' + date + '.html');
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);

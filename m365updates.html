@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
+  <script src="/static/util.js?v=20260411-audit2"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -583,8 +583,8 @@
       const now = new Date();
       const from = new Date(now); from.setDate(from.getDate() - days);
       const to   = new Date(now); to.setDate(to.getDate() + days);
-      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
-      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
+      document.getElementById('gen-from-date').value = window.CPUtil.formatDateInput(from);
+      document.getElementById('gen-to-date').value   = window.CPUtil.formatDateInput(to);
       updateExportCount();
     }
     function filterExportProductSearch() {
@@ -599,8 +599,7 @@
     function computeExportRows() {
       const fromVal = document.getElementById('gen-from-date').value;
       const toVal   = document.getElementById('gen-to-date').value;
-      const from = fromVal ? new Date(fromVal).getTime() : -Infinity;
-      const to   = toVal ? (new Date(toVal).getTime() + 86399999) : Infinity;
+      const bounds = window.CPUtil.dateInputBounds(fromVal, toVal);
       const datesActive = !!(fromVal || toVal);
       const selected = getSelectedExportProducts();
       const all = EXPORT_MODAL_CONFIG.getAllRows() || [];
@@ -608,7 +607,7 @@
         const ts = EXPORT_MODAL_CONFIG.getDate(row);
         if (datesActive) {
           if (ts == null) return false;
-          if (ts < from || ts > to) return false;
+          if (ts < bounds.from || ts >= bounds.toExclusive) return false;
         }
         const prods = getExportProducts(row);
         return prods.some(p => selected.has(p));
@@ -667,7 +666,7 @@
       window.ExportFormats.download({
         title:    'Microsoft 365 Roadmap',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' update' + (rows.length !== 1 ? 's' : ''),
-        baseFilename: 'm365updates-export-' + new Date().toISOString().slice(0,10),
+        baseFilename: 'm365updates-export-' + window.CPUtil.formatDateInput(new Date()),
         columns:  ['ID', 'Product', 'Title', 'Status', 'Release Type', 'Cloud / Audience',
                    'Platforms', 'Published', 'Description', 'Link'],
         rows: tableRows,
@@ -703,7 +702,7 @@
     <div class="gen-modal-backdrop" data-act="closeExportModal"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
+        <h2 class="gen-modal-title" id="gen-modal-title">Export</h2>
         <button class="gen-modal-close" type="button" data-act="closeExportModal" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">
@@ -751,9 +750,9 @@
   </div>
 
   <script src="/static/product-icons.js" defer></script>
-  <script src="/static/outlook-export.js" defer></script>
-  <script src="/static/export-formats.js" defer></script>
+  <script src="/static/outlook-export.js?v=20260411-audit2" defer></script>
+  <script src="/static/export-formats.js?v=20260411-audit2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
-  <script src="/static/subscription-picker.js" defer></script>
+  <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>
 </html>

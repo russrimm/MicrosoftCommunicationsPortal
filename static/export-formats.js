@@ -90,7 +90,7 @@
     }
 
     rows.forEach(r => {
-      const cells = (r || []).map((c, i) => {
+      const cells = (r || []).map((c) => {
         const text = mdEscape(cellText(c));
         const href = cellHref(c);
         if (href) {
@@ -229,7 +229,10 @@
     spec = spec || {};
     const format = String(spec.format || 'html').toLowerCase();
     const base   = spec.baseFilename
-      || (spec.filename ? spec.filename.replace(/\.[^./]+$/, '') : 'export-' + new Date().toISOString().slice(0, 10));
+      || (spec.filename ? spec.filename.replace(/\.[^./]+$/, '') : 'export-' +
+        (window.CPUtil && window.CPUtil.formatDateInput
+          ? window.CPUtil.formatDateInput(new Date())
+          : new Date().toISOString().slice(0, 10)));
 
     if (format === 'pdf') {
       return printPdf(spec);

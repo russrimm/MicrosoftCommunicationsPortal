@@ -21,6 +21,85 @@ function mergeVaryHeaders() {
   return Array.from(new Set(values.map(value => value.trim()).filter(Boolean))).join(', ');
 }
 
+function collectPaginated(fetchPage, firstPath, maxPages, getNextLink, done) {
+  const collected = [];
+  let pages = 0;
+
+  function step(pathOrUrl) {
+    fetchPage(pathOrUrl, (err, result) => {
+      if (err) {
+        if (!collected.length) return done(err);
+        return done(null, {
+          status: 502,
+          body: {
+            value: collected,
+            error: { code: 'UPSTREAM_PAGE_ERROR', message: err.message },
+            pages: pages + 1,
+            partialFailure: true,
+          },
+        });
+      }
+      pages++;
+      const status = result && result.status;
+      const body = result && result.body;
+      if (status >= 400 || !body) {
+        return done(null, {
+          status,
+          body: {
+            value: collected,
+            error: body && body.error,
+            pages,
+            partialFailure: collected.length > 0,
+          },
+        });
+      }
+      if (Array.isArray(body.value)) collected.push(...body.value);
+      const nextLink = getNextLink(body);
+      if (nextLink && pages < maxPages) return step(nextLink);
+      done(null, {
+        status,
+        body: {
+          value: collected,
+          pages,
+          truncated: !!nextLink,
+          nextLink: nextLink || null,
+        },
+      });
+    });
+  }
+
+  step(firstPath);
+}
+
+function mergeServiceHealth(services, issues) {
+  const merged = (Array.isArray(services) ? services : []).map(service => ({
+    ...service,
+    issues: Array.isArray(service.issues) ? [...service.issues] : [],
+  }));
+  const serviceMap = new Map(merged.map(service => [service.service || service.id, service]));
+  const issueIds = new Map(merged.map(service => [
+    service,
+    new Set(service.issues.map(issue => issue && issue.id).filter(Boolean)),
+  ]));
+
+  for (const issue of Array.isArray(issues) ? issues : []) {
+    const serviceName = issue.service || 'Unknown Service';
+    let service = serviceMap.get(serviceName);
+    if (!service) {
+      service = { service: serviceName, id: serviceName, status: 'serviceOperational', issues: [] };
+      serviceMap.set(serviceName, service);
+      issueIds.set(service, new Set());
+      merged.push(service);
+    }
+    const ids = issueIds.get(service);
+    if (!issue.id || !ids.has(issue.id)) {
+      service.issues.push(issue);
+      if (issue.id) ids.add(issue.id);
+    }
+  }
+  return merged;
+}
+
 function createTtlCache(options) {
   const config = options || {};
   const maxEntries = config.maxEntries || 500;
@@ -114,7 +193,9 @@ function createTtlCache(options) {
 }
 
 module.exports = {
+  collectPaginated,
   createTtlCache,
+  mergeServiceHealth,
   mergeVaryHeaders,
   parseBoundedInteger,
   rateLimitBucketKey,
