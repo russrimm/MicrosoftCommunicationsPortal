@@ -236,6 +236,15 @@
   width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;
 }
 .mc-empty { text-align: center; padding: 2rem; color: var(--cp-text-muted); }
+.mc-data-warning {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--cp-warning);
+  border-radius: 6px;
+  color: var(--cp-text);
+  background: var(--cp-surface);
+  font-size: 0.8rem;
+}
 .mc-loading {
   text-align: center; padding: 2rem;
   display: flex; align-items: center; justify-content: center; gap: 0.75rem;

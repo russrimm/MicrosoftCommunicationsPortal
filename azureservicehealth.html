@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
+  <script src="/static/util.js?v=20260411-audit2"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/azureservicehealth.css">
 </head>
@@ -155,6 +155,9 @@
     (function initAzureResourceHealth() {
       const SECTION = document.getElementById('arh-section');
       if (!SECTION) return;
+      var emergingRequest = null;
+      var eventsRequest = null;
+      var availabilityRequest = null;
 
       // ── Helpers ──────────────────────────────────────
       // Relative time: "3d ago", "2h ago", "5m ago"; if future=true: "in 2h"
@@ -258,14 +261,22 @@
       async function loadEmergingIssues() {
         var list = document.getElementById('arh-emerging-list');
         var countEl = document.getElementById('arh-emerging-count');
+        var refreshBtn = document.getElementById('arh-emerging-refresh');
+        if (emergingRequest) emergingRequest.abort();
+        var request = new AbortController();
+        emergingRequest = request;
+        refreshBtn.disabled = true;
         list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
         try {
-          var res = await fetch('/api/azure-resource-health/emerging-issues');
+          var res = await fetch('/api/azure-resource-health/emerging-issues', { signal: request.signal });
           var data = await res.json();
           if (data.error) {
             list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
             return;
           }
+          var warningHtml = data.warning
+            ? '<div class="arh-error" role="status">\u26a0\ufe0f ' + escapeHtml(data.warning) + '</div>'
+            : '';
           var items = data.value || [];
           // Flatten to active events + banners from all entries
           var activeEvents = [];
@@ -279,7 +290,7 @@
           countEl.textContent = total;
           countEl.style.display = total > 0 ? '' : 'none';
           if (total === 0) {
-            list.innerHTML = '<div class="arh-empty">\u2705 No emerging issues</div>';
+            list.innerHTML = warningHtml + '<div class="arh-empty">\u2705 No emerging issues</div>';
             return;
           }
           var html = '';
@@ -322,9 +333,15 @@
             }
             html += '</div>';
           }
-          list.innerHTML = html;
+          list.innerHTML = warningHtml + html;
         } catch (err) {
+          if (err.name === 'AbortError') return;
           list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        } finally {
+          if (emergingRequest === request) {
+            emergingRequest = null;
+            refreshBtn.disabled = false;
+          }
         }
       }
 
@@ -333,11 +350,16 @@
         var subId = getSubId();
         var list = document.getElementById('arh-events-list');
         var countEl = document.getElementById('arh-events-count');
+        var refreshBtn = document.getElementById('arh-events-refresh');
+        if (eventsRequest) eventsRequest.abort();
+        var request = new AbortController();
+        eventsRequest = request;
+        refreshBtn.disabled = true;
         list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
         try {
           var url = '/api/azure-resource-health/events';
           if (subId) url += '?subscriptionId=' + encodeURIComponent(subId);
-          var res = await fetch(url);
+          var res = await fetch(url, { signal: request.signal });
           var data = await res.json();
           if (res.status === 400 && !subId) {
             list.innerHTML = '<div class="arh-no-sub">Select a subscription above to view events.</div>';
@@ -348,11 +370,14 @@
             list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
             return;
           }
+          var warningHtml = data.warning
+            ? '<div class="arh-error" role="status">\u26a0\ufe0f ' + escapeHtml(data.warning) + '</div>'
+            : '';
           var events = data.value || [];
           countEl.textContent = events.length;
           countEl.style.display = events.length > 0 ? '' : 'none';
           if (events.length === 0) {
-            list.innerHTML = '<div class="arh-empty">\u2705 No active service health events</div>';
+            list.innerHTML = warningHtml + '<div class="arh-empty">\u2705 No active service health events</div>';
             return;
           }
           // Sort: Active first, then by lastUpdateTime desc
@@ -397,9 +422,15 @@
             }
             html += '</div>';
           }
-          list.innerHTML = html;
+          list.innerHTML = warningHtml + html;
         } catch (err) {
+          if (err.name === 'AbortError') return;
           list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        } finally {
+          if (eventsRequest === request) {
+            eventsRequest = null;
+            refreshBtn.disabled = false;
+          }
         }
       }
 
@@ -409,11 +440,16 @@
         var subId = getSubId();
         var list = document.getElementById('arh-avail-list');
         var countEl = document.getElementById('arh-avail-count');
+        var refreshBtn = document.getElementById('arh-avail-refresh');
+        if (availabilityRequest) availabilityRequest.abort();
+        var request = new AbortController();
+        availabilityRequest = request;
+        refreshBtn.disabled = true;
         list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
         try {
           var url = '/api/azure-resource-health/availability-statuses';
           if (subId) url += '?subscriptionId=' + encodeURIComponent(subId);
-          var res = await fetch(url);
+          var res = await fetch(url, { signal: request.signal });
           var data = await res.json();
           if (res.status === 400 && !subId) {
             list.innerHTML = '<div class="arh-no-sub">Select a subscription above to view resource availability.</div>';
@@ -426,15 +462,25 @@
           }
           var items = data.value || [];
           window._arhAvailData = items; // cache for filtering
-          renderAvailability(items);
+          window._arhAvailWarning = data.warning || '';
+          renderAvailability(items, window._arhAvailWarning);
         } catch (err) {
+          if (err.name === 'AbortError') return;
           list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+        } finally {
+          if (availabilityRequest === request) {
+            availabilityRequest = null;
+            refreshBtn.disabled = false;
+          }
         }
       }
 
-      function renderAvailability(items) {
+      function renderAvailability(items, warning) {
         var list = document.getElementById('arh-avail-list');
         var countEl = document.getElementById('arh-avail-count');
+        var warningHtml = warning
+          ? '<div class="arh-error" role="status">\u26a0\ufe0f ' + escapeHtml(warning) + '</div>'
+          : '';
         var filterVal = currentAvailFilter;
         var filtered = items;
         if (filterVal) {
@@ -446,7 +492,7 @@
         countEl.textContent = filtered.length;
         countEl.style.display = filtered.length > 0 ? '' : 'none';
         if (filtered.length === 0) {
-          list.innerHTML = '<div class="arh-empty">' +
+          list.innerHTML = warningHtml + '<div class="arh-empty">' +
             (filterVal ? 'No resources with status "' + escapeHtml(filterVal) + '"' : '\u2705 No resources found') +
             '</div>';
           return;
@@ -530,8 +576,9 @@
             var maxActions = Math.min(actions.length, 2);
             for (var a = 0; a < maxActions; a++) {
               var act = actions[a];
-              if (act.actionUrl) {
-                html += '<a class="arh-avail-action-link" href="' + escapeHtml(act.actionUrl) + '" target="_blank" rel="noopener noreferrer">→ ' + escapeHtml(act.actionUrlText || act.action || 'View recommendation') + '</a>';
+              var actionUrl = act.actionUrl ? safeUrl(act.actionUrl) : '';
+              if (actionUrl && actionUrl !== '#') {
+                html += '<a class="arh-avail-action-link" href="' + escapeHtml(actionUrl) + '" target="_blank" rel="noopener noreferrer">→ ' + escapeHtml(act.actionUrlText || act.action || 'View recommendation') + '</a>';
               } else if (act.action) {
                 html += '<span class="arh-avail-action-link" style="color:var(--cp-text-muted);cursor:default">→ ' + escapeHtml(act.action) + '</span>';
               }
@@ -549,13 +596,13 @@
         if (capped) {
           html += '<div class="arh-empty">Showing 200 of ' + filtered.length + ' resources</div>';
         }
-        list.innerHTML = html;
+        list.innerHTML = warningHtml + html;
       }
 
       // ── Filter ──────────────────────────────────────
       document.getElementById('arh-avail-filter').addEventListener('change', function(e) {
         currentAvailFilter = e.target.value;
-        if (window._arhAvailData) renderAvailability(window._arhAvailData);
+        if (window._arhAvailData) renderAvailability(window._arhAvailData, window._arhAvailWarning);
       });
 
       // ── Refresh buttons ──────────────────────────────
@@ -726,6 +773,6 @@
 
   <script src="/static/product-icons.js" defer></script>
   <script src="/static/ai-insights.js" defer></script>
-  <script src="/static/subscription-picker.js" defer></script>
+  <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>
 </html>

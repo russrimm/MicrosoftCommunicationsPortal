@@ -59,6 +59,7 @@ window.SubscriptionPicker = (() => {
         <div class="sp-search-row">
           <input class="sp-search" type="search" placeholder="Filter subscriptions..." aria-label="Filter subscriptions" />
         </div>
+        <div class="sp-warning" role="status" style="display:none;"></div>
         <div class="sp-list-container">
           <div class="sp-loading">Loading subscriptions...</div>
           <ul class="sp-list" role="listbox" aria-multiselectable="true"></ul>
@@ -226,6 +227,7 @@ window.SubscriptionPicker = (() => {
     const modal = createModal();
     modal.style.display = 'flex';
     modal.querySelector('.sp-search').value = '';
+    modal.querySelector('.sp-warning').style.display = 'none';
     _loading = true;
     renderList('');
     // Trap Tab focus inside the dialog (matches the export-modal pattern used
@@ -238,6 +240,9 @@ window.SubscriptionPicker = (() => {
       _selected = data.selected || [];
       _loading = false;
       renderList('');
+      const warningEl = modal.querySelector('.sp-warning');
+      warningEl.textContent = data.warning || '';
+      warningEl.style.display = data.warning ? '' : 'none';
       // Focus the search input
       modal.querySelector('.sp-search').focus();
     } catch (err) {
@@ -361,6 +366,15 @@ window.SubscriptionPicker = (() => {
         color: var(--cp-text-muted, #666);
       }
       .sp-error { color: var(--cp-danger, #dc2626); }
+      .sp-warning {
+        margin: 0 1.25rem 0.75rem;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid var(--cp-warning, #d97706);
+        border-radius: 6px;
+        color: var(--cp-text, #242424);
+        background: var(--cp-surface, #fff);
+        font-size: 12px;
+      }
       .sp-list {
         list-style: none;
         margin: 0;
@@ -575,7 +589,7 @@ window.SubscriptionPicker = (() => {
         try {
           const allData = await fetchSubscriptions();
           const allSubs = allData.value || [];
-          if (allSubs.length > 0) {
+          if (!allData.partial && allSubs.length > 0) {
             selected = [{ id: allSubs[0].id, displayName: allSubs[0].displayName }];
             // Persist the auto-selection to the server
             await saveSelected(selected);
@@ -593,10 +607,13 @@ window.SubscriptionPicker = (() => {
 
   // Auto-init on DOM ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { autoInit(); seedFromServer(); });
+    document.addEventListener('DOMContentLoaded', () => {
+      autoInit();
+      if (window.location.pathname === '/azureservicehealth') seedFromServer();
+    });
   } else {
     autoInit();
-    seedFromServer();
+    if (window.location.pathname === '/azureservicehealth') seedFromServer();
   }
 
   // ── Public API ──────────────────────────────────────────────────────────

@@ -13,9 +13,12 @@ const fs = require('node:fs');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
+const vm = require('node:vm');
 const {
+  collectPaginated,
   createTtlCache,
   mergeVaryHeaders,
+  mergeServiceHealth,
   parseBoundedInteger,
   rateLimitBucketKey,
 } = require('../runtime-utils.js');
@@ -28,6 +31,49 @@ const {
   validatePrincipal,
   makeRequireAuth,
 } = require('../auth.js');
+
+function collectPages(fetchPage, firstPath, maxPages, getNextLink) {
+  return new Promise((resolve, reject) => {
+    collectPaginated(fetchPage, firstPath, maxPages, getNextLink, (err, result) => {
+      if (err) reject(err);
+      else resolve(result);
+    });
+  });
+}
+
+function loadClientUtil() {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'util.js'), 'utf8');
+  const document = {
+    activeElement: null,
+    readyState: 'complete',
+    documentElement: {
+      getAttribute: () => 'light',
+      setAttribute: () => {},
+    },
+    addEventListener: () => {},
+    getElementById: () => null,
+  };
+  const storage = new Map();
+  const window = {
+    location: { href: 'https://portal.example/test', pathname: '/test', search: '' },
+    history: { replaceState: () => {} },
+  };
+  const context = {
+    Date,
+    DOMParser: class {},
+    Intl,
+    URL,
+    URLSearchParams,
+    document,
+    localStorage: {
+      getItem: key => storage.get(key) || null,
+      setItem: (key, value) => storage.set(key, value),
+    },
+    window,
+  };
+  vm.runInNewContext(source, context);
+  return window.CPUtil;
+}
 
 // ── resolveAuthMode ──────────────────────────────────────────────────────────
 
@@ -160,6 +206,114 @@ test('mergeVaryHeaders preserves encoding and origin cache variants', () => {
     mergeVaryHeaders('Accept-Encoding', 'Origin', 'Accept-Encoding, User-Agent'),
     'Accept-Encoding, Origin, User-Agent'
   );
+});
+
+test('collectPaginated follows next links and reports complete results', async () => {
+  const pages = {
+    first: { status: 200, body: { value: [1], next: 'second' } },
+    second: { status: 200, body: { value: [2], next: 'third' } },
+    third: { status: 200, body: { value: [3] } },
+  };
+  const result = await collectPages(
+    (url, done) => done(null, pages[url]),
+    'first',
+    5,
+    body => body.next
+  );
+  assert.deepEqual(result.body.value, [1, 2, 3]);
+  assert.equal(result.body.pages, 3);
+  assert.equal(result.body.truncated, false);
+});
+
+test('collectPaginated marks safety-limit truncation explicitly', async () => {
+  const result = await collectPages(
+    (url, done) => done(null, {
+      status: 200,
+      body: { value: [url], next: `${url}-next` },
+    }),
+    'first',
+    2,
+    body => body.next
+  );
+  assert.deepEqual(result.body.value, ['first', 'first-next']);
+  assert.equal(result.body.pages, 2);
+  assert.equal(result.body.truncated, true);
+  assert.equal(result.body.nextLink, 'first-next-next');
+});
+
+test('collectPaginated preserves partial rows when a later page fails', async () => {
+  const result = await collectPages(
+    (url, done) => done(null, url === 'first'
+      ? { status: 200, body: { value: [1], next: 'second' } }
+      : { status: 503, body: { error: { code: 'Unavailable' } } }),
+    'first',
+    5,
+    body => body.next
+  );
+  assert.equal(result.status, 503);
+  assert.deepEqual(result.body.value, [1]);
+  assert.deepEqual(result.body.error, { code: 'Unavailable' });
+  assert.equal(result.body.partialFailure, true);
+  assert.equal(result.body.pages, 2);
+});
+
+test('collectPaginated preserves partial rows on a later network failure', async () => {
+  const result = await collectPages(
+    (url, done) => url === 'first'
+      ? done(null, { status: 200, body: { value: [1], next: 'second' } })
+      : done(new Error('connection reset')),
+    'first',
+    5,
+    body => body.next
+  );
+  assert.equal(result.status, 502);
+  assert.deepEqual(result.body.value, [1]);
+  assert.equal(result.body.error.code, 'UPSTREAM_PAGE_ERROR');
+  assert.equal(result.body.partialFailure, true);
+  assert.equal(result.body.pages, 2);
+});
+
+test('mergeServiceHealth does not mutate cached services and deduplicates issues', () => {
+  const cached = [{ service: 'Exchange Online', issues: [{ id: 'EX1' }] }];
+  const issues = [
+    { id: 'EX1', service: 'Exchange Online' },
+    { id: 'EX2', service: 'Exchange Online' },
+    { id: 'SP1', service: 'SharePoint Online' },
+  ];
+  const merged = mergeServiceHealth(cached, issues);
+  assert.deepEqual(cached, [{ service: 'Exchange Online', issues: [{ id: 'EX1' }] }]);
+  assert.deepEqual(merged[0].issues.map(issue => issue.id), ['EX1', 'EX2']);
+  assert.equal(merged[1].service, 'SharePoint Online');
+  assert.deepEqual(merged[1].issues.map(issue => issue.id), ['SP1']);
+});
+
+test('client date helpers preserve local calendar days across DST boundaries', () => {
+  const originalTimezone = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  try {
+    const util = loadClientUtil();
+    const spring = util.dateInputBounds('2026-03-08', '2026-03-08');
+    const fall = util.dateInputBounds('2026-11-01', '2026-11-01');
+    assert.equal(spring.toExclusive - spring.from, 23 * 60 * 60 * 1000);
+    assert.equal(fall.toExclusive - fall.from, 25 * 60 * 60 * 1000);
+    assert.equal(util.formatDateInput(new Date(2026, 2, 8, 23, 30)), '2026-03-08');
+    assert.equal(util.releaseMonthCutoff(new Date(2026, 6, 31, 23, 30)), '2025-07');
+    assert.equal(util.releaseMonthCutoff(new Date(2026, 0, 1, 0, 30)), '2025-01');
+  } finally {
+    if (originalTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimezone;
+  }
+});
+
+test('client date helpers reject malformed dates and safeUrl rejects script schemes', () => {
+  const util = loadClientUtil();
+  const bounds = util.dateInputBounds('2026-02-30', 'not-a-date');
+  assert.equal(bounds.from, -Infinity);
+  assert.equal(bounds.toExclusive, Infinity);
+  assert.equal(util.safeUrl('javascript:alert(1)'), '#');
+  assert.equal(util.safeUrl('https://status.azure.com'), 'https://status.azure.com');
+  assert.equal(util.csvCell('=HYPERLINK("https://evil.example")'), '"\'=HYPERLINK(""https://evil.example"")"');
+  assert.equal(util.csvCell('Normal "value"'), '"Normal ""value"""');
 });
 
 function cacheFetch(store, key, ttlMs, fetcher, options) {
@@ -609,6 +763,22 @@ test('server rejects the legacy tenant-data alias and isolates rate-limit tiers'
       body: JSON.stringify({ items: [{ id: '1', description: 'x'.repeat(300_000) }] }),
     });
     assert.equal(oversized.status, 413);
+  });
+});
+
+test('subscription picker remains usable when an admin token protects admin-only mutations', async () => {
+  await withServer({
+    AUTH_MODE: 'none-loopback-only',
+    ADMIN_TOKEN: 'admin-only-secret',
+  }, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/subscriptions/selected`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selected: [] }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.selected, []);
   });
 });
 

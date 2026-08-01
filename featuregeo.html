@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
+  <script src="/static/util.js?v=20260411-audit2"></script>
   <script src="/static/worldmap.js" defer></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
@@ -202,9 +202,7 @@
     // Rollouts more than one calendar year old are dropped — they are history,
     // not release planning. Returns the oldest "YYYY-MM" still worth showing.
     function releaseDateCutoff() {
-      const now = new Date();
-      const cutoff = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-      return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}`;
+      return window.CPUtil.releaseMonthCutoff(new Date());
     }
 
     async function loadFeatureGeo(refresh) {
@@ -602,7 +600,7 @@
     // ── Export ───────────────────────────────────────────────────────────────
     function exportCsv() {
       if (!rows.length) return;
-      const cell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+      const cell = window.CPUtil.csvCell;
       const lines = [['Product name', 'Feature name', 'Copilot capabilities',
         'Geo release status', 'Geo release date', 'Geographies'].map(cell).join(',')];
       for (const item of rows) {
@@ -619,7 +617,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `regional-release-plans-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `regional-release-plans-${window.CPUtil.formatDateInput(new Date())}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();

@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
+  <script src="/static/util.js?v=20260411-audit2"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/guidedreport.css">
 </head>
@@ -786,7 +786,7 @@
 
       progress('Saving file…');
 
-      const dateStr = new Date().toISOString().slice(0, 10);
+      const dateStr = window.CPUtil.formatDateInput(new Date());
       await pptx.writeFile({ fileName: `Communications-Report-${dateStr}.pptx` });
 
       fill.style.width = '100%';

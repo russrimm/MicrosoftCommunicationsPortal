@@ -11,9 +11,9 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js"></script>
+  <script src="/static/util.js?v=20260411-audit2"></script>
   <link rel="stylesheet" href="/static/common.css">
-  <link rel="stylesheet" href="/static/servicehealth.css">
+  <link rel="stylesheet" href="/static/servicehealth.css?v=20260411-audit2">
 </head>
 <body>
   <script src="/static/nav.js" defer></script>
@@ -137,6 +137,7 @@
           </div>
         </div>
         <svg class="sh-trend-svg" id="sh-trend-svg" viewBox="0 0 800 90" preserveAspectRatio="none" role="img" aria-label="30-day health trend chart"></svg>
+        <div class="sh-trend-note" id="sh-trend-note" role="status"></div>
         <div class="sh-trend-legend">
           <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-danger)"></span>Active issues</span>
           <span class="sh-trend-legend-item"><span class="sh-trend-legend-dot" style="background:var(--cp-warning)"></span>Affected services</span>
@@ -197,6 +198,8 @@
     let isPaused = false;
     let expandedIssues = false;
     let refreshTimer = null;
+    let serviceHealthRequest = null;
+    let serviceHealthWarning = '';
     let issuesById = new Map();
 
     // The shared toggleTheme() in /static/util.js handles the theme flip and
@@ -268,8 +271,13 @@
 
     async function loadServiceHealth() {
       if (isPaused) return;
+      if (serviceHealthRequest) serviceHealthRequest.abort();
+      const request = new AbortController();
+      serviceHealthRequest = request;
+      const refreshBtn = document.getElementById('sh-refresh-btn');
+      if (refreshBtn) refreshBtn.disabled = true;
       try {
-        const res = await fetch('/api/servicehealth');
+        const res = await fetch('/api/servicehealth', { signal: request.signal });
         const data = await res.json();
         if (data.error) {
           document.getElementById('sh-breakdown').innerHTML = `<div class="sh-empty">⚠️ ${escapeHtml(data.error)}</div>`;
@@ -277,8 +285,11 @@
           return;
         }
         allServices = data.services || [];
-        document.getElementById('sh-updated').textContent =
-          `Last updated: ${formatShortTime(new Date())}`;
+        serviceHealthWarning = data.warning || '';
+        const updated = document.getElementById('sh-updated');
+        updated.textContent = `Last updated: ${formatShortTime(new Date())}` +
+          (serviceHealthWarning ? ` • ${serviceHealthWarning}` : '');
+        updated.title = serviceHealthWarning;
         recordSnapshot();
         renderStats();
         renderBreakdown();
@@ -287,8 +298,14 @@
         renderHeatmap();
         renderTrend();
       } catch (err) {
+        if (err.name === 'AbortError') return;
         document.getElementById('sh-breakdown').innerHTML =
           `<div class="sh-empty">❌ ${escapeHtml(err.message)}</div>`;
+      } finally {
+        if (serviceHealthRequest === request) {
+          serviceHealthRequest = null;
+          if (refreshBtn) refreshBtn.disabled = false;
+        }
       }
     }
 
@@ -686,6 +703,7 @@
       btn.setAttribute('aria-pressed', String(isPaused));
       if (isPaused) {
         if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+        if (serviceHealthRequest) serviceHealthRequest.abort();
       } else {
         scheduleRefresh();
         loadServiceHealth();
@@ -698,9 +716,8 @@
     }
 
     // ── 30-day trend ────────────────────────────────────────────────────────
-    // Persist a daily snapshot in localStorage so over time real history
-    // accumulates. Until enough days are recorded, pad with deterministic
-    // synthetic points so the chart visualizes meaningfully on first load.
+    // Persist one real daily snapshot in localStorage. Missing days remain
+    // missing rather than being filled with invented operational data.
     const TREND_KEY = 'sh-trend-history-v1';
 
     function loadHistory() {
@@ -726,19 +743,9 @@
       // Trim anything older than 60 days.
       const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
       for (const k of Object.keys(h)) {
-        if (new Date(k).getTime() < cutoff) delete h[k];
+        if (window.CPUtil.dateInputBounds(k, '').from < cutoff) delete h[k];
       }
       saveHistory(h);
-    }
-
-    // Deterministic seeded RNG (mulberry32) for stable synthetic points.
-    function rng(seed) {
-      return () => {
-        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-        return ((t ^ t >>> 14) >>> 0) / 4294967296;
-      };
     }
 
     function buildSeries(days) {
@@ -746,8 +753,6 @@
       const c = getCounts();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const seedBase = today.getFullYear() * 1000 + (today.getMonth() + 1) * 31 + today.getDate();
-      const rand = rng(seedBase);
 
       const out = [];
       for (let i = days - 1; i >= 0; i--) {
@@ -755,20 +760,10 @@
         d.setDate(today.getDate() - i);
         const key = dayKey(d);
         const real = h[key];
-        if (real) {
-          out.push({ date: d, ...real });
-        } else if (i === 0) {
-          // Today's point — always use live counts.
+        if (i === 0) {
           out.push({ date: d, active: c.totalIssues, affected: c.affected, operational: c.operational });
-        } else {
-          // Synthesize a believable variation around current values.
-          const wobble = (mid, span) => Math.max(0, Math.round(mid + (rand() - 0.5) * span));
-          out.push({
-            date: d,
-            active: wobble(Math.max(c.totalIssues, 6), 8),
-            affected: wobble(Math.max(c.affected, 4), 4),
-            operational: wobble(Math.max(c.operational, 26), 4),
-          });
+        } else if (real) {
+          out.push({ date: d, ...real });
         }
       }
       return out;
@@ -782,6 +777,11 @@
       const innerW = W - pad.left - pad.right;
       const innerH = H - pad.top - pad.bottom;
       const series = buildSeries(trendRange);
+      const note = document.getElementById('sh-trend-note');
+      note.textContent = series.length < 2
+        ? 'History starts with this browser\u2019s first daily snapshot.'
+        : `Showing ${series.length} locally recorded day${series.length === 1 ? '' : 's'} in this range.`;
+      svg.setAttribute('aria-label', `${trendRange}-day health trend with ${series.length} locally recorded data point${series.length === 1 ? '' : 's'}`);
       if (!series.length) { svg.innerHTML = ''; return; }
 
       const maxY = Math.max(
@@ -791,7 +791,13 @@
       // Add a touch of headroom so the top line isn't right at the edge.
       const niceMax = Math.ceil((maxY + 2) / 8) * 8 || 32;
 
-      const x = (i) => pad.left + (series.length === 1 ? innerW/2 : (i * innerW) / (series.length - 1));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const rangeStart = new Date(today);
+      rangeStart.setDate(today.getDate() - (trendRange - 1));
+      const dayOrdinal = d => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000;
+      const rangeDays = Math.max(1, dayOrdinal(today) - dayOrdinal(rangeStart));
+      const x = (i) => pad.left + ((dayOrdinal(series[i].date) - dayOrdinal(rangeStart)) / rangeDays) * innerW;
       const y = (v) => pad.top + innerH - (v / niceMax) * innerH;
 
       const grid = [];
@@ -805,11 +811,15 @@
 
       const xLabels = [];
       const labelCount = Math.min(6, series.length);
-      for (let k = 0; k < labelCount; k++) {
-        const i = Math.round(((series.length - 1) * k) / (labelCount - 1));
-        const d = series[i].date;
-        const text = (k === labelCount - 1) ? 'Today' : formatTickDate(d);
-        xLabels.push(`<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity="0.55">${text}</text>`);
+      if (labelCount === 1) {
+        xLabels.push(`<text x="${x(0)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity="0.55">Today</text>`);
+      } else {
+        for (let k = 0; k < labelCount; k++) {
+          const i = Math.round(((series.length - 1) * k) / (labelCount - 1));
+          const d = series[i].date;
+          const text = (k === labelCount - 1) ? 'Today' : formatTickDate(d);
+          xLabels.push(`<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity="0.55">${text}</text>`);
+        }
       }
 
       const linePath = (key, color) => {
@@ -1042,8 +1052,8 @@
       const now = new Date();
       const from = new Date(now); from.setDate(from.getDate() - days);
       const to   = new Date(now); to.setDate(to.getDate() + days);
-      document.getElementById('gen-from-date').value = from.toISOString().slice(0, 10);
-      document.getElementById('gen-to-date').value   = to.toISOString().slice(0, 10);
+      document.getElementById('gen-from-date').value = window.CPUtil.formatDateInput(from);
+      document.getElementById('gen-to-date').value   = window.CPUtil.formatDateInput(to);
       updateExportCount();
     }
     function filterExportProductSearch() {
@@ -1058,8 +1068,7 @@
     function computeExportRows() {
       const fromVal = document.getElementById('gen-from-date').value;
       const toVal   = document.getElementById('gen-to-date').value;
-      const from = fromVal ? new Date(fromVal).getTime() : -Infinity;
-      const to   = toVal ? (new Date(toVal).getTime() + 86399999) : Infinity;
+      const bounds = window.CPUtil.dateInputBounds(fromVal, toVal);
       const datesActive = !!(fromVal || toVal);
       const selected = getSelectedExportProducts();
       const all = EXPORT_MODAL_CONFIG.getAllRows() || [];
@@ -1067,7 +1076,7 @@
         const ts = EXPORT_MODAL_CONFIG.getDate(row);
         if (datesActive) {
           if (ts == null) return false;
-          if (ts < from || ts > to) return false;
+          if (ts < bounds.from || ts >= bounds.toExclusive) return false;
         }
         const prods = getExportProducts(row);
         return prods.some(p => selected.has(p));
@@ -1138,11 +1147,12 @@
       const now = new Date().toLocaleString();
       let subtitle = 'Exported ' + now + ' • ' + summary;
       if (!issues.length) subtitle += ' — ✓ No active issues at the time of export.';
+      if (serviceHealthWarning) subtitle += ' • Partial data: ' + serviceHealthWarning;
 
       window.ExportFormats.download({
         title:        'Microsoft 365 Service Health',
         subtitle:     subtitle,
-        baseFilename: 'servicehealth-export-' + new Date().toISOString().slice(0,10),
+        baseFilename: 'servicehealth-export-' + window.CPUtil.formatDateInput(new Date()),
         columns:      ['ID', 'Service', 'Title', 'Classification', 'Status', 'Feature', 'Feature Group',
                        'High Impact', 'Started', 'Last Updated', 'Impact', 'Latest Update'],
         rows:         tableRows,
@@ -1239,8 +1249,8 @@
   </script>
 
   <script src="/static/product-icons.js" defer></script>
-  <script src="/static/outlook-export.js" defer></script>
-  <script src="/static/export-formats.js" defer></script>
+  <script src="/static/outlook-export.js?v=20260411-audit2" defer></script>
+  <script src="/static/export-formats.js?v=20260411-audit2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
 </body>
 </html>
