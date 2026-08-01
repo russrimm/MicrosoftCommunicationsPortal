@@ -35,3 +35,8 @@ response.json
 .squad/.cache/
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
+
+# Browser-automation scratch output (generated, timestamped, unreferenced)
+.playwright-mcp/
+playwright-report/
+test-results/
