@@ -139,7 +139,7 @@
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
         <button class="export-btn" id="export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
-        <button class="export-btn" data-act="reloadAll">↻ Refresh</button>
+        <button class="export-btn" id="pp-refresh-btn" data-act="reloadAll">↻ Refresh</button>
       </div>
     </div>
 
@@ -378,12 +378,15 @@
     }
 
     async function loadAll() {
+      const refreshBtn = document.getElementById('pp-refresh-btn');
+      refreshBtn.disabled = true;
       const ids = [...selectedProductIds];
       if (!ids.length) {
         allFeatures = [];
         rebuildFilters();
         filterAndRender();
         setLoading(false);
+        refreshBtn.disabled = false;
         return;
       }
       fetchStats.ok = 0; fetchStats.empty = 0; fetchStats.failed = 0; fetchStats.lastError = null;
@@ -410,11 +413,13 @@
         } else {
           setLoading(true, '⚠️ Proxy returned empty results for every product. Check server.js console for errors.');
         }
+        refreshBtn.disabled = false;
         return;
       }
 
       if (readProbeCache()) {
         setLoading(false);
+        refreshBtn.disabled = false;
         return;
       }
 
@@ -452,6 +457,7 @@
       }
       writeProbeCache(cachedProducts);
       setLoading(false);
+      refreshBtn.disabled = false;
     }
 
     function reloadAll() {

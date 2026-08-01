@@ -691,6 +691,34 @@ test('calendar-day filtering uses exclusive next-day bounds', () => {
   assert.match(html, /start < dayEnd/);
 });
 
+test('every bounded pagination caller surfaces partial results', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.equal((source.match(/graphGetAllPages\(/g) || []).length, 3,
+    'new Graph callers must explicitly preserve pagination warnings');
+  assert.equal((source.match(/armGetAllPages\(/g) || []).length, 8,
+    'new ARM callers must explicitly preserve pagination warnings');
+  assert.match(source, /paginationWarning\(body, 'Azure subscription discovery'\)/);
+  assert.match(source, /paginationWarning\(body, 'Message Center'\)/);
+  assert.match(source, /paginationWarning\(issuesBody, 'Service Health issue history'\)/);
+  assert.equal((source.match(/armListPayload\(body,/g) || []).length, 7);
+});
+
+test('refreshable surfaces prevent stale responses', () => {
+  const messageCenter = fs.readFileSync(path.join(__dirname, '..', 'messagecenter.html'), 'utf8');
+  assert.match(messageCenter, /if \(messageCenterRequest\) messageCenterRequest\.abort\(\)/);
+  assert.match(messageCenter, /fetch\('\/api\/messagecenter', \{ signal: request\.signal \}\)/);
+
+  for (const page of ['azureupdates.html', 'fabricroadmap.html', 'featuregeo.html', 'm365updates.html']) {
+    const html = fs.readFileSync(path.join(__dirname, '..', page), 'utf8');
+    assert.match(html, /refreshBtn\.disabled = true/, `${page} must prevent overlapping refreshes`);
+    assert.match(html, /refreshBtn\.disabled = false/, `${page} must restore its refresh control`);
+  }
+
+  const powerPlatform = fs.readFileSync(path.join(__dirname, '..', 'powerplatform.html'), 'utf8');
+  assert.match(powerPlatform, /id="pp-refresh-btn"/);
+  assert.match(powerPlatform, /refreshBtn\.disabled = true/);
+});
+
 test('every page has one primary heading and dynamic errors are announced', () => {
   const pages = fs.readdirSync(path.join(__dirname, '..'))
     .filter(name => name.endsWith('.html'));

@@ -112,15 +112,21 @@
   <script>
     let allMessages = [];
     let messageCenterWarning = '';
+    let messageCenterRequest = null;
 
     // toggleTheme() and escapeHtml() are provided by /static/util.js.
 
     async function loadMessageCenter() {
+      if (messageCenterRequest) messageCenterRequest.abort();
+      const request = new AbortController();
+      messageCenterRequest = request;
       const container = document.getElementById('mc-messages-container');
       const warningEl = document.getElementById('mc-data-warning');
+      const refreshBtn = document.getElementById('mc-refresh-btn');
+      refreshBtn.disabled = true;
       container.innerHTML = '<div class="mc-loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span>Loading…</span></div>';
       try {
-        const res = await fetch('/api/messagecenter');
+        const res = await fetch('/api/messagecenter', { signal: request.signal });
         const data = await res.json();
         if (data.error) {
           container.innerHTML = `<div class="mc-empty">⚠️ ${escapeHtml(data.error)}</div>`;
@@ -133,7 +139,13 @@
         populateServiceFilter();
         filterMessages();
       } catch (err) {
+        if (err.name === 'AbortError') return;
         container.innerHTML = `<div class="mc-empty">❌ Failed to load: ${escapeHtml(err.message)}</div>`;
+      } finally {
+        if (messageCenterRequest === request) {
+          messageCenterRequest = null;
+          refreshBtn.disabled = false;
+        }
       }
     }
 
