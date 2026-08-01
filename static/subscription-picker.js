@@ -64,7 +64,7 @@ window.SubscriptionPicker = (() => {
           <div class="sp-loading">Loading subscriptions...</div>
           <ul class="sp-list" role="listbox" aria-multiselectable="true"></ul>
           <div class="sp-empty" style="display:none;">No subscriptions found.</div>
-          <div class="sp-error" style="display:none;"></div>
+          <div class="sp-error" role="alert" style="display:none;"></div>
         </div>
         <div class="sp-footer">
           <span class="sp-count">0 selected</span>
@@ -158,6 +158,11 @@ window.SubscriptionPicker = (() => {
         const cb = li.querySelector('.sp-checkbox');
         cb.checked = !cb.checked;
         cb.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      li.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        li.click();
       });
       li.querySelector('.sp-checkbox').addEventListener('change', (e) => {
         const id = li.dataset.id;

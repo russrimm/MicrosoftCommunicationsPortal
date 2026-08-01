@@ -531,16 +531,6 @@
       if (e.key === 'Escape') closeMessage();
     });
 
-    function safeUrl(value) {
-      if (!value) return '#';
-      const trimmed = String(value).trim();
-      // Reject javascript:, data:, vbscript:, file:, and other non-safe schemes.
-      if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
-        if (!/^(https?|mailto|tel):/i.test(trimmed)) return '#';
-      }
-      return trimmed;
-    }
-
     function formatMcHeadings(html) {
       // Convert bracket-wrapped headings like [What and Why] into styled heading elements
       return html.replace(/\[([A-Za-z][A-Za-z0-9 ,/&:'\-–—]{0,80})\]/g, (_, heading) => {
@@ -773,7 +763,7 @@
     <div class="gen-modal-backdrop" id="gen-modal-backdrop"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
+        <h2 class="gen-modal-title" id="gen-modal-title">Export</h2>
         <button class="gen-modal-close" id="gen-modal-close-btn" type="button" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">

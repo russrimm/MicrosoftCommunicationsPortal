@@ -22,7 +22,7 @@
     <!-- Heading bar -->
     <div class="sh-hero">
       <div class="sh-hero-left">
-        <div class="sh-hero-title">Microsoft 365 Service Health</div>
+        <h1 class="sh-hero-title">Microsoft 365 Service Health</h1>
         <span class="sh-live">Live</span>
       </div>
     </div>
@@ -36,7 +36,7 @@
             <div class="sh-panel-head">
               <div class="sh-panel-title">Overview</div>
               <div class="sh-panel-meta">
-                <span id="sh-updated">—</span>
+                <span id="sh-updated" role="status" aria-live="polite">—</span>
                 <button class="export-btn" id="sh-refresh-btn" type="button" aria-label="Refresh service health"><span aria-hidden="true">↻</span></button>
               </div>
             </div>
@@ -537,8 +537,8 @@
           for (let di = 0; di < DAYS; di++) {
             const d = new Date(today); d.setDate(today.getDate() - (DAYS - 1 - di));
             const dk = dayKey(d);
-            const dEnd = new Date(d); dEnd.setHours(23,59,59,999);
-            if (start <= dEnd && (!end || end >= d)) {
+            const dEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+            if (start < dEnd && (!end || end >= d)) {
               dayMap.set(dk, Math.max(dayMap.get(dk) || 0, weight));
             }
           }
@@ -569,7 +569,6 @@
         return;
       }
 
-      const cols = DAYS + 1; // +1 for label column
       let html = `<div class="sh-heatmap" style="grid-template-columns: 100px repeat(${DAYS}, 1fr);">`;
 
       // Day header row.
@@ -614,7 +613,11 @@
      */
     function openHeatmapDayIssues(svcName, dayStr) {
       const dayStart = new Date(dayStr + 'T00:00:00');
-      const dayEnd = new Date(dayStr + 'T23:59:59.999');
+      const dayEnd = new Date(
+        dayStart.getFullYear(),
+        dayStart.getMonth(),
+        dayStart.getDate() + 1
+      );
       const matches = [];
       for (const svc of allServices) {
         const name = svc.service || svc.displayName || 'Unknown';
@@ -623,7 +626,7 @@
           const start = issue.startDateTime ? new Date(issue.startDateTime) : null;
           const end = issue.endDateTime ? new Date(issue.endDateTime) : (issue.isResolved ? null : new Date());
           if (!start) continue;
-          if (start <= dayEnd && (!end || end >= dayStart)) {
+          if (start < dayEnd && (!end || end >= dayStart)) {
             matches.push({
               service: name,
               id: issue.id || '',
@@ -1180,7 +1183,7 @@
     <div class="gen-modal-backdrop" id="gen-modal-backdrop"></div>
     <div class="gen-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
       <header class="gen-modal-header">
-        <h3 class="gen-modal-title" id="gen-modal-title">Export</h3>
+        <h2 class="gen-modal-title" id="gen-modal-title">Export</h2>
         <button class="gen-modal-close" id="gen-modal-close-btn" type="button" aria-label="Close">×</button>
       </header>
       <div class="gen-modal-body">

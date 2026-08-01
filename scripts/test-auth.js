@@ -684,6 +684,36 @@ test('tenant Message Center routes stay within the authenticated API namespace',
   assert.doesNotMatch(source, /parsed\.pathname\s*===\s*['"]\/servicemessages['"]/);
 });
 
+test('calendar-day filtering uses exclusive next-day bounds', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'servicehealth.html'), 'utf8');
+  assert.doesNotMatch(html, /23:59:59(?:\.999)?|86399999|setHours\(\s*23\s*,\s*59/);
+  assert.match(html, /start < dEnd/);
+  assert.match(html, /start < dayEnd/);
+});
+
+test('every page has one primary heading and dynamic errors are announced', () => {
+  const pages = fs.readdirSync(path.join(__dirname, '..'))
+    .filter(name => name.endsWith('.html'));
+  for (const page of pages) {
+    const html = fs.readFileSync(path.join(__dirname, '..', page), 'utf8');
+    assert.equal((html.match(/<h1(?:\s|>)/gi) || []).length, 1, `${page} must have one h1`);
+    const levels = [...html.matchAll(/<h([1-6])(?:\s|>)/gi)].map(match => Number(match[1]));
+    for (let i = 1; i < levels.length; i++) {
+      assert.ok(levels[i] <= levels[i - 1] + 1, `${page} skips heading levels`);
+    }
+  }
+
+  const serviceHealth = fs.readFileSync(path.join(__dirname, '..', 'servicehealth.html'), 'utf8');
+  assert.match(serviceHealth, /id="sh-updated"[^>]*role="status"[^>]*aria-live="polite"/);
+
+  const azureHealth = fs.readFileSync(path.join(__dirname, '..', 'azureservicehealth.html'), 'utf8');
+  assert.doesNotMatch(azureHealth, /class="arh-error"(?! role="(?:alert|status)")/);
+
+  const picker = fs.readFileSync(path.join(__dirname, '..', 'static', 'subscription-picker.js'), 'utf8');
+  assert.match(picker, /class="sp-error" role="alert"/);
+  assert.match(picker, /e\.key !== 'Enter' && e\.key !== ' '/);
+});
+
 async function getUnusedPort() {
   const listener = net.createServer();
   listener.listen(0, '127.0.0.1');
@@ -763,6 +793,21 @@ test('server rejects the legacy tenant-data alias and isolates rate-limit tiers'
       body: JSON.stringify({ items: [{ id: '1', description: 'x'.repeat(300_000) }] }),
     });
     assert.equal(oversized.status, 413);
+  });
+});
+
+test('static assets revalidate with ETags instead of serving stale deployments', async () => {
+  await withServer({ AUTH_MODE: 'none-loopback-only' }, async (baseUrl) => {
+    const first = await fetch(`${baseUrl}/static/util.js`);
+    assert.equal(first.status, 200);
+    assert.equal(first.headers.get('cache-control'), 'public, no-cache');
+    const etag = first.headers.get('etag');
+    assert.ok(etag);
+
+    const second = await fetch(`${baseUrl}/static/util.js`, {
+      headers: { 'If-None-Match': etag },
+    });
+    assert.equal(second.status, 304);
   });
 });
 

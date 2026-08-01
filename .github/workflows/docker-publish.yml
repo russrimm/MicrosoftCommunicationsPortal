@@ -7,7 +7,8 @@ on:
       - '*.html'
       - 'static/**'
       - 'public/**'
-      - 'scripts/test-auth.js'
+      - 'scripts/**'
+      - 'eslint.config.js'
       - 'package.json'
       - 'package-lock.json'
       - 'infra/**'
@@ -23,7 +24,8 @@ on:
       - '*.html'
       - 'static/**'
       - 'public/**'
-      - 'scripts/test-auth.js'
+      - 'scripts/**'
+      - 'eslint.config.js'
       - 'package.json'
       - 'package-lock.json'
       - 'infra/**'
@@ -62,6 +64,8 @@ jobs:
       - run: npm ci
 
       - run: npm test
+
+      - run: npm run lint
 
       - run: az bicep build --file infra/main.bicep --stdout > /dev/null
 

@@ -22,7 +22,7 @@
     <!-- Hero -->
     <div class="sh-hero">
       <div>
-        <div class="sh-hero-title">Azure Service Health</div>
+        <h1 class="sh-hero-title">Azure Service Health</h1>
         <div class="sh-hero-sub">Real-time monitoring of Azure resource health, emerging issues, and service events</div>
       </div>
       <div style="display:flex;align-items:center;gap:0.75rem;">
@@ -271,7 +271,7 @@
           var res = await fetch('/api/azure-resource-health/emerging-issues', { signal: request.signal });
           var data = await res.json();
           if (data.error) {
-            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
             return;
           }
           var warningHtml = data.warning
@@ -336,7 +336,7 @@
           list.innerHTML = warningHtml + html;
         } catch (err) {
           if (err.name === 'AbortError') return;
-          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+          list.innerHTML = '<div class="arh-error" role="alert">\u274c ' + escapeHtml(err.message) + '</div>';
         } finally {
           if (emergingRequest === request) {
             emergingRequest = null;
@@ -367,7 +367,7 @@
             return;
           }
           if (data.error) {
-            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
             return;
           }
           var warningHtml = data.warning
@@ -425,7 +425,7 @@
           list.innerHTML = warningHtml + html;
         } catch (err) {
           if (err.name === 'AbortError') return;
-          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+          list.innerHTML = '<div class="arh-error" role="alert">\u274c ' + escapeHtml(err.message) + '</div>';
         } finally {
           if (eventsRequest === request) {
             eventsRequest = null;
@@ -457,7 +457,7 @@
             return;
           }
           if (data.error) {
-            list.innerHTML = '<div class="arh-error">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
             return;
           }
           var items = data.value || [];
@@ -466,7 +466,7 @@
           renderAvailability(items, window._arhAvailWarning);
         } catch (err) {
           if (err.name === 'AbortError') return;
-          list.innerHTML = '<div class="arh-error">\u274c ' + escapeHtml(err.message) + '</div>';
+          list.innerHTML = '<div class="arh-error" role="alert">\u274c ' + escapeHtml(err.message) + '</div>';
         } finally {
           if (availabilityRequest === request) {
             availabilityRequest = null;

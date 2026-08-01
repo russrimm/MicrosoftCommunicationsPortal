@@ -90,7 +90,7 @@
     }
 
     rows.forEach(r => {
-      const cells = (r || []).map((c, i) => {
+      const cells = (r || []).map((c) => {
         const text = mdEscape(cellText(c));
         const href = cellHref(c);
         if (href) {

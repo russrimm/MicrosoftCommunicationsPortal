@@ -712,11 +712,11 @@ function getM365AccessToken(done) {
 // ("/v1.0/...") or an absolute https URL (used for @odata.nextLink).
 function graphGet(token, pathOrUrl, done) {
   let hostname = 'graph.microsoft.com';
-  let path = pathOrUrl;
+  let requestPath = pathOrUrl;
   if (/^https?:\/\//i.test(pathOrUrl)) {
     const u = new URL(pathOrUrl);
     hostname = u.hostname;
-    path = u.pathname + u.search;
+    requestPath = u.pathname + u.search;
   }
   // Only ever send the bearer token to Microsoft Graph. A malicious/misconfigured
   // @odata.nextLink pointing at another host must never receive our access token.
@@ -725,7 +725,7 @@ function graphGet(token, pathOrUrl, done) {
   }
   const options = {
     hostname,
-    path,
+    path: requestPath,
     method: 'GET',
     agent: keepAliveAgent,
     headers: {
@@ -791,9 +791,6 @@ function fetchServiceHealthIssues(token, done) {
     (cb) => graphGetAllPages(token, `/v1.0/admin/serviceAnnouncement/issues?${query.toString()}`, 10, cb),
     done);
 }
-
-// (legacy kept for shape compatibility)
-function _fetchMessageCenterMessages_shape() { /* removed: superseded by graphGetAllPages */ }
 
 // ── Azure Resource Health (ARM REST API) ─────────────────────────────────────
 // Uses the Azure Management plane (management.azure.com) to query Resource Health
@@ -1609,7 +1606,6 @@ loadEmptyProducts();
 const {
   AUTH_MODE_EASYAUTH,
   AUTH_MODE_REVERSE_PROXY,
-  AUTH_MODE_NONE_LOOPBACK,
   timingSafeEqualStr,
   redactUpstreamError,
   resolveAuthMode,
@@ -1993,10 +1989,10 @@ const server = http.createServer((req, res) => {
         return;
       }
 
-      fetchMessageCenterMessages(token, (err, result) => {
-        if (err) {
-          console.error('[messagecenter] fetch error:', err.message);
-          sendJson(req, res, 502, { messages: [], error: err.message });
+      fetchMessageCenterMessages(token, (fetchErr, result) => {
+        if (fetchErr) {
+          console.error('[messagecenter] fetch error:', fetchErr.message);
+          sendJson(req, res, 502, { messages: [], error: fetchErr.message });
           return;
         }
 
@@ -2083,8 +2079,8 @@ const server = http.createServer((req, res) => {
           warning: warnings.join(' '),
         }, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
       }
-      fetchServiceHealth(token, (err, r) => { healthResult = { err, result: r }; tryFinishServiceHealth(); });
-      fetchServiceHealthIssues(token, (err, r) => { issuesResult = { err, result: r }; tryFinishServiceHealth(); });
+      fetchServiceHealth(token, (healthErr, r) => { healthResult = { err: healthErr, result: r }; tryFinishServiceHealth(); });
+      fetchServiceHealthIssues(token, (issuesErr, r) => { issuesResult = { err: issuesErr, result: r }; tryFinishServiceHealth(); });
     });
     return;
   }
@@ -2223,23 +2219,23 @@ const server = http.createServer((req, res) => {
         // Other product IDs return malformed JSON containing Liquid templating errors —
         // e.g. literal "Liquid error: ..." text inside what should be arrays. We still
         // want to treat those as "no release plan published" rather than fail.
-        let parsed = null;
-        try { parsed = JSON.parse(body); } catch { /* not JSON */ }
+        let parsedBody = null;
+        try { parsedBody = JSON.parse(body); } catch { /* not JSON */ }
         // Recover the "empty results" case from malformed bodies: if strict parse
         // failed but the body unambiguously contains `"results": []`, treat as empty.
-        const looksLikeEmpty = !parsed && /["']results["']\s*:\s*\[\s*\]/.test(body);
-        const count = parsed && Array.isArray(parsed.results) ? parsed.results.length : 0;
-        const isEmpty = (parsed && count === 0) || looksLikeEmpty;
+        const looksLikeEmpty = !parsedBody && /["']results["']\s*:\s*\[\s*\]/.test(body);
+        const count = parsedBody && Array.isArray(parsedBody.results) ? parsedBody.results.length : 0;
+        const isEmpty = (parsedBody && count === 0) || looksLikeEmpty;
       // Only log non-success or noteworthy cases; normal 200 responses stay quiet.
-      if (status !== 200 || looksLikeEmpty || !parsed) {
-        console.log(`[proxy] ${status} ${productId} \u2192 ${count} results (${body.length} bytes)${looksLikeEmpty ? ' [recovered-empty]' : ''}${!parsed ? ' [unparseable]' : ''}`);
+      if (status !== 200 || looksLikeEmpty || !parsedBody) {
+        console.log(`[proxy] ${status} ${productId} \u2192 ${count} results (${body.length} bytes)${looksLikeEmpty ? ' [recovered-empty]' : ''}${!parsedBody ? ' [unparseable]' : ''}`);
       }
         // Update empty-product cache based on this response.
         if (productId) {
           if (isEmpty) recordEmpty(productId);
-          else if (parsed && count > 0) clearEmpty(productId);
+          else if (parsedBody && count > 0) clearEmpty(productId);
         }
-        if (parsed) {
+        if (parsedBody) {
           res.writeHead(200, {
             'Content-Type': 'application/json; charset=utf-8',
             'X-Content-Type-Options': 'nosniff',
@@ -2366,7 +2362,7 @@ const server = http.createServer((req, res) => {
       }
       const headers = {
         'Content-Type': cached.contentType,
-        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+        'Cache-Control': 'public, no-cache',
         'ETag': cached.etag,
         'X-Content-Type-Options': 'nosniff',
         'Vary': 'Accept-Encoding',
@@ -2398,7 +2394,7 @@ const server = http.createServer((req, res) => {
         }
         const headers = {
           'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+          'Cache-Control': 'public, no-cache',
           'ETag': etag,
           'X-Content-Type-Options': 'nosniff',
           'Vary': 'Accept-Encoding',
@@ -2413,7 +2409,7 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, headers); res.end(buf);
       };
       if (shouldGzip) {
-        zlib.gzip(buf, (err, gz) => finalize(err ? null : gz));
+        zlib.gzip(buf, (gzipErr, gz) => finalize(gzipErr ? null : gz));
       } else {
         finalize(null);
       }
@@ -2453,8 +2449,8 @@ const server = http.createServer((req, res) => {
       };
       const accept = (req.headers['accept-encoding'] || '').toLowerCase();
       if (ext === '.svg' && accept.includes('gzip') && buf.length > 4096) {
-        zlib.gzip(buf, (err, gz) => {
-          if (err) { headers['Content-Length'] = buf.length; res.writeHead(200, headers); res.end(buf); return; }
+        zlib.gzip(buf, (gzipErr, gz) => {
+          if (gzipErr) { headers['Content-Length'] = buf.length; res.writeHead(200, headers); res.end(buf); return; }
           headers['Content-Encoding'] = 'gzip';
           headers['Content-Length'] = gz.length;
           res.writeHead(200, headers); res.end(gz);
