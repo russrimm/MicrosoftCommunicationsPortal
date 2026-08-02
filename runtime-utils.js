@@ -21,6 +21,51 @@ function mergeVaryHeaders() {
   return Array.from(new Set(values.map(value => value.trim()).filter(Boolean))).join(', ');
 }
 
+function shouldUseSecureCookie(options) {
+  const config = options || {};
+  if (config.networkFacing || config.socketEncrypted) return true;
+  if (!config.trustProxy) return false;
+  const protocols = String(config.forwardedProto || '').split(',');
+  return protocols[protocols.length - 1].trim().toLowerCase() === 'https';
+}
+
+function shouldRetryTransientResponse(err, status, retryAfterMs, delayBudgetMs) {
+  if (err) return true;
+  if (!Number.isInteger(status)) return false;
+  if (status !== 429 && status < 500) return false;
+  return !Number.isFinite(retryAfterMs) || retryAfterMs <= delayBudgetMs;
+}
+
+function retryCallback(operation, options, done) {
+  const config = options || {};
+  const maxAttempts = Math.max(1, config.maxAttempts || 3);
+  const baseDelayMs = Math.max(0, config.baseDelayMs || 100);
+  const maxDelayMs = Math.max(baseDelayMs, config.maxDelayMs || 2_000);
+  const schedule = config.schedule || setTimeout;
+  const shouldRetry = config.shouldRetry || ((err) => !!err);
+  let attempt = 0;
+
+  function run() {
+    attempt++;
+    operation((err, value) => {
+      if (attempt >= maxAttempts || !shouldRetry(err, value)) {
+        done(err, value);
+        return;
+      }
+      const suggestedDelay = typeof config.getDelayMs === 'function'
+        ? config.getDelayMs(err, value, attempt)
+        : null;
+      const exponentialDelay = Math.min(maxDelayMs, baseDelayMs * (2 ** (attempt - 1)));
+      const delayMs = Number.isFinite(suggestedDelay)
+        ? Math.max(0, Math.min(maxDelayMs, suggestedDelay))
+        : exponentialDelay;
+      schedule(run, delayMs);
+    });
+  }
+
+  run();
+}
+
 function collectPaginated(fetchPage, firstPath, maxPages, getNextLink, done) {
   const collected = [];
   let pages = 0;
@@ -148,7 +193,8 @@ function createTtlCache(options) {
           storedAt: hit.storedAt,
           expiresAt: hit.expires,
         };
-      } else if (!err && ttlMs > 0) {
+      } else if (!err && ttlMs > 0 &&
+          (typeof opts.shouldCache !== 'function' || opts.shouldCache(value))) {
         if (cache.size >= maxEntries) {
           for (const [cacheKey, entry] of cache) {
             if (entry.expires <= completedAt) cache.delete(cacheKey);
@@ -168,6 +214,8 @@ function createTtlCache(options) {
           storedAt: entry.storedAt,
           expiresAt: entry.expires,
         };
+      } else if (!err) {
+        meta = { status: 'bypass', storedAt: null, expiresAt: null };
       }
 
       for (const callback of callbacks) {
@@ -199,4 +247,7 @@ module.exports = {
   mergeVaryHeaders,
   parseBoundedInteger,
   rateLimitBucketKey,
+  retryCallback,
+  shouldRetryTransientResponse,
+  shouldUseSecureCookie,
 };

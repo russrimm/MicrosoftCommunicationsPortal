@@ -21,6 +21,9 @@ const {
   mergeServiceHealth,
   parseBoundedInteger,
   rateLimitBucketKey,
+  retryCallback,
+  shouldRetryTransientResponse,
+  shouldUseSecureCookie,
 } = require('../runtime-utils.js');
 const {
   AUTH_MODE_EASYAUTH,
@@ -199,6 +202,75 @@ test('rate limit keys isolate fixed endpoint policies without using request path
     rateLimitBucketKey('127.0.0.1', 5, 60_000),
     rateLimitBucketKey('127.0.0.1', 60, 60_000)
   );
+});
+
+test('secure cookies rely on trusted transport state, not request hostnames', () => {
+  assert.equal(shouldUseSecureCookie({ networkFacing: true }), true);
+  assert.equal(shouldUseSecureCookie({ socketEncrypted: true }), true);
+  assert.equal(shouldUseSecureCookie({
+    trustProxy: true,
+    forwardedProto: 'http, https',
+  }), true);
+  assert.equal(shouldUseSecureCookie({
+    trustProxy: false,
+    forwardedProto: 'https',
+  }), false);
+  assert.equal(shouldUseSecureCookie({}), false);
+});
+
+test('retryCallback backs off transient failures and stops after success', async () => {
+  const delays = [];
+  let attempts = 0;
+  const result = await new Promise((resolve, reject) => {
+    retryCallback(
+      done => {
+        attempts++;
+        done(attempts < 3 ? new Error('temporary') : null, { ok: true });
+      },
+      {
+        maxAttempts: 3,
+        baseDelayMs: 25,
+        shouldRetry: err => !!err,
+        schedule: (callback, delay) => {
+          delays.push(delay);
+          callback();
+        },
+      },
+      (err, value) => err ? reject(err) : resolve(value)
+    );
+  });
+  assert.deepEqual(result, { ok: true });
+  assert.equal(attempts, 3);
+  assert.deepEqual(delays, [25, 50]);
+});
+
+test('retryCallback does not retry permanent results', async () => {
+  let attempts = 0;
+  const result = await new Promise((resolve, reject) => {
+    retryCallback(
+      done => {
+        attempts++;
+        done(null, { status: 400 });
+      },
+      {
+        shouldRetry: (_err, value) => value.status >= 500,
+        schedule: () => assert.fail('permanent failure must not be scheduled'),
+      },
+      (err, value) => err ? reject(err) : resolve(value)
+    );
+  });
+  assert.equal(attempts, 1);
+  assert.equal(result.status, 400);
+});
+
+test('transient retry decisions honor Retry-After within the latency budget', () => {
+  assert.equal(shouldRetryTransientResponse(new Error('socket reset')), true);
+  assert.equal(shouldRetryTransientResponse(null, undefined, null, 2_000), false);
+  assert.equal(shouldRetryTransientResponse(null, 400, null, 2_000), false);
+  assert.equal(shouldRetryTransientResponse(null, 429, 1_000, 2_000), true);
+  assert.equal(shouldRetryTransientResponse(null, 503, 1_000, 2_000), true);
+  assert.equal(shouldRetryTransientResponse(null, 429, 30_000, 2_000), false);
+  assert.equal(shouldRetryTransientResponse(null, 503, 30_000, 2_000), false);
 });
 
 test('mergeVaryHeaders preserves encoding and origin cache variants', () => {
@@ -406,6 +478,21 @@ test('TTL cache clears in-flight state when a fetcher throws synchronously', asy
   const recovered = await cacheFetch(store, 'feed', 500, done => done(null, { ok: true }));
   assert.equal(recovered.value.ok, true);
   assert.equal(recovered.meta.status, 'miss');
+});
+
+test('TTL cache can return successful values without caching them', async () => {
+  const store = createTtlCache({ maxEntries: 5 });
+  let calls = 0;
+  const fetcher = done => done(null, { status: 503, call: ++calls });
+  const first = await cacheFetch(store, 'graph', 500, fetcher, {
+    shouldCache: value => value.status < 500,
+  });
+  const second = await cacheFetch(store, 'graph', 500, fetcher, {
+    shouldCache: value => value.status < 500,
+  });
+  assert.equal(first.meta.status, 'bypass');
+  assert.equal(second.value.call, 2);
+  assert.equal(store.cache.size, 0);
 });
 
 // ── validatePrincipal ────────────────────────────────────────────────────────
@@ -812,13 +899,15 @@ async function withServer(overrides, run) {
   }
 
   try {
-    await run(baseUrl);
+    await run(baseUrl, child, () => output);
   } finally {
-    if (child.exitCode === null) child.kill();
-    await Promise.race([
-      once(child, 'exit'),
-      new Promise(resolve => setTimeout(resolve, 2000)),
-    ]);
+    if (child.exitCode === null) {
+      child.kill();
+      await Promise.race([
+        once(child, 'exit'),
+        new Promise(resolve => setTimeout(resolve, 2000)),
+      ]);
+    }
   }
 }
 
@@ -859,6 +948,57 @@ test('static assets revalidate with ETags instead of serving stale deployments',
       headers: { 'If-None-Match': etag },
     });
     assert.equal(second.status, 304);
+
+    const versioned = await fetch(`${baseUrl}/static/util.js?v=20260802`);
+    assert.equal(versioned.headers.get('cache-control'), 'public, max-age=86400');
+
+    const icon = await fetch(`${baseUrl}/public/azure-logo.svg`);
+    assert.equal(icon.status, 200);
+    assert.equal(icon.headers.get('cache-control'), 'public, max-age=86400');
+    const iconEtag = icon.headers.get('etag');
+    const iconRevalidated = await fetch(`${baseUrl}/public/azure-logo.svg`, {
+      headers: { 'If-None-Match': iconEtag },
+    });
+    assert.equal(iconRevalidated.status, 304);
+    assert.equal(iconRevalidated.headers.get('cache-control'), 'public, max-age=86400');
+  });
+});
+
+test('readiness is distinct from liveness and shutdown drains cleanly', async () => {
+  await withServer({
+    AUTH_MODE: 'none-loopback-only',
+    SHUTDOWN_GRACE_MS: '100',
+  }, async (baseUrl, child, getOutput) => {
+    const ready = await fetch(`${baseUrl}/readyz`);
+    assert.equal(ready.status, 200);
+    assert.deepEqual(await ready.json(), { status: 'ready' });
+    assert.equal(ready.headers.get('cache-control'), 'no-store');
+
+    const exitPromise = once(child, 'exit');
+    child.kill('SIGTERM');
+    if (process.platform !== 'win32') {
+      let unavailable = null;
+      const deadline = Date.now() + 1_000;
+      while (Date.now() < deadline) {
+        try {
+          unavailable = await fetch(`${baseUrl}/readyz`);
+          if (unavailable.status === 503) break;
+        } catch (_) {
+          // The listener can close immediately after the readiness grace period.
+        }
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      assert.equal(unavailable && unavailable.status, 503);
+    }
+    const [code, signal] = await exitPromise;
+    if (process.platform === 'win32') {
+      assert.equal(signal, 'SIGTERM');
+    } else {
+      assert.equal(code, 0);
+      assert.match(getOutput(), /\[shutdown\] SIGTERM received; readiness disabled\./);
+      assert.match(getOutput(), /\[shutdown\] Readiness grace period complete; draining active requests\./);
+      assert.match(getOutput(), /\[shutdown\] Complete\./);
+    }
   });
 });
 
