@@ -16,6 +16,9 @@ const {
   mergeVaryHeaders,
   parseBoundedInteger,
   rateLimitBucketKey,
+  retryCallback,
+  shouldRetryTransientResponse,
+  shouldUseSecureCookie,
 } = require('./runtime-utils.js');
 require('dotenv').config();
 
@@ -270,6 +273,14 @@ function sendHtml(req, res, buf, _etag) {
 // In-memory cache of static HTML files: { etag, buf, mtimeMs }.
 const htmlFileCache = new Map();
 const staticFileCache = new Map();  // filePath -> { buf, etag, contentType, gz, mtimeMs }
+const publicFileCache = new Map();  // filePath -> { buf, etag, contentType, gz }
+function staticAssetCacheControl(parsedUrl) {
+  const version = parsedUrl.searchParams.get('v') || '';
+  return /^[A-Za-z0-9._-]{1,64}$/.test(version)
+    ? 'public, max-age=86400'
+    : 'public, no-cache';
+}
+
 function getHtmlFile(filePath, done) {
   fs.stat(filePath, (err, st) => {
     if (err) return done(err);
@@ -737,7 +748,13 @@ function graphGet(token, pathOrUrl, done) {
     let body = '';
     res.on('data', chunk => { body += chunk; });
     res.on('end', () => {
-      try { done(null, { status: res.statusCode, body: JSON.parse(body) }); }
+      try {
+        done(null, {
+          status: res.statusCode,
+          body: JSON.parse(body),
+          headers: res.headers,
+        });
+      }
       catch (e) { done(new Error(`Parse error: ${e.message}`)); }
     });
   });
@@ -746,15 +763,69 @@ function graphGet(token, pathOrUrl, done) {
   req.end();
 }
 
+function graphRetryDelayMs(result) {
+  const value = result && result.headers && result.headers['retry-after'];
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return seconds * 1_000;
+  const dateMs = Date.parse(value);
+  return Number.isFinite(dateMs) ? Math.max(0, dateMs - Date.now()) : null;
+}
+
+function graphGetWithRetry(token, pathOrUrl, done) {
+  retryCallback(
+    callback => graphGet(token, pathOrUrl, callback),
+    {
+      maxAttempts: 3,
+      baseDelayMs: 250,
+      maxDelayMs: 2_000,
+      shouldRetry: (err, result) => shouldRetryTransientResponse(
+        err,
+        result && result.status,
+        graphRetryDelayMs(result),
+        2_000
+      ),
+      getDelayMs: (_err, result) => graphRetryDelayMs(result),
+    },
+    done
+  );
+}
+
 // Fetch all pages by following @odata.nextLink. Stops at maxPages as a safety.
 function graphGetAllPages(token, firstPath, maxPages, done) {
   collectPaginated(
-    (pathOrUrl, callback) => graphGet(token, pathOrUrl, callback),
+    (pathOrUrl, callback) => graphGetWithRetry(token, pathOrUrl, callback),
     firstPath,
     maxPages,
     body => body['@odata.nextLink'],
     done
   );
+}
+
+function cachedGraphFetch(key, fetcher, done) {
+  cachedFetch(key, 60_000, (callback) => {
+    fetcher((err, result) => {
+      const hasPartialData = !!(result && result.body && result.body.partialFailure &&
+        Array.isArray(result.body.value) && result.body.value.length);
+      if (!err && result &&
+          (result.status === 429 || result.status >= 500) && !hasPartialData) {
+        const upstreamError = new Error(`Microsoft Graph returned HTTP ${result.status}`);
+        upstreamError.result = result;
+        callback(upstreamError);
+        return;
+      }
+      callback(err, result);
+    });
+  }, (err, result, meta) => {
+    if (err && err.result) {
+      done(null, err.result, meta);
+      return;
+    }
+    done(err, result, meta);
+  }, {
+    staleIfErrorMs: 10 * 60_000,
+    shouldCache: result => !!result && result.status >= 200 && result.status < 300,
+  });
 }
 
 // Fetch Message Center messages from Microsoft Graph (all pages, last 30 days)
@@ -766,15 +837,15 @@ function fetchMessageCenterMessages(token, done) {
     '$top': '999',
   });
   // Cache for 60s — matches the Cache-Control we send to the browser.
-  cachedFetch('mc:messages', 60_000,
+  cachedGraphFetch('mc:messages',
     (cb) => graphGetAllPages(token, `/v1.0/admin/serviceAnnouncement/messages?${query.toString()}`, 20, cb),
     done);
 }
 
 // Fetch Service Health from Microsoft Graph
 function fetchServiceHealth(token, done) {
-  cachedFetch('mc:health', 60_000,
-    (cb) => graphGet(token, '/v1.0/admin/serviceAnnouncement/healthOverviews?$expand=issues', cb),
+  cachedGraphFetch('mc:health',
+    (cb) => graphGetWithRetry(token, '/v1.0/admin/serviceAnnouncement/healthOverviews?$expand=issues', cb),
     done);
 }
 
@@ -787,7 +858,7 @@ function fetchServiceHealthIssues(token, done) {
     '$top': '100',
     '$expand': 'posts',
   });
-  cachedFetch('mc:health-issues', 60_000,
+  cachedGraphFetch('mc:health-issues',
     (cb) => graphGetAllPages(token, `/v1.0/admin/serviceAnnouncement/issues?${query.toString()}`, 10, cb),
     done);
 }
@@ -825,9 +896,13 @@ function ensureSessionCookie(req, res) {
   let sid = getSessionId(req);
   if (!sid) {
     sid = crypto.randomUUID();
-    // HttpOnly + SameSite=Strict — cookie is never accessible to page JS
-    // and is never sent cross-origin.  Secure is added when not localhost.
-    const secure = req.headers.host && !req.headers.host.startsWith('localhost') ? '; Secure' : '';
+    // Never derive cookie security from the client-controlled Host header.
+    const secure = shouldUseSecureCookie({
+      networkFacing: !IS_LOOPBACK,
+      socketEncrypted: !!(req.socket && req.socket.encrypted),
+      trustProxy: process.env.TRUST_PROXY === 'true',
+      forwardedProto: req.headers['x-forwarded-proto'],
+    }) ? '; Secure' : '';
     res.setHeader('Set-Cookie',
       `${SESSION_COOKIE_NAME}=${sid}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400${secure}`);
   }
@@ -1636,11 +1711,19 @@ const requireAuth = makeRequireAuth({
   isAppService: IS_APP_SERVICE,
   easyAuthEnabled: process.env.WEBSITE_AUTH_ENABLED === 'True',
 });
+let isShuttingDown = false;
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, 'http://localhost');
 
   // ── Universal auth guard for sensitive API endpoints ─────────────────────
   if (!requireAuth(req, res, parsed.pathname)) return;
+
+  if (parsed.pathname === '/readyz') {
+    sendJson(req, res, isShuttingDown ? 503 : 200, {
+      status: isShuttingDown ? 'shutting-down' : 'ready',
+    }, { 'Cache-Control': 'no-store' });
+    return;
+  }
 
   // ── Health check endpoint (no auth; generous rate limit for monitors) ────
   if (parsed.pathname === '/healthz' || parsed.pathname === '/health') {
@@ -1989,7 +2072,7 @@ const server = http.createServer((req, res) => {
         return;
       }
 
-      fetchMessageCenterMessages(token, (fetchErr, result) => {
+      fetchMessageCenterMessages(token, (fetchErr, result, cacheMeta) => {
         if (fetchErr) {
           console.error('[messagecenter] fetch error:', fetchErr.message);
           sendJson(req, res, 502, { messages: [], error: fetchErr.message });
@@ -2000,7 +2083,9 @@ const server = http.createServer((req, res) => {
         const error = body && body.error
           ? describeGraphError(status, body.error, 'ServiceMessage.Read.All')
           : null;
-        const warning = paginationWarning(body, 'Message Center');
+        const warning = cacheMeta && cacheMeta.status === 'stale'
+          ? 'Microsoft Graph is temporarily unavailable; showing recently cached Message Center data.'
+          : paginationWarning(body, 'Message Center');
         if (error) console.error('[messagecenter] graph error:', status, error);
         sendJson(req, res, paginatedResponseStatus(status, body), {
           messages: body.value || [],
@@ -2046,11 +2131,17 @@ const server = http.createServer((req, res) => {
         if (error) console.error('[servicehealth] graph error:', status, error);
 
         const warnings = [];
+        if (healthResult.meta && healthResult.meta.status === 'stale') {
+          warnings.push('Microsoft Graph is temporarily unavailable; showing recently cached service status.');
+        }
         let allIssues = [];
         if (issuesResult.err) {
           warnings.push('Issue history is temporarily unavailable.');
           console.error('[servicehealth] issues fetch error:', issuesResult.err.message);
         } else if (issuesResult.result) {
+          if (issuesResult.meta && issuesResult.meta.status === 'stale') {
+            warnings.push('Microsoft Graph is temporarily unavailable; showing recently cached issue history.');
+          }
           const issuesBody = issuesResult.result.body || {};
           const pagination = paginationWarning(issuesBody, 'Service Health issue history');
           if (pagination) {
@@ -2079,8 +2170,14 @@ const server = http.createServer((req, res) => {
           warning: warnings.join(' '),
         }, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
       }
-      fetchServiceHealth(token, (healthErr, r) => { healthResult = { err: healthErr, result: r }; tryFinishServiceHealth(); });
-      fetchServiceHealthIssues(token, (issuesErr, r) => { issuesResult = { err: issuesErr, result: r }; tryFinishServiceHealth(); });
+      fetchServiceHealth(token, (healthErr, r, meta) => {
+        healthResult = { err: healthErr, result: r, meta };
+        tryFinishServiceHealth();
+      });
+      fetchServiceHealthIssues(token, (issuesErr, r, meta) => {
+        issuesResult = { err: issuesErr, result: r, meta };
+        tryFinishServiceHealth();
+      });
     });
     return;
   }
@@ -2354,15 +2451,18 @@ const server = http.createServer((req, res) => {
     const filePath = path.join(__dirname, 'static', rel);
     const root = path.join(__dirname, 'static') + path.sep;
     if (!filePath.startsWith(root)) { res.writeHead(400); res.end('Bad path'); return; }
+    const cacheControl = staticAssetCacheControl(parsed);
 
     const cached = staticFileCache.get(filePath);
     if (cached) {
       if (req.headers['if-none-match'] === cached.etag) {
-        res.writeHead(304, { ETag: cached.etag }); res.end(); return;
+        res.writeHead(304, { ETag: cached.etag, 'Cache-Control': cacheControl, Vary: 'Accept-Encoding' });
+        res.end();
+        return;
       }
       const headers = {
         'Content-Type': cached.contentType,
-        'Cache-Control': 'public, no-cache',
+        'Cache-Control': cacheControl,
         'ETag': cached.etag,
         'X-Content-Type-Options': 'nosniff',
         'Vary': 'Accept-Encoding',
@@ -2390,11 +2490,13 @@ const server = http.createServer((req, res) => {
         const entry = { buf, etag, contentType, gz: gz || null, mtimeMs: Date.now() };
         staticFileCache.set(filePath, entry);
         if (req.headers['if-none-match'] === etag) {
-          res.writeHead(304, { ETag: etag }); res.end(); return;
+          res.writeHead(304, { ETag: etag, 'Cache-Control': cacheControl, Vary: 'Accept-Encoding' });
+          res.end();
+          return;
         }
         const headers = {
           'Content-Type': contentType,
-          'Cache-Control': 'public, no-cache',
+          'Cache-Control': cacheControl,
           'ETag': etag,
           'X-Content-Type-Options': 'nosniff',
           'Vary': 'Accept-Encoding',
@@ -2432,6 +2534,32 @@ const server = http.createServer((req, res) => {
     const filePath = path.join(__dirname, 'public', rel);
     const root = path.join(__dirname, 'public') + path.sep;
     if (!filePath.startsWith(root)) { res.writeHead(400); res.end('Bad path'); return; }
+    const cached = publicFileCache.get(filePath);
+    if (cached) {
+      if (req.headers['if-none-match'] === cached.etag) {
+        res.writeHead(304, {
+          ETag: cached.etag,
+          'Cache-Control': 'public, max-age=86400',
+          Vary: 'Accept-Encoding',
+        });
+        res.end();
+        return;
+      }
+      const headers = {
+        'Content-Type': cached.contentType,
+        'Cache-Control': 'public, max-age=86400',
+        'ETag': cached.etag,
+        'X-Content-Type-Options': 'nosniff',
+        'Vary': 'Accept-Encoding',
+      };
+      const accept = (req.headers['accept-encoding'] || '').toLowerCase();
+      const body = accept.includes('gzip') && cached.gz ? cached.gz : cached.buf;
+      if (body === cached.gz) headers['Content-Encoding'] = 'gzip';
+      headers['Content-Length'] = body.length;
+      res.writeHead(200, headers);
+      res.end(body);
+      return;
+    }
     fs.readFile(filePath, (err, buf) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       const ext = path.extname(filePath).toLowerCase();
@@ -2439,26 +2567,38 @@ const server = http.createServer((req, res) => {
                       '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
                       '.ico': 'image/x-icon' };
       const etag = '"' + crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16) + '"';
-      if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag }); res.end(); return; }
-      const headers = {
-        'Content-Type': types[ext] || 'application/octet-stream',
-        'Cache-Control': 'public, max-age=86400',
-        'ETag': etag,
-        'X-Content-Type-Options': 'nosniff',
-        'Vary': 'Accept-Encoding',
+      const contentType = types[ext] || 'application/octet-stream';
+      const finalize = (gz) => {
+        const entry = { buf, etag, contentType, gz: gz || null };
+        publicFileCache.set(filePath, entry);
+        if (req.headers['if-none-match'] === etag) {
+          res.writeHead(304, {
+            ETag: etag,
+            'Cache-Control': 'public, max-age=86400',
+            Vary: 'Accept-Encoding',
+          });
+          res.end();
+          return;
+        }
+        const headers = {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=86400',
+          'ETag': etag,
+          'X-Content-Type-Options': 'nosniff',
+          'Vary': 'Accept-Encoding',
+        };
+        const accept = (req.headers['accept-encoding'] || '').toLowerCase();
+        const body = accept.includes('gzip') && entry.gz ? entry.gz : entry.buf;
+        if (body === entry.gz) headers['Content-Encoding'] = 'gzip';
+        headers['Content-Length'] = body.length;
+        res.writeHead(200, headers);
+        res.end(body);
       };
-      const accept = (req.headers['accept-encoding'] || '').toLowerCase();
-      if (ext === '.svg' && accept.includes('gzip') && buf.length > 4096) {
-        zlib.gzip(buf, (gzipErr, gz) => {
-          if (gzipErr) { headers['Content-Length'] = buf.length; res.writeHead(200, headers); res.end(buf); return; }
-          headers['Content-Encoding'] = 'gzip';
-          headers['Content-Length'] = gz.length;
-          res.writeHead(200, headers); res.end(gz);
-        });
-        return;
+      if (ext === '.svg' && buf.length > 4096) {
+        zlib.gzip(buf, (gzipErr, gz) => finalize(gzipErr ? null : gz));
+      } else {
+        finalize(null);
       }
-      headers['Content-Length'] = buf.length;
-      res.writeHead(200, headers); res.end(buf);
     });
     return;
   }
@@ -2790,3 +2930,49 @@ server.listen(PORT, HOST, () => {
     console.warn('[startup]   Set AZURE_OPENAI_*, OPENAI_API_KEY, or GITHUB_TOKEN in .env to enable.\n');
   }
 });
+
+const SHUTDOWN_TIMEOUT_MS = parseBoundedInteger(
+  process.env.SHUTDOWN_TIMEOUT_MS,
+  10_000,
+  1_000,
+  30_000
+);
+const SHUTDOWN_GRACE_MS = parseBoundedInteger(
+  process.env.SHUTDOWN_GRACE_MS,
+  5_000,
+  0,
+  30_000
+);
+
+function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`[shutdown] ${signal} received; readiness disabled.`);
+
+  const forceTimer = setTimeout(() => {
+    console.error(`[shutdown] Drain timed out after ${SHUTDOWN_TIMEOUT_MS}ms; forcing connection close.`);
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+    keepAliveAgent.destroy();
+    process.exit(1);
+  }, SHUTDOWN_GRACE_MS + SHUTDOWN_TIMEOUT_MS);
+  forceTimer.unref();
+
+  const drainTimer = setTimeout(() => {
+    console.log('[shutdown] Readiness grace period complete; draining active requests.');
+    server.close((err) => {
+      clearTimeout(forceTimer);
+      keepAliveAgent.destroy();
+      if (err) {
+        console.error('[shutdown] Server close failed:', err.message);
+        process.exitCode = 1;
+        return;
+      }
+      console.log('[shutdown] Complete.');
+    });
+    if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();
+  }, SHUTDOWN_GRACE_MS);
+  drainTimer.unref();
+}
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));

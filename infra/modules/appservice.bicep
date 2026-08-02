@@ -70,12 +70,12 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
       alwaysOn: true
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
-      // Lets App Service ping the app's existing /healthz endpoint every
-      // minute, remove unhealthy instances from the load balancer once
-      // scaled out, and auto-replace an instance unhealthy for 1h+. Safe
+      // Lets App Service probe readiness, remove unhealthy instances from the
+      // load balancer once scaled out, and auto-replace an instance unhealthy
+      // for 1h+. Safe
       // with Easy Auth enabled — health check pings bypass it automatically.
       // https://learn.microsoft.com/azure/app-service/monitor-instances-health-check
-      healthCheckPath: '/healthz'
+      healthCheckPath: '/readyz'
       appCommandLine: 'node server.js'
       appSettings: concat(
         configuredAppSettings,

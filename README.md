@@ -613,6 +613,10 @@ configured data sources so you can confirm which pages are working.
   unavailable. If a transient refresh fails, the server can serve bounded stale
   public data (24 hours for RSS/Fabric, 7 days for geography data) with an
   explicit warning instead of replacing useful results with an empty screen.
+- **Resilient tenant feeds** — idempotent Microsoft Graph reads retry transient
+  network, HTTP 429, and HTTP 5xx failures with bounded exponential backoff. If
+  Graph remains unavailable, Message Center and Service Health can serve data
+  cached within the previous 10 minutes with a visible stale-data warning.
 
 ### ✨ AI Insights *(optional)*
 - A per-feed **"Top 5 most impactful changes this week"** digest at the top of the page,
@@ -708,6 +712,7 @@ proper cryptographic-style header validator: spoofed values like
 | **CORS allow-list** | Cross-origin requests are only permitted for origins explicitly listed in the `CORS_ORIGINS` environment variable (comma-separated). If unset, no `Access-Control-Allow-Origin` header is emitted (same-origin only). Wildcard (`*`) is not supported. | Cross-site data theft from unauthorized origins. |
 | **Upstream request timeouts** | All outbound HTTP requests enforce timeouts: 15 seconds for Graph/RSS/proxy calls, 30 seconds for AI calls. | Hung sockets and resource exhaustion from slow or unresponsive upstreams. |
 | **Keep-alive connection pooling** | A shared `https.Agent` with `keepAlive: true` and `maxSockets: 32` reuses TLS connections to upstream hosts. | Socket exhaustion and excessive TLS handshake overhead under load. |
+| **Secure session cookies** | Session cookies are `HttpOnly`, `SameSite=Strict`, and `Secure` for network-facing or TLS requests. The decision uses the socket and trusted proxy protocol, never the client-controlled `Host` header. | Session disclosure over plaintext transport or cookie-flag downgrades through a spoofed host header. |
 
 #### Response security headers
 
@@ -807,6 +812,7 @@ The Node server exposes the following local endpoints (all return JSON):
 | Endpoint | Description | Auth | Rate limit |
 |---|---|---|---|
 | `GET /healthz` or `/health` | Health check / liveness probe | None | — |
+| `GET /readyz` | Readiness probe; returns HTTP 503 while the process is shutting down | None | — |
 | `GET /api/auth-check` | Reports auth configuration status for Graph, ARM, and AI | None | — |
 | `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None | 600/min |
 | `GET /api/m365updates[?refresh=1]` | Microsoft 365 Roadmap RSS, parsed to JSON; optional forced refresh | None | 60/min |
@@ -834,13 +840,27 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /public/<file>` | Microsoft product / service SVG icons | None | — |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
+Microsoft Graph feed reads retry transient failures up to three attempts and can
+serve successful responses cached within the previous 10 minutes when Graph is
+temporarily unavailable.
 Rate limits are per-IP fixed-window counters; set `TRUST_PROXY=true` only behind a
 trusted reverse proxy. The server prefers App Service's `X-Azure-ClientIP`, then the
 last `X-Forwarded-For` hop appended by the proxy.
 AI provider responses are cached in-memory (summarize: 10 min, digest: 15 min, hashed by input).
 The known-empty product cache is persisted to [`empty-products.json`](empty-products.json) so
 restarts don't lose the auto-skip list.
-Static `/public/` icons are sent with a 24-hour `Cache-Control` and an ETag, and gzipped when >1 KB.
+Versioned `/static/` URLs use a 24-hour browser cache; unversioned development
+URLs continue to revalidate with ETags. Static `/public/` icons are
+cached in memory, sent with a 24-hour `Cache-Control` and an ETag, and SVGs over
+4 KB are pre-compressed once per process.
+
+On `SIGTERM` or `SIGINT`, the server marks `/readyz` unavailable, stops accepting
+new connections after a short readiness propagation window, drains active
+requests, and closes upstream keep-alive sockets. Set `SHUTDOWN_GRACE_MS`
+(0–30,000; default 5,000) to control that window. The included container health
+checks poll `/readyz` every two seconds so they can observe the transition.
+Set `SHUTDOWN_TIMEOUT_MS` (1,000–30,000; default 10,000) to control the forced
+shutdown deadline.
 
 ## Project structure
 

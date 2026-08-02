@@ -26,6 +26,11 @@
         <span class="sh-live">Live</span>
       </div>
     </div>
+    <div class="cp-state cp-state-error sh-load-error" id="sh-load-error" role="alert" hidden>
+      <span class="cp-state-icon" aria-hidden="true">⚠️</span>
+      <span id="sh-load-error-message">Service Health data could not be loaded.</span>
+      <button class="cp-state-retry" id="sh-load-retry" type="button">Retry</button>
+    </div>
 
     <!-- Dashboard layout -->
     <div class="sh-page-stack">
@@ -153,7 +158,7 @@
             <span class="sh-panel-title-count" id="sh-issues-total">—</span>
           </div>
           <div style="display:flex;gap:0.4rem;align-items:center">
-            <button class="export-btn" id="sh-export-btn" type="button">⬇ Export</button>
+            <button class="export-btn" id="sh-export-btn" type="button" disabled title="No active issues to export">⬇ Export</button>
             <button class="ghost-btn" id="sh-expand-btn" type="button" aria-expanded="false">Show all</button>
             <button class="ghost-btn" id="sh-pause-btn" type="button" aria-pressed="false">Pause</button>
           </div>
@@ -269,6 +274,29 @@
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     }
 
+    function updateExportAvailability() {
+      const exportBtn = document.getElementById('sh-export-btn');
+      if (!exportBtn) return;
+      const hasIssues = flatIssues().length > 0;
+      exportBtn.disabled = !hasIssues;
+      exportBtn.title = hasIssues ? '' : 'No active issues to export';
+    }
+
+    function showLoadError(message) {
+      const errorState = document.getElementById('sh-load-error');
+      document.getElementById('sh-load-error-message').textContent =
+        message || 'Service Health data could not be loaded.';
+      errorState.hidden = false;
+      document.getElementById('sh-updated').textContent = 'Refresh failed. Existing data may be out of date.';
+      if (!allServices.length) {
+        document.getElementById('sh-breakdown').innerHTML =
+          '<div class="sh-empty" role="status">Service data is unavailable.</div>';
+        document.getElementById('sh-sidebar-list').innerHTML =
+          '<div class="sh-empty" role="status">Current issues are unavailable.</div>';
+      }
+      updateExportAvailability();
+    }
+
     async function loadServiceHealth() {
       if (isPaused) return;
       if (serviceHealthRequest) serviceHealthRequest.abort();
@@ -276,12 +304,12 @@
       serviceHealthRequest = request;
       const refreshBtn = document.getElementById('sh-refresh-btn');
       if (refreshBtn) refreshBtn.disabled = true;
+      document.getElementById('sh-load-error').hidden = true;
       try {
         const res = await fetch('/api/servicehealth', { signal: request.signal });
         const data = await res.json();
-        if (data.error) {
-          document.getElementById('sh-breakdown').innerHTML = `<div class="sh-empty">⚠️ ${escapeHtml(data.error)}</div>`;
-          document.getElementById('sh-sidebar-list').innerHTML = `<div class="sh-empty">⚠️ ${escapeHtml(data.error)}</div>`;
+        if (!res.ok || data.error) {
+          showLoadError(data.error || `Service Health returned HTTP ${res.status}.`);
           return;
         }
         allServices = data.services || [];
@@ -297,10 +325,10 @@
         renderRecentActivity();
         renderHeatmap();
         renderTrend();
+        updateExportAvailability();
       } catch (err) {
         if (err.name === 'AbortError') return;
-        document.getElementById('sh-breakdown').innerHTML =
-          `<div class="sh-empty">❌ ${escapeHtml(err.message)}</div>`;
+        showLoadError(err.message);
       } finally {
         if (serviceHealthRequest === request) {
           serviceHealthRequest = null;
@@ -1175,6 +1203,7 @@
     }
     // ── Event listeners (replaces inline handlers for elements above) ───
     document.getElementById('sh-refresh-btn').addEventListener('click', loadServiceHealth);
+    document.getElementById('sh-load-retry').addEventListener('click', loadServiceHealth);
     document.getElementById('sh-export-btn').addEventListener('click', openExportModal);
     document.getElementById('sh-expand-btn').addEventListener('click', toggleExpandIssues);
     document.getElementById('sh-pause-btn').addEventListener('click', togglePause);
