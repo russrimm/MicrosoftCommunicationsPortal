@@ -843,6 +843,9 @@ test('every page has one primary heading and dynamic errors are announced', () =
 
   const serviceHealth = fs.readFileSync(path.join(__dirname, '..', 'servicehealth.html'), 'utf8');
   assert.match(serviceHealth, /id="sh-updated"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(serviceHealth, /id="sh-load-error"[^>]*role="alert"/);
+  assert.match(serviceHealth, /id="sh-load-retry"[^>]*>Retry<\/button>/);
+  assert.match(serviceHealth, /id="sh-export-btn"[^>]*disabled[^>]*No active issues to export/);
 
   const azureHealth = fs.readFileSync(path.join(__dirname, '..', 'azureservicehealth.html'), 'utf8');
   assert.doesNotMatch(azureHealth, /class="arh-error"(?! role="(?:alert|status)")/);

@@ -64,6 +64,10 @@ html[data-theme="dark"] {
   display: flex; flex-direction: column; gap: 0.75rem;
 }
 
+.sh-load-error {
+  margin: 0 0 1rem;
+}
+
 /* Top row: two-column layout for overview panels */
 .sh-top-row {
   display: grid;
