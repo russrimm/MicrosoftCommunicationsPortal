@@ -21,6 +21,8 @@
 > | G1 — No health check endpoint | ✅ Fixed | `/healthz` and `/health` endpoints added |
 > | G2 — No rate limiting on AI endpoints | ✅ Fixed | 5/min on `/api/summarize`, 10/min on `/api/impact-digest` |
 > | G5 — No auth on `DELETE /api/empty-products` | ✅ Fixed | Loopback + `ADMIN_TOKEN` bearer auth (constant-time compare) |
+> | G6 — No retry on transient Graph failures | ✅ Fixed | Idempotent Graph reads use bounded retry/backoff and a 10-minute stale cache fallback |
+> | G11 — No retry button on error banners | ✅ Fixed | Service Health exposes an accessible error alert with an explicit Retry action |
 > | P1 — Generic 502 when Graph creds missing | ✅ Fixed | Returns 503 "Not configured" with actionable message; `/api/auth-check` endpoint added |
 > | P5 — Root `/` redirects to `/powerplatform` | ✅ Fixed | Now redirects to `/home` (dashboard landing page) |
 > | Top 10 #1 — Playwright in devDependencies | ✅ Fixed | See D3 |
@@ -29,6 +31,7 @@
 > | Top 10 #8 — Add `/healthz` endpoint | ✅ Fixed | See G1 |
 > | Top 10 #9 — Rate limit AI endpoints | ✅ Fixed | See G2 |
 > | Top 10 #10 — Auth on `DELETE /api/empty-products` | ✅ Fixed | See G5 |
+> | Operations — No readiness/draining lifecycle | ✅ Fixed | `/readyz` and bounded `SIGTERM`/`SIGINT` graceful shutdown added |
 >
 > Additionally, the navigation was refactored into a shared `static/nav.js`
 > component with dropdown menus, eliminating ~40 lines of duplicated header HTML
