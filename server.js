@@ -565,6 +565,20 @@ const AZURE_TENANT_ID     = process.env.AZURE_TENANT_ID;
 const GRAPH_RESOURCE     = 'https://graph.microsoft.com';
 // Optional user-assigned managed identity client id (omit for system-assigned).
 const MI_CLIENT_ID       = process.env.AZURE_MI_CLIENT_ID || process.env.M365_MANAGED_IDENTITY_CLIENT_ID || '';
+const MI_CLIENT_ID_SOURCE = process.env.AZURE_MI_CLIENT_ID
+  ? 'AZURE_MI_CLIENT_ID'
+  : (process.env.M365_MANAGED_IDENTITY_CLIENT_ID ? 'M365_MANAGED_IDENTITY_CLIENT_ID' : '');
+
+// Which identity a failing token request asked for. Client ids are public
+// identifiers, not secrets, and naming the source variable turns an opaque
+// "no managed identity found for specified ClientId" 400 into a one-line fix:
+// either assign that user-assigned identity to the host, or unset the variable
+// to fall back to the host's system-assigned identity.
+function describeRequestedIdentity() {
+  return MI_CLIENT_ID
+    ? `user-assigned client_id ${MI_CLIENT_ID} (from ${MI_CLIENT_ID_SOURCE}) — verify this identity is assigned to the host`
+    : 'system-assigned identity (no client_id sent)';
+}
 
 function detectAzureAuthMode() {
   const wantMI = process.env.USE_MANAGED_IDENTITY === 'true' ||
@@ -614,7 +628,7 @@ function fetchManagedIdentityToken(done) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         // Log the upstream body server-side only — error messages may surface
         // in client-facing API responses and must not echo upstream content.
-        console.error(`[auth] Managed identity token HTTP ${res.statusCode}: ${body.slice(0, 300)}`);
+        console.error(`[auth] Managed identity token HTTP ${res.statusCode} for ${describeRequestedIdentity()}: ${body.slice(0, 300)}`);
         return done(new Error(`Managed identity token request failed (HTTP ${res.statusCode}); see server logs`));
       }
       let data;
@@ -994,7 +1008,7 @@ function fetchManagedIdentityArmToken(done) {
     res.on('data', c => { body += c; });
     res.on('end', () => {
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        console.error(`[arm-auth] Managed identity token HTTP ${res.statusCode}: ${body.slice(0, 300)}`);
+        console.error(`[arm-auth] Managed identity token HTTP ${res.statusCode} for ${describeRequestedIdentity()}: ${body.slice(0, 300)}`);
         return done(new Error(`ARM managed identity token request failed (HTTP ${res.statusCode}); see server logs`));
       }
       let data;
@@ -2913,7 +2927,7 @@ server.listen(PORT, HOST, () => {
         ? ' (Bearer token behind authenticating reverse proxy)'
         : ' (loopback-only; no auth required on localhost)'));
   if (AZURE_AUTH_MODE) {
-    console.log(`  → Graph auth: ${AZURE_AUTH_MODE}${AZURE_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ' (user-assigned)' : ''}`);
+    console.log(`  → Graph auth: ${AZURE_AUTH_MODE}${AZURE_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ` (user-assigned ${MI_CLIENT_ID} from ${MI_CLIENT_ID_SOURCE})` : ''}`);
   } else {
     console.warn('[startup] \u26a0 Microsoft Graph not configured \u2014 Message Center and Service Health pages will return 503.');
     console.warn('[startup]   Set USE_MANAGED_IDENTITY=true or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.');
