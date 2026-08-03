@@ -107,7 +107,82 @@ headers unless App Service reports that authentication is enabled.
 > identity-provider setting before production use; see
 > [Use a managed identity instead of a secret](https://learn.microsoft.com/azure/app-service/configure-authentication-provider-aad#use-a-managed-identity-instead-of-a-secret).
 
-### Option 2 — Docker *(recommended for quick trials or on-prem)*
+### Option 2 — Azure Static Web Apps + linked App Service backend
+
+**What this does:** Serves the HTML, CSS, and JavaScript from Azure Static Web
+Apps' global edge network, and proxies every `/api/*` request to the same
+`server.js` App Service that Option 1 deploys. The App Service keeps its managed
+identity, so Microsoft Graph and Azure Resource Manager calls are unchanged.
+
+**Best for:** Teams that want edge-cached static assets and Static Web Apps'
+built-in Microsoft Entra ID sign-in in front of the existing API.
+
+```
+Browser ──> Static Web Apps (Standard)
+             ├── static content + managed Entra ID auth
+             └── /api/*  ──proxy──> linked App Service (server.js)
+                                     └── managed identity ──> Graph + ARM
+```
+
+**Prerequisites:**
+- Everything from Option 1 — this option *adds* a Static Web App in front of the
+  App Service, it does not replace it.
+- The **Standard** plan. Linked backends are not available on the Free plan.
+- An Entra app registration with a client secret, because Static Web Apps'
+  custom Entra ID provider does not support managed identity.
+
+```bash
+azd env set DEPLOY_STATIC_WEB_APP true
+azd env set STATIC_WEB_APP_LOCATION eastus2   # or westus2, centralus, westeurope, eastasia
+azd env set AUTH_CLIENT_ID <your-entra-app-client-id>
+azd env set AUTH_CLIENT_SECRET <your-entra-app-client-secret>
+azd up
+```
+
+Provisioning creates the Static Web App, links the App Service as its `/api`
+backend, and sets `AUTH_MODE=swa` on the App Service so it trusts the
+`x-ms-client-principal` header that Static Web Apps forwards.
+
+**Then set up content deployment.** Static content is published by the
+[`azure-static-web-apps.yml`](.github/workflows/azure-static-web-apps.yml)
+workflow. Grab the deployment token and store it as a repository secret:
+
+```bash
+az staticwebapp secrets list --name <static-web-app-name> \
+  --query "properties.apiKey" -o tsv
+```
+
+- Repository **secret** `AZURE_STATIC_WEB_APPS_API_TOKEN` — the token above.
+- Repository **variable** `ENTRA_TENANT_ID` — your tenant ID. Without it the
+  build drops the custom Entra registration and falls back to the preconfigured
+  multi-tenant provider.
+
+To preview the payload locally:
+
+```bash
+npm run build:swa    # writes dist/
+npx @azure/static-web-apps-cli start dist --swa-config-location dist \
+  --api-devserver-url http://127.0.0.1:3000
+```
+
+> **Why a build step?** `server.js` injects a per-request CSP nonce into every
+> inline `<script>`. Static Web Apps serves HTML straight from storage, so no
+> nonce can be generated. `scripts/build-swa.js` replaces it with build-time
+> `sha256` CSP hashes, which keeps the policy strict without `unsafe-inline`.
+
+> **Linking security:** Linking the backend automatically adds an App Service
+> identity provider named *Azure Static Web Apps (Linked)* that rejects traffic
+> not proxied through the Static Web App. Unlinking does **not** remove it, so
+> the App Service is never left anonymously exposed. Because of this, the bicep
+> template skips its own Easy Auth configuration when
+> `DEPLOY_STATIC_WEB_APP` is `true` — otherwise a redeploy would overwrite the
+> linked provider and break the connection.
+
+> **Pull request previews are not supported.** Static Web Apps does not attach
+> linked backends to preview environments, so the workflow deploys only on push
+> to `main` and on manual dispatch.
+
+### Option 3 — Docker *(recommended for quick trials or on-prem)*
 
 **What this does:** Runs the portal in a Docker container — a lightweight,
 self-contained package that includes everything the app needs. No need to install
@@ -156,7 +231,7 @@ docker run -p 127.0.0.1:3000:3000 \
 > **Where do these values come from?** See [Setup step 2](#setup) below — it walks
 > you through creating the Entra app registration that produces these three values.
 
-### Option 3 — Run locally *(best for development and testing)*
+### Option 4 — Run locally *(best for development and testing)*
 
 **What this does:** Clones the source code and runs the portal directly on your
 machine using Node.js. You can edit the code and see changes immediately.
@@ -637,7 +712,7 @@ and vulnerability reporting instructions, see [SECURITY.md](SECURITY.md).
 #### Authentication modes
 
 The server refuses to start in a "fail-open" configuration. On every deployment
-you must resolve to one of three explicit authentication modes, selected via
+you must resolve to one of four explicit authentication modes, selected via
 the `AUTH_MODE` environment variable (auto-inferred when it can be done safely):
 
 | `AUTH_MODE` | When to use | What it enforces |
@@ -645,6 +720,7 @@ the `AUTH_MODE` environment variable (auto-inferred when it can be done safely):
 | `easyauth` | Azure App Service with Entra ID Easy Auth enabled. **Auto-inferred** when `WEBSITE_INSTANCE_ID` is present. | Every `/api/*` request must carry a valid `X-MS-CLIENT-PRINCIPAL` header. The server base64-decodes the header, JSON-parses it, and requires `auth_typ=aad` plus an `oid` claim that matches the platform-injected `X-MS-CLIENT-PRINCIPAL-ID` header. **Header presence alone is not sufficient.** On App Service, protected requests are rejected with `AUTH_NOT_ENFORCED` unless the read-only platform signal `WEBSITE_AUTH_ENABLED` is `True`. |
 | `reverse-proxy` | Docker / VM / on-prem behind an authenticating reverse proxy (nginx, Traefik, Azure Front Door, etc.) on a trusted network. | Every `/api/*` request must carry `Authorization: Bearer <API_AUTH_TOKEN>`. `API_AUTH_TOKEN` is **required** — the server refuses to start without it. Compared in constant time. This is defense-in-depth between the proxy and the app: even if the proxy misroutes an unauthenticated request, the token still gates access. |
 | `none-loopback-only` | Local development on `127.0.0.1`/`::1`. **Auto-inferred** when `HOST` is loopback. | No token required. The server refuses to start under this mode if `HOST` is non-loopback. |
+| `swa` | App Service used as a **linked backend** of an Azure Static Web App (see [Quick Deploy option 2](#option-2--azure-static-web-apps--linked-app-service-backend)). **Never auto-inferred** — it must be set explicitly. | Every `/api/*` request must carry an `X-MS-CLIENT-PRINCIPAL` header holding either a Static Web Apps client principal (`userId` + `userDetails`, with `authenticated` present in `userRoles`) or an App Service Easy Auth principal. Both shapes are accepted because the linked-backend hop may re-encode the header; anything else is rejected. This is safe only because linking auto-configures the *Azure Static Web Apps (Linked)* identity provider, which blocks any request that did not arrive through the Static Web App. |
 
 **Fail-fast behavior.** The server calls `process.exit(1)` at startup on any of
 these misconfigurations:
@@ -652,8 +728,12 @@ these misconfigurations:
 - `AUTH_MODE` is unset AND `HOST` is non-loopback AND `WEBSITE_INSTANCE_ID` is unset (no safe inference possible).
 - `AUTH_MODE=none-loopback-only` with a non-loopback `HOST`.
 - `AUTH_MODE=reverse-proxy` with no `API_AUTH_TOKEN`.
-- `AUTH_MODE` is set to any value other than the three listed above.
+- `AUTH_MODE` is set to any value other than the four listed above.
 - Binding to a non-loopback host without `ALLOW_REMOTE_BIND=true` (defense in depth against accidental exposure).
+
+`AUTH_MODE=swa` additionally logs a warning when it is used outside App Service
+(`WEBSITE_INSTANCE_ID` unset) or when `WEBSITE_AUTH_ENABLED` is not `True`,
+since both suggest the linked-backend identity provider is missing.
 
 **Migration from earlier versions.** Older builds accepted a `HOST=0.0.0.0`
 container as long as `API_AUTH_TOKEN` was set. That still works, but you must
@@ -814,7 +894,7 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /healthz` or `/health` | Health check / liveness probe | None | — |
 | `GET /readyz` | Readiness probe; returns HTTP 503 while the process is shutting down | None | — |
 | `GET /api/auth-check` | Reports auth configuration status for Graph, ARM, and AI | None | — |
-| `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty) | None | 600/min |
+| `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty). Also reachable as `GET /api/proxy?...`, which is the path the pages call so Azure Static Web Apps can forward it to the linked backend. | None | 600/min |
 | `GET /api/m365updates[?refresh=1]` | Microsoft 365 Roadmap RSS, parsed to JSON; optional forced refresh | None | 60/min |
 | `GET /api/azureupdates[?refresh=1]` | Azure Updates RSS, parsed to JSON; optional forced refresh | None | 60/min |
 | `GET /api/fabricroadmap[?refresh=1]` | Microsoft Fabric Roadmap JSON (14 product areas); optional forced refresh | None | 60/min |
@@ -893,6 +973,9 @@ package.json                     Dependencies (dotenv only)
 .env.example                     Template for Graph auth, AI providers, and server/security options
 scripts/capture-screenshots.js   Playwright script that regenerates the README screenshot gallery
 scripts/build-worldmap.js        Regenerates static/worldmap.js from Natural Earth 110m TopoJSON
+scripts/build-swa.js             Builds dist/ for Azure Static Web Apps (stages pages + assets, computes CSP script hashes)
+staticwebapp.config.json         Azure Static Web Apps routes, auth, security headers (source template — placeholders filled by build-swa.js)
+dist/                            Generated Static Web Apps payload (git-ignored; created by npm run build:swa)
 screenshots/                     Light + dark mode PNGs rendered into the README above
 ```
 

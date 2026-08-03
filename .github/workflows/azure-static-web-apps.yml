@@ -1,0 +1,61 @@
+name: Deploy front end to Azure Static Web Apps
+
+# Publishes the HTML pages and static assets to Azure Static Web Apps. The
+# /api/* routes are served by the App Service linked as the static web app's
+# backend, so this workflow never deploys server-side code.
+#
+# Required repository configuration:
+#   secrets.AZURE_STATIC_WEB_APPS_API_TOKEN
+#       az staticwebapp secrets list --name <static-web-app> --query "properties.apiKey" -o tsv
+#   vars.ENTRA_TENANT_ID (optional)
+#       Tenant for the custom Microsoft Entra ID registration in
+#       staticwebapp.config.json. Without it the build falls back to the
+#       preconfigured Static Web Apps identity providers.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.html'
+      - 'static/**'
+      - 'public/**'
+      - 'staticwebapp.config.json'
+      - 'scripts/build-swa.js'
+      - '.github/workflows/azure-static-web-apps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_and_deploy_job:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      # Stages dist/ and pins the Content-Security-Policy to the sha256 hashes
+      # of the inline scripts in the pages being deployed.
+      - name: Build static payload
+        run: node scripts/build-swa.js
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+
+      - uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9 # v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: dist
+          # The API lives in the linked App Service, not in this repository.
+          api_location: ''
+          output_location: ''
+          skip_app_build: true
+          skip_api_build: true

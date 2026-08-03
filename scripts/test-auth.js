@@ -8,6 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
+const crypto = require('node:crypto');
 const { once } = require('node:events');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -29,11 +30,14 @@ const {
   AUTH_MODE_EASYAUTH,
   AUTH_MODE_REVERSE_PROXY,
   AUTH_MODE_NONE_LOOPBACK,
+  AUTH_MODE_SWA,
   redactUpstreamError,
   resolveAuthMode,
   validatePrincipal,
+  validateSwaPrincipal,
   makeRequireAuth,
 } = require('../auth.js');
+const { PAGES, inlineScriptHashes, buildConfig } = require('./build-swa.js');
 
 function collectPages(fetchPage, firstPath, maxPages, getNextLink) {
   return new Promise((resolve, reject) => {
@@ -764,6 +768,223 @@ test('requireAuth (easyauth) rejects when principal-id header disagrees with oid
   });
   assert.equal(guard(req, res, '/api/messagecenter'), false);
   assert.equal(res._payload.code, 'AUTH_INVALID_PRINCIPAL');
+});
+
+// ── Static Web Apps linked-backend mode ─────────────────────────────────────
+
+function swaPrincipal(overrides) {
+  return {
+    identityProvider: 'aad',
+    userId: 'abcd12345abcd012345abcdef0123450',
+    userDetails: 'user@contoso.com',
+    userRoles: ['anonymous', 'authenticated'],
+    ...overrides,
+  };
+}
+
+test('resolveAuthMode accepts an explicit swa mode on App Service', () => {
+  const r = resolveAuthMode({
+    AUTH_MODE: 'swa',
+    HOST: '0.0.0.0',
+    WEBSITE_INSTANCE_ID: 'abc',
+    WEBSITE_AUTH_ENABLED: 'True',
+  });
+  assert.equal(r.mode, AUTH_MODE_SWA);
+  assert.deepEqual(r.warnings, []);
+});
+
+test('resolveAuthMode warns when swa mode runs without the linked-backend guard', () => {
+  const r = resolveAuthMode({ AUTH_MODE: 'swa', HOST: '0.0.0.0' });
+  assert.equal(r.mode, AUTH_MODE_SWA);
+  assert.equal(r.warnings.length, 1);
+  assert.match(r.warnings[0], /WEBSITE_INSTANCE_ID is not set/);
+});
+
+test('resolveAuthMode never infers swa mode', () => {
+  const r = resolveAuthMode({ HOST: '0.0.0.0', WEBSITE_INSTANCE_ID: 'abc' });
+  assert.equal(r.mode, AUTH_MODE_EASYAUTH);
+});
+
+test('validateSwaPrincipal accepts a signed-in Static Web Apps principal', () => {
+  const r = validateSwaPrincipal(encode(swaPrincipal()));
+  assert.equal(r.ok, true);
+  assert.equal(r.principal.identityProvider, 'aad');
+  assert.equal(r.principal.userId, 'abcd12345abcd012345abcdef0123450');
+});
+
+test('validateSwaPrincipal rejects anonymous callers', () => {
+  const r = validateSwaPrincipal(encode(swaPrincipal({ userRoles: ['anonymous'] })));
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'principal-not-authenticated');
+});
+
+test('validateSwaPrincipal rejects malformed headers', () => {
+  assert.equal(validateSwaPrincipal(undefined).reason, 'missing-principal-header');
+  assert.equal(validateSwaPrincipal('').reason, 'missing-principal-header');
+  assert.equal(validateSwaPrincipal('x').ok, false);
+  assert.equal(validateSwaPrincipal(encode([1, 2, 3])).ok, false);
+  assert.equal(
+    validateSwaPrincipal(encode(swaPrincipal({ userId: '' }))).reason,
+    'principal-missing-user-id'
+  );
+  assert.equal(
+    validateSwaPrincipal(encode(swaPrincipal({ identityProvider: 0 }))).reason,
+    'principal-missing-identity-provider'
+  );
+});
+
+test('requireAuth (swa) accepts a Static Web Apps principal', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_SWA, apiAuthToken: '', sendJson: fakeSendJson, isAppService: true,
+  });
+  const req = fakeReq({ 'x-ms-client-principal': encode(swaPrincipal()) });
+  assert.equal(guard(req, fakeRes(), '/api/messagecenter'), true);
+  assert.equal(req.principal.userDetails, 'user@contoso.com');
+});
+
+test('requireAuth (swa) also accepts an App Service Easy Auth principal', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_SWA, apiAuthToken: '', sendJson: fakeSendJson, isAppService: true,
+  });
+  const req = fakeReq({
+    'x-ms-client-principal': encode(makePrincipal()),
+    'x-ms-client-principal-id': 'aaa-oid',
+  });
+  assert.equal(guard(req, fakeRes(), '/api/messagecenter'), true);
+  assert.equal(req.principal.oid, 'aaa-oid');
+});
+
+test('requireAuth (swa) rejects missing and spoofed principals', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_SWA, apiAuthToken: '', sendJson: fakeSendJson, isAppService: true,
+  });
+  const missing = fakeRes();
+  assert.equal(guard(fakeReq(), missing, '/api/messagecenter'), false);
+  assert.equal(missing._status, 401);
+  assert.equal(missing._payload.code, 'AUTH_REQUIRED');
+
+  const spoofed = fakeRes();
+  assert.equal(guard(fakeReq({ 'x-ms-client-principal': 'x' }), spoofed, '/api/messagecenter'), false);
+  assert.equal(spoofed._payload.code, 'AUTH_INVALID_PRINCIPAL');
+
+  const anonymous = fakeRes();
+  const req = fakeReq({ 'x-ms-client-principal': encode(swaPrincipal({ userRoles: ['anonymous'] })) });
+  assert.equal(guard(req, anonymous, '/api/messagecenter'), false);
+  assert.equal(anonymous._payload.code, 'AUTH_INVALID_PRINCIPAL');
+});
+
+test('requireAuth (swa) leaves the public feed routes reachable', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_SWA, apiAuthToken: '', sendJson: fakeSendJson, isAppService: true,
+  });
+  assert.equal(guard(fakeReq(), fakeRes(), '/api/m365updates'), true);
+  assert.equal(guard(fakeReq(), fakeRes(), '/api/proxy'), true);
+});
+
+// ── Static Web Apps build ───────────────────────────────────────────────────
+
+test('the Release Planner proxy answers on the /api path Static Web Apps forwards', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.match(source, /pathname === '\/proxy' \|\| parsed\.pathname === '\/api\/proxy'/);
+  for (const page of ['powerplatform.html', 'guidedreport.html']) {
+    const html = fs.readFileSync(path.join(__dirname, '..', page), 'utf8');
+    assert.doesNotMatch(html, /['"`]\/proxy\?/, `${page} still calls /proxy directly`);
+    assert.match(html, /\/api\/proxy\?/);
+  }
+});
+
+test('build-swa hashes every inline script and skips external ones', () => {
+  const html = [
+    '<script src="/static/util.js"></script>',
+    '<script>const a = 1;</script>',
+    '<script defer>ignored()</script>',
+  ].join('\n');
+  const hashes = inlineScriptHashes(html);
+  const expected = crypto.createHash('sha256').update('const a = 1;', 'utf8').digest('base64');
+  assert.deepEqual(hashes, [`'sha256-${expected}'`]);
+});
+
+test('every deployed page has at least one hashed inline script', () => {
+  for (const page of PAGES) {
+    const html = fs.readFileSync(path.join(__dirname, '..', page), 'utf8');
+    assert.ok(inlineScriptHashes(html).length > 0, `${page} produced no CSP hashes`);
+  }
+});
+
+// Browsers normalise CRLF to LF before hashing script text, so a CRLF checkout
+// must produce the same hash an LF checkout does or every inline script is blocked.
+test('build-swa hashes are newline-normalised', () => {
+  const lf = '<script>\nconst a = 1;\nfoo();\n</script>';
+  const crlf = lf.replace(/\n/g, '\r\n');
+  const cr = lf.replace(/\n/g, '\r');
+  const expected = crypto
+    .createHash('sha256')
+    .update('\nconst a = 1;\nfoo();\n', 'utf8')
+    .digest('base64');
+  assert.deepEqual(inlineScriptHashes(lf), [`'sha256-${expected}'`]);
+  assert.deepEqual(inlineScriptHashes(crlf), [`'sha256-${expected}'`]);
+  assert.deepEqual(inlineScriptHashes(cr), [`'sha256-${expected}'`]);
+});
+
+test('build-swa refuses to emit a config without the inline-script hashes', () => {
+  const tmp = path.join(os.tmpdir(), `swa-config-${process.pid}.json`);
+  fs.writeFileSync(tmp, JSON.stringify({ globalHeaders: { 'Content-Security-Policy': "script-src 'self'" } }));
+  try {
+    assert.throws(() => buildConfig(tmp, ["'sha256-x'"], ''), /INLINE_SCRIPT_HASHES/);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+});
+
+test('build-swa substitutes the tenant, or drops the custom registration', () => {
+  const source = path.join(__dirname, '..', 'staticwebapp.config.json');
+  const withTenant = buildConfig(source, ["'sha256-x'"], '00000000-1111-2222-3333-444444444444');
+  assert.equal(
+    withTenant.auth.identityProviders.azureActiveDirectory.registration.openIdIssuer,
+    'https://login.microsoftonline.com/00000000-1111-2222-3333-444444444444/v2.0'
+  );
+  assert.match(withTenant.globalHeaders['Content-Security-Policy'], /script-src 'self' 'sha256-x'/);
+  const scriptSrc = withTenant.globalHeaders['Content-Security-Policy']
+    .split(';').map(d => d.trim()).find(d => d.startsWith('script-src'));
+  assert.doesNotMatch(scriptSrc, /unsafe-inline|unsafe-eval/);
+
+  const withoutTenant = buildConfig(source, ["'sha256-x'"], '');
+  assert.equal(withoutTenant.auth, undefined);
+});
+
+test('the Static Web Apps config protects every tenant-scoped API route', () => {
+  const config = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'staticwebapp.config.json'), 'utf8')
+  );
+  const protectedRoutes = new Set(
+    config.routes
+      .filter(r => Array.isArray(r.allowedRoles) && r.allowedRoles.includes('authenticated'))
+      .map(r => r.route)
+  );
+  for (const route of [
+    '/api/summarize',
+    '/api/impact-digest',
+    '/api/messagecenter',
+    '/api/servicemessages',
+    '/api/servicehealth',
+    '/api/subscriptions*',
+    '/api/azure-resource-health/*',
+  ]) {
+    assert.ok(protectedRoutes.has(route), `${route} is not restricted to authenticated users`);
+  }
+});
+
+test('every page route in the Static Web Apps config maps to a deployed page', () => {
+  const config = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'staticwebapp.config.json'), 'utf8')
+  );
+  const rewrites = config.routes
+    .map(r => r.rewrite)
+    .filter(target => typeof target === 'string' && target.endsWith('.html'));
+  assert.equal(rewrites.length, PAGES.length);
+  for (const target of rewrites) {
+    assert.ok(PAGES.includes(target.slice(1)), `${target} is not staged by build-swa`);
+  }
 });
 
 test('tenant Message Center routes stay within the authenticated API namespace', () => {

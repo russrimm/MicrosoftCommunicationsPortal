@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json.schemastore.org/staticwebapp.config.json",
+  "trailingSlash": "never",
+  "routes": [
+    {
+      "route": "/api/summarize",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/impact-digest",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/messagecenter",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/servicemessages",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/servicehealth",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/subscriptions*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/azure-resource-health/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/empty-products",
+      "methods": ["DELETE"],
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/",
+      "redirect": "/home",
+      "statusCode": 302
+    },
+    {
+      "route": "/home",
+      "rewrite": "/home.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/powerplatform",
+      "rewrite": "/powerplatform.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/messagecenter",
+      "rewrite": "/messagecenter.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/servicehealth",
+      "rewrite": "/servicehealth.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/azureservicehealth",
+      "rewrite": "/azureservicehealth.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/m365updates",
+      "rewrite": "/m365updates.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/azureupdates",
+      "rewrite": "/azureupdates.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/fabricroadmap",
+      "rewrite": "/fabricroadmap.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/featuregeo",
+      "rewrite": "/featuregeo.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/guidedreport",
+      "rewrite": "/guidedreport.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/favicon.ico",
+      "rewrite": "/public/siteicon.png"
+    },
+    {
+      "route": "/static/*",
+      "headers": { "Cache-Control": "public, no-cache" }
+    },
+    {
+      "route": "/public/*",
+      "headers": { "Cache-Control": "public, max-age=86400" }
+    }
+  ],
+  "responseOverrides": {
+    "401": {
+      "statusCode": 401,
+      "rewrite": "/auth-required.json"
+    }
+  },
+  "globalHeaders": {
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' __INLINE_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; media-src 'none'; worker-src 'none'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+  },
+  "mimeTypes": {
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".webmanifest": "application/manifest+json"
+  },
+  "auth": {
+    "identityProviders": {
+      "azureActiveDirectory": {
+        "registration": {
+          "openIdIssuer": "https://login.microsoftonline.com/__ENTRA_TENANT_ID__/v2.0",
+          "clientIdSettingName": "AZURE_CLIENT_ID",
+          "clientSecretSettingName": "AZURE_CLIENT_SECRET"
+        }
+      }
+    }
+  }
+}
