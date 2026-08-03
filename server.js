@@ -2277,7 +2277,10 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Proxy endpoint ──────────────────────────────────────────────────────────
-  if (parsed.pathname === '/proxy') {
+  // Exposed at both /proxy (original) and /api/proxy. Azure Static Web Apps only
+  // forwards paths beginning with /api to a linked backend, so the client calls
+  // /api/proxy; /proxy stays for local runs and direct App Service deployments.
+  if (parsed.pathname === '/proxy' || parsed.pathname === '/api/proxy') {
     // Generous limit: the Release Planner picker fans out ~30 parallel calls per
     // page load, so this caps abuse without breaking normal use.
     if (!checkRateLimit(req, res, 600, 60_000)) return;

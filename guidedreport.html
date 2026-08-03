@@ -547,7 +547,7 @@
                 const batch = ids.slice(i, i + batchSize);
                 const batchResults = await Promise.all(batch.map(async id => {
                   try {
-                    const r = await fetch(`/proxy?langCode=en-US&productId=${id}`);
+                    const r = await fetch(`/api/proxy?langCode=en-US&productId=${id}`);
                     const d = await r.json();
                     const productName = PP_PRODUCTS.find(p => p.id === id)?.name || 'Unknown';
                     return (d.results || []).map(f => ({ ...f, productName }));

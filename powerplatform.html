@@ -338,7 +338,7 @@
     }
 
     async function fetchProduct(id) {
-      const proxyUrl = '/proxy?langCode=en-US&productId=' + id;
+      const proxyUrl = '/api/proxy?langCode=en-US&productId=' + id;
       const directUrl = 'https://releaseplans.microsoft.com/releaseplanner-json/?langCode=en-US&productId=' + id;
       const tryUrl = async (url, fallback) => {
         try {

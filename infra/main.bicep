@@ -15,10 +15,38 @@ param planSku string = 'B1'
 @description('Optional Entra ID app registration client ID for Easy Auth. When omitted, public feeds remain available while tenant and AI APIs fail closed in the application.')
 param authClientId string = ''
 
+@description('Deploy an Azure Static Web App in front of the App Service ("true"/"false"). The static web app serves the pages and proxies /api/* to the App Service, which is then reachable only through it.')
+@allowed([
+  'true'
+  'false'
+])
+param deployStaticWebApp string = 'false'
+
+@description('Region for the static web app. Static Web Apps is only available in a subset of regions; content is served globally regardless.')
+@allowed([
+  'westus2'
+  'centralus'
+  'eastus2'
+  'westeurope'
+  'eastasia'
+])
+param staticWebAppLocation string = 'eastus2'
+
+@description('Client secret for authClientId, used by Static Web Apps managed authentication. Supply it at deploy time from a secret store — never commit it.')
+@secure()
+param authClientSecret string = ''
+
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
 var appServiceName = '${abbrs.webSitesAppService}${resourceToken}'
+var staticWebAppName = '${abbrs.webStaticSites}${resourceToken}'
+var useStaticWebApp = toLower(deployStaticWebApp) == 'true'
+// Behind a static web app the App Service must not own its own Easy Auth
+// configuration: linking adds an "Azure Static Web Apps (Linked)" identity
+// provider to the same authsettingsV2 resource, and redeploying our own copy
+// would strip it and break the link.
+var appServiceAuthClientId = useStaticWebApp ? '' : authClientId
 var readerRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'acdd72a7-3385-48ef-bd42-f606fba81ae7'
@@ -43,7 +71,7 @@ module web 'modules/appservice.bicep' = {
     planSku: planSku
     runtimeName: 'node'
     runtimeVersion: '24-lts'
-    authClientId: authClientId
+    authClientId: appServiceAuthClientId
     appSettings: {
       NODE_ENV: 'production'
       USE_MANAGED_IDENTITY: 'true'
@@ -57,7 +85,24 @@ module web 'modules/appservice.bicep' = {
       // App Service is a reverse proxy — enable proxy-header trust so the
       // rate limiter sees real client IPs instead of the single proxy IP.
       TRUST_PROXY: 'true'
+      // Behind a static web app the caller is described by the Static Web Apps
+      // client principal, which is a different shape from an Easy Auth one.
+      AUTH_MODE: useStaticWebApp ? 'swa' : 'easyauth'
     }
+  }
+}
+
+module staticWebApp 'modules/staticwebapp.bicep' = if (useStaticWebApp) {
+  name: 'frontend'
+  scope: rg
+  params: {
+    location: staticWebAppLocation
+    tags: tags
+    staticWebAppName: staticWebAppName
+    backendResourceId: web.outputs.appServiceId
+    backendRegion: location
+    authClientId: authClientId
+    authClientSecret: authClientSecret
   }
 }
 
@@ -75,3 +120,5 @@ resource resourceHealthReader 'Microsoft.Authorization/roleAssignments@2022-04-0
 output AZURE_LOCATION string = location
 output SERVICE_WEB_NAME string = web.outputs.appServiceName
 output SERVICE_WEB_URI string = web.outputs.uri
+output SERVICE_FRONTEND_NAME string = useStaticWebApp ? staticWebApp!.outputs.staticWebAppName : ''
+output SERVICE_FRONTEND_URI string = useStaticWebApp ? staticWebApp!.outputs.uri : ''
