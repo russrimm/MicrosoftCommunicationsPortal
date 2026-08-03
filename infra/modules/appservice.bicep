@@ -34,6 +34,16 @@ param authClientId string = ''
 @description('Entra ID tenant ID for Easy Auth. Defaults to the deployment tenant.')
 param authTenantId string = tenant().tenantId
 
+@description('Client secret for authClientId. When supplied, Easy Auth uses the hybrid flow (response_type=code id_token) instead of the weaker implicit flow. Supply it at deploy time from a secret store — never commit it.')
+@secure()
+param authClientSecret string = ''
+
+// App Service reads the secret from this app setting rather than storing it in
+// the auth configuration itself.
+// https://learn.microsoft.com/azure/app-service/configure-authentication-provider-aad
+var authClientSecretSettingName = 'MICROSOFT_PROVIDER_AUTHENTICATION_SECRET'
+var hasAuthClientSecret = !empty(authClientId) && !empty(authClientSecret)
+
 var linuxFxVersion = '${toUpper(runtimeName)}|${runtimeVersion}'
 var configuredAppSettings = [
   for key in objectKeys(appSettings): {
@@ -41,6 +51,14 @@ var configuredAppSettings = [
     value: appSettings[key]
   }
 ]
+var authSecretAppSettings = hasAuthClientSecret
+  ? [
+      {
+        name: authClientSecretSettingName
+        value: authClientSecret
+      }
+    ]
+  : []
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
@@ -84,7 +102,8 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
             name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
             value: appInsights.properties.ConnectionString
           }
-        ]
+        ],
+        authSecretAppSettings
       )
     }
   }
@@ -158,6 +177,13 @@ resource authSettings 'Microsoft.Web/sites/config@2023-12-01' = if (!empty(authC
   parent: appService
   name: 'authsettingsV2'
   properties: {
+    // Without platform.enabled the configuration is stored but never enforced,
+    // WEBSITE_AUTH_ENABLED stays unset, and the app rejects every protected
+    // route with AUTH_NOT_ENFORCED.
+    platform: {
+      enabled: true
+      runtimeVersion: '~1'
+    }
     globalValidation: {
       requireAuthentication: true
       unauthenticatedClientAction: 'RedirectToLoginPage'
@@ -168,6 +194,10 @@ resource authSettings 'Microsoft.Web/sites/config@2023-12-01' = if (!empty(authC
         enabled: true
         registration: {
           clientId: authClientId
+          // Omitting the secret downgrades Easy Auth to the implicit flow
+          // (response_type=id_token). Supply authClientSecret for the hybrid
+          // flow, where the code exchange happens server side.
+          clientSecretSettingName: hasAuthClientSecret ? authClientSecretSettingName : null
           openIdIssuer: '${environment().authentication.loginEndpoint}${authTenantId}/v2.0'
         }
         validation: {
