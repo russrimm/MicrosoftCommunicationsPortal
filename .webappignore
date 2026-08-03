@@ -1,0 +1,47 @@
+# Packaging exclusions for `azd deploy` to Azure App Service.
+# https://learn.microsoft.com/azure/developer/azure-developer-cli/service-packaging-ignore-files
+#
+# azd does NOT honour .gitignore when it builds the zip package. Without this
+# file a local .env is uploaded to /home/site/wwwroot, where dotenv loads it in
+# production and its contents are readable over the SCM/Kudu endpoint. Keep the
+# secret patterns below in sync with .gitignore and .dockerignore.
+
+# Secrets — never ship these (also excludes .env.example, unused at runtime)
+.env
+.env.*
+
+# Node (this list replaces azd's built-in default exclusions once this file exists)
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Source control / CI
+.git
+.gitignore
+.gitattributes
+.github/
+.squad/
+.repowise/
+.copilot/
+
+# Not needed at runtime
+infra/
+scripts/
+screenshots/
+.vscode/
+.idea/
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Runtime caches and scratch output
+response.json
+empty-products.json
+.playwright-mcp/
+playwright-report/
+test-results/
+
+# OS junk
+.DS_Store
+Thumbs.db
