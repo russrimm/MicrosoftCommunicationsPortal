@@ -32,7 +32,7 @@ param deployStaticWebApp string = 'false'
 ])
 param staticWebAppLocation string = 'eastus2'
 
-@description('Client secret for authClientId, used by Static Web Apps managed authentication. Supply it at deploy time from a secret store — never commit it.')
+@description('Client secret for authClientId. Used by App Service Easy Auth (hybrid flow) or, behind a static web app, by Static Web Apps managed authentication. Supply it at deploy time from a secret store — never commit it.')
 @secure()
 param authClientSecret string = ''
 
@@ -72,6 +72,7 @@ module web 'modules/appservice.bicep' = {
     runtimeName: 'node'
     runtimeVersion: '24-lts'
     authClientId: appServiceAuthClientId
+    authClientSecret: useStaticWebApp ? '' : authClientSecret
     appSettings: {
       NODE_ENV: 'production'
       USE_MANAGED_IDENTITY: 'true'

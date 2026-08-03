@@ -90,6 +90,7 @@ set it before deployment:
 
 ```bash
 azd env set AUTH_CLIENT_ID <your-entra-app-client-id>
+azd env set AUTH_CLIENT_SECRET <your-entra-app-client-secret>   # recommended
 azd up
 ```
 
@@ -100,11 +101,17 @@ public pages remain available, but tenant-specific Graph/ARM and billed AI API
 routes reject requests because the application refuses to trust Easy Auth
 headers unless App Service reports that authentication is enabled.
 
-> **Production Easy Auth:** This reference template configures the client ID and
-> callback URI but does not create an authentication client secret or a
-> user-assigned managed-identity federated credential. Microsoft recommends one
-> of those assertion methods instead of the legacy implicit flow. Complete that
-> identity-provider setting before production use; see
+`AUTH_CLIENT_SECRET` is optional but recommended. When set, the deployment
+stores it in the `MICROSOFT_PROVIDER_AUTHENTICATION_SECRET` app setting and Easy
+Auth acts as a confidential client using the hybrid flow
+(`response_type=code id_token`), exchanging the authorization code server side.
+Without it, Easy Auth falls back to the implicit flow
+(`response_type=id_token`), which returns the ID token directly in the redirect.
+
+> **Production Easy Auth:** Supplying `AUTH_CLIENT_SECRET` covers the
+> confidential-client requirement, but a client secret still expires and has to
+> be rotated. For production, Microsoft recommends a user-assigned
+> managed-identity federated credential instead; see
 > [Use a managed identity instead of a secret](https://learn.microsoft.com/azure/app-service/configure-authentication-provider-aad#use-a-managed-identity-instead-of-a-secret).
 
 ### Option 2 — Azure Static Web Apps + linked App Service backend
