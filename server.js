@@ -867,10 +867,12 @@ function fetchServiceHealth(token, done) {
 function fetchServiceHealthIssues(token, done) {
   const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
   const filterValue = `startDateTime gt ${thirtyDaysAgo.toISOString()}`;
+  // `posts` is a complex-type property on serviceHealthIssue, not a navigation
+  // property, so it is returned by default and cannot be $expand'ed — asking for
+  // it makes Graph reject the whole request with a 400 OData parse error.
   const query = new URLSearchParams({
     '$filter': filterValue,
     '$top': '100',
-    '$expand': 'posts',
   });
   cachedGraphFetch('mc:health-issues',
     (cb) => graphGetAllPages(token, `/v1.0/admin/serviceAnnouncement/issues?${query.toString()}`, 10, cb),
