@@ -1011,6 +1011,16 @@ test('every bounded pagination caller surfaces partial results', () => {
   assert.equal((source.match(/armListPayload\(body,/g) || []).length, 7);
 });
 
+test('Graph queries only expand navigation properties', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  // serviceHealthIssue.posts is a complex-type property, not a navigation
+  // property: expanding it makes Graph reject the request with a 400.
+  assert.doesNotMatch(source, /\$expand['"]?\s*[:=]\s*['"]?posts/,
+    'serviceHealthIssue.posts is returned by default and must not be $expand-ed');
+  assert.match(source, /healthOverviews\?\$expand=issues/,
+    'healthOverviews.issues is a navigation property and must stay expanded');
+});
+
 test('refreshable surfaces prevent stale responses', () => {
   const messageCenter = fs.readFileSync(path.join(__dirname, '..', 'messagecenter.html'), 'utf8');
   assert.match(messageCenter, /if \(messageCenterRequest\) messageCenterRequest\.abort\(\)/);
