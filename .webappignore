@@ -21,7 +21,6 @@ yarn-error.log*
 .gitignore
 .gitattributes
 .github/
-.squad/
 .repowise/
 .copilot/
 

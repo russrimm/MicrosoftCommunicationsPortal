@@ -6,7 +6,6 @@ node_modules
 
 # Directories not needed at runtime
 screenshots/
-.squad/
 .repowise/
 .github/
 scripts/
