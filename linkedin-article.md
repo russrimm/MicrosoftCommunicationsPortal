@@ -1,5 +1,7 @@
 # I Got Tired of Checking Six Portals Every Morning — So I Built One That Checks Them All
 
+![Microsoft Communications Portal — Azure Updates page in dark mode](https://github.com/russrimm/MicrosoftCommunicationsPortal/blob/main/screenshots/azure-updates-dark.png)
+
 ---
 
 You know that Monday morning feeling — you open the M365 Admin Center and there's a Message Center post about a Teams policy change rolling out in 30 days. You flip to Azure and Service Health flagged something over the weekend. Power Platform just shipped a GA feature your devs have been asking about. And somewhere in a 200-item roadmap, there's a retirement notice for a service your finance team actually depends on.
