@@ -72,17 +72,53 @@ managing servers manually.
 **Prerequisites:**
 - [Azure Developer CLI (`azd`)](https://aka.ms/azd) — a command-line tool for
   deploying apps to Azure
+- [Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/install-azure-cli) —
+  **required**, not optional. The post-provision hook
+  (`scripts/create-entra-app.ps1`) calls `az ad app create`, `az ad sp create`,
+  and `az rest` directly to set up Graph permissions; `azd`'s own sign-in does
+  not cover this.
 - [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)
-  (`pwsh`) — needed for the post-deploy script that sets up Graph permissions
-- An Azure subscription with permission to create resources
+  (`pwsh`) — needed to run the post-provision hook
+- **An Azure subscription where you can assign roles** — the Bicep template
+  grants the App Service's managed identity the `Reader` role at the
+  subscription scope, which requires **Owner** or **User Access
+  Administrator** on that subscription. Contributor alone can create
+  resources but cannot create role assignments, so the hook will fail at that
+  step under Contributor-only access.
+- **A Microsoft Entra account that can register apps and grant admin
+  consent** — Global Administrator, Privileged Role Administrator, or Cloud
+  Application Administrator. This is the account you sign in with for `az
+  login` below.
+
+**Sign in to both CLIs before deploying.** `azd` and `az` keep separate
+credential caches, and the post-provision hook shells out to `az` directly, so
+signing into `azd` alone is not enough:
+
+```bash
+azd auth login
+az login --tenant <your-tenant-id>
+```
 
 ```bash
 azd init --template russrimm/MicrosoftCommunicationsPortal
 azd up
 ```
 
-After `azd up` finishes, the post-provision hook will offer to set up Graph
-permissions for Message Center and Service Health automatically.
+After `azd up` finishes, the post-provision hook runs
+`scripts/create-entra-app.ps1`, which creates the Entra app registration and
+grants its App Service managed identity the two required Graph permissions
+(`ServiceMessage.Read.All`, `ServiceHealth.Read.All`) automatically — no
+manual Graph setup needed.
+
+> **If `az` isn't installed or isn't logged in**, the hook fails but `azd up`
+> still succeeds — `continueOnError: true` in `azure.yaml` lets provisioning
+> finish even when Entra setup can't run. The app deploys with the seven
+> public pages working, but Message Center and Service Health stay empty. Fix
+> it by signing in and re-running the hook manually:
+> ```bash
+> az login --tenant <your-tenant-id>
+> pwsh ./scripts/create-entra-app.ps1
+> ```
 
 **Enable Entra ID authentication for shared deployments:** Create or reuse a
 single-tenant Entra app registration, copy its **Application (client) ID**, and
@@ -991,7 +1027,10 @@ screenshots/                     Light + dark mode PNGs rendered into the README
 - **Node.js 24 LTS** or later (uses the built-in `http`, `https`, `crypto`, and global `URL` APIs — no native add-ons)
 - **npm** (bundled with Node.js)
 - An Entra app registration (only for the Message Center and Service Health pages)
-- PowerShell 7+ and Azure CLI (only if using `scripts/create-entra-app.ps1`)
+- PowerShell 7+ and Azure CLI — only if using `scripts/create-entra-app.ps1`
+  directly, **or** deploying with `azd up` (Quick Deploy Option 1), which runs
+  that script automatically via its post-provision hook and requires an
+  active `az login` session
 
 ## Contributing
 
