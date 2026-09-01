@@ -22,7 +22,9 @@ const {
 } = require('./runtime-utils.js');
 require('dotenv').config();
 
-const PORT     = Number(process.env.PORT) || 3000;
+// Local default is 3014 so this project doesn't fight other local dev servers
+// for 3000. Hosting platforms always set PORT, which still wins.
+const PORT     = Number(process.env.PORT) || 3014;
 const API_HOST = 'releaseplans.microsoft.com';
 // The /en-US/ locale-prefixed path now 301-redirects to the locale-less path;
 // locale is supplied via the langCode query parameter instead.
