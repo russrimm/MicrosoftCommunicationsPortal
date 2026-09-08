@@ -20,7 +20,9 @@ const {
   shouldRetryTransientResponse,
   shouldUseSecureCookie,
 } = require('./runtime-utils.js');
-require('dotenv').config();
+const { loadEnvironment } = require('./env-config.js');
+const envFile = loadEnvironment();
+if (envFile) console.log(`[config] Loaded environment from ${envFile}`);
 
 // Local default is 3014 so this project doesn't fight other local dev servers
 // for 3000. Hosting platforms always set PORT, which still wins.

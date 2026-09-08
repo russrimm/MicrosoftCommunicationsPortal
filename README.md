@@ -311,6 +311,39 @@ Open http://localhost:3000. Seven of ten pages work immediately with no credenti
 
 For Graph-backed pages (Message Center, Service Health), copy `.env.example` to `.env` and fill in your Entra app credentials — or run `pwsh scripts/create-entra-app.ps1` to automate it.
 
+#### Reusing credentials across Copilot sessions and Git worktrees
+
+Keep your populated `.env` in the **primary repository checkout**, next to its
+`.git` directory, not in a temporary Copilot worktree. For example, if your
+primary checkout is `C:\repos\MicrosoftCommunicationsPortal`, use:
+
+```text
+C:\repos\MicrosoftCommunicationsPortal\.env
+```
+
+When you run `npm start` or `npm run dev` in a linked worktree, the server
+automatically finds that checkout through Git's worktree metadata and reuses
+its `.env`. No per-session copying, symlinks, or machine-wide environment
+variables are needed. This works locally on the same machine; it does not
+transfer credentials to GitHub-hosted Copilot sessions or deployed instances.
+New sessions must use a branch that includes this environment loader.
+
+Configuration precedence is: **process environment variables**, then the
+**current working directory's `.env`**, or, if that file is absent, the
+**primary checkout's `.env`**. A worktree's own `.env` replaces the shared file
+entirely, rather than combining credentials from potentially different tenants.
+An empty worktree `.env` therefore opts out of the shared file.
+
+Set `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and `AZURE_TENANT_ID` in the shared
+file for local Microsoft Graph access. Do not enable `USE_MANAGED_IDENTITY`
+for an ordinary local run. Restart the server after creating or editing the
+file; it is read at startup, and the console reports the selected path without
+printing its values.
+
+`.env` is already ignored by Git and excluded from deployment packages. Never
+commit it or paste its secret values into chat. The credentials will still
+need updating when the client secret expires or is rotated.
+
 ## Screenshots
 
 Nine of the ten pages are shown in light and dark mode below (18 screenshots).
