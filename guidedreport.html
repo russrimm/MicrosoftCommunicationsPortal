@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js?v=20260411-audit2"></script>
+  <script src="/static/util.js?v=20260929-saveas2"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/guidedreport.css">
 </head>
@@ -788,12 +788,19 @@
       progress('Saving file…');
 
       const dateStr = window.CPUtil.formatDateInput(new Date());
-      await pptx.writeFile({ fileName: `Communications-Report-${dateStr}.pptx` });
+      const pptxBlob = await pptx.write({ outputType: 'blob' });
+      const saved = await window.CPUtil.saveBlob(pptxBlob, `Communications-Report-${dateStr}.pptx`);
 
       fill.style.width = '100%';
-      text.textContent = 'Done! Your report has been downloaded.';
+      if (!saved) {
+        text.textContent = 'Save cancelled. Click Generate to try again.';
+        btn.disabled = false;
+        announce('Report save cancelled.');
+        return;
+      }
+      text.textContent = 'Done! Your report has been saved.';
       btn.disabled = false;
-      announce('Report generated and downloaded successfully.');
+      announce('Report generated and saved successfully.');
     }
 
     /* ── Event wiring ── */

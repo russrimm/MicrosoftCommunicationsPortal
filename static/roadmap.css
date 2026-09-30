@@ -62,6 +62,19 @@
   transition: border-color 0.15s;
 }
 .au-filter-select:focus { border-color: var(--cp-accent); }
+.au-date-input { padding: 0.3rem 0.5rem; }
+.au-date-sep { font-size: 12px; color: var(--cp-text-muted); }
+.au-preset-btn {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--cp-border); border-radius: 999px;
+  background: var(--cp-surface); color: var(--cp-text-soft);
+  font-size: 11px; font-family: inherit; cursor: pointer;
+  white-space: nowrap; transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+.au-preset-btn:hover { border-color: var(--cp-accent); color: var(--cp-accent); background: var(--cp-accent-soft); }
+.au-preset-btn:focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 1px; }
+.au-preset-btn.active { border-color: var(--cp-accent); color: var(--cp-accent-fg); background: var(--cp-accent); }
+.au-preset-btn[hidden] { display: none; }
 
 /* ── Multi-select ── */
 .au-multi { position: relative; min-width: 160px; }

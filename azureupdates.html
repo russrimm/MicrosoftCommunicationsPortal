@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js?v=20260411-audit2"></script>
+  <script src="/static/util.js?v=20260929-saveas2"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -71,6 +71,16 @@
           Expand all
         </label>
       </div>
+      <div class="au-filter-group" role="group" aria-labelledby="au-date-filter-label">
+        <span class="au-filter-label" id="au-date-filter-label">Published:</span>
+        <input type="date" class="au-filter-select au-date-input" id="au-date-from" aria-label="Published from date" data-act="onDateInputChange" data-on="change">
+        <span class="au-date-sep" aria-hidden="true">to</span>
+        <input type="date" class="au-filter-select au-date-input" id="au-date-to" aria-label="Published to date" data-act="onDateInputChange" data-on="change">
+        <button type="button" class="au-preset-btn" data-act="applyDatePreset" data-days="7" aria-pressed="false" aria-label="Last 7 days" title="Last 7 days">7d</button>
+        <button type="button" class="au-preset-btn" data-act="applyDatePreset" data-days="30" aria-pressed="false" aria-label="Last 30 days" title="Last 30 days">30d</button>
+        <button type="button" class="au-preset-btn" data-act="applyDatePreset" data-days="90" aria-pressed="false" aria-label="Last 90 days" title="Last 90 days">90d</button>
+        <button type="button" class="au-preset-btn" id="au-date-clear" data-act="clearDateFilter" hidden>Clear</button>
+      </div>
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="au-source-status" class="au-source-status" role="status" aria-live="polite"></span>
         <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
@@ -118,6 +128,7 @@
       applyExportPreset60:     () => applyExportPreset(60),
       loadAzureUpdates:        () => loadAzureUpdates(true),
       retry:                   () => loadAzureUpdates(true),
+      applyDatePreset:         (e, el) => applyDatePreset(parseInt(el.dataset.days, 10)),
     });
 
     // Azure RSS uses these category values for status / type signalling.
@@ -180,6 +191,13 @@
       const d = new Date(s);
       if (isNaN(d.getTime())) return s;
       return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    // gaDate is a 'YYYY-MM' month supplied by the server from the Azure Updates API.
+    function formatGaMonth(value) {
+      const m = /^(\d{4})-(\d{2})/.exec(String(value || ''));
+      if (!m) return '';
+      return new Date(+m[1], +m[2] - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     }
 
     async function loadAzureUpdates(refresh) {
@@ -327,10 +345,65 @@
       __searchTimer = setTimeout(filterUpdates, 150);
     }
 
+    // ── Published date filter ─────────────────────────────────────────────
+    const DATE_INPUT_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+    function daysAgoInput(days) {
+      const d = new Date();
+      d.setDate(d.getDate() - days);
+      return window.CPUtil.formatDateInput(d);
+    }
+
+    function applyDatePreset(days) {
+      if (!window.CPUtil || !(days > 0)) return;
+      document.getElementById('au-date-from').value = daysAgoInput(days);
+      document.getElementById('au-date-to').value = daysAgoInput(0);
+      syncDateFilterUi();
+      filterUpdates();
+    }
+
+    function clearDateFilter() {
+      document.getElementById('au-date-from').value = '';
+      document.getElementById('au-date-to').value = '';
+      syncDateFilterUi();
+      filterUpdates();
+    }
+
+    function onDateInputChange() {
+      const fromEl = document.getElementById('au-date-from');
+      const toEl = document.getElementById('au-date-to');
+      if (fromEl.value && toEl.value && fromEl.value > toEl.value) {
+        const tmp = fromEl.value;
+        fromEl.value = toEl.value;
+        toEl.value = tmp;
+      }
+      syncDateFilterUi();
+      filterUpdates();
+    }
+
+    function syncDateFilterUi() {
+      const fromEl = document.getElementById('au-date-from');
+      const toEl = document.getElementById('au-date-to');
+      fromEl.max = toEl.value || '';
+      toEl.min = fromEl.value || '';
+      const today = window.CPUtil ? daysAgoInput(0) : '';
+      document.querySelectorAll('.au-preset-btn[data-days]').forEach(btn => {
+        const days = parseInt(btn.dataset.days, 10);
+        const active = !!today && toEl.value === today && fromEl.value === daysAgoInput(days);
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', String(active));
+      });
+      document.getElementById('au-date-clear').hidden = !(fromEl.value || toEl.value);
+    }
+
     function filterUpdates() {
       const rawQuery = (document.getElementById('au-search').value || '').trim();
       const q = rawQuery.toLowerCase();
       const sort = document.getElementById('au-sort').value;
+      const dateFrom = document.getElementById('au-date-from').value;
+      const dateTo = document.getElementById('au-date-to').value;
+      const dateActive = !!(dateFrom || dateTo) && !!window.CPUtil;
+      const dateBounds = dateActive ? window.CPUtil.dateInputBounds(dateFrom, dateTo) : null;
 
       const allKnownStatuses = Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value);
       const allKnownProducts = Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value);
@@ -340,6 +413,8 @@
         window.CPUtil.replaceQueryState({
           q: rawQuery || null,
           sort: sort === 'date-desc' ? null : sort,
+          from: dateFrom || null,
+          to: dateTo || null,
           status: statusActive ? [...statusFilter].sort() : [],
           product: productActive ? [...productFilter].sort() : [],
         });
@@ -348,6 +423,10 @@
       let filtered = allUpdates.filter(u => {
         if (statusActive && !statusFilter.has(u.buckets.status)) return false;
         if (productActive && !u.buckets.product.some(p => productFilter.has(p))) return false;
+        if (dateBounds) {
+          const ts = Date.parse(u.pubDate || '');
+          if (isNaN(ts) || ts < dateBounds.from || ts >= dateBounds.toExclusive) return false;
+        }
         if (q) {
           const hay = (u.title + ' ' + stripHtml(u.description)).toLowerCase();
           if (!hay.includes(q)) return false;
@@ -467,7 +546,8 @@
             ${snippet ? `<div class="au-card-snippet">${escapeHtml(snippet)}</div>` : ''}
             <div class="au-card-meta">
               ${release ? `<span class="au-tag-pill release">${escapeHtml(release)}</span>` : ''}
-              ${date ? `<span>${escapeHtml(date)}</span>` : ''}
+              ${u.gaDate ? `<span>GA ${escapeHtml(formatGaMonth(u.gaDate))}</span>` : ''}
+              ${date ? `<span>Published ${escapeHtml(date)}</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -479,6 +559,7 @@
       document.getElementById('au-modal-title').textContent = u.title || 'Update';
       const metaParts = [];
       if (u.buckets.status) metaParts.push(u.buckets.status);
+      if (u.gaDate) metaParts.push(`GA ${formatGaMonth(u.gaDate)}`);
       if (u.pubDate) metaParts.push(`Published ${formatDate(u.pubDate)}`);
       if (u.id) metaParts.push(`ID ${u.id}`);
       document.getElementById('au-modal-meta').textContent = metaParts.join(' · ');
@@ -637,6 +718,7 @@
         const product = (u.buckets.product || []).join(', ');
         const release = (u.buckets.release || []).join(', ');
         const date    = formatDate(u.pubDate);
+        const ga      = formatGaMonth(u.gaDate);
         const summary = stripHtml(u.description);
         const linkCell = u.link
           ? { html: window.OutlookExport.link(safeUrl(u.link), 'View') }
@@ -647,6 +729,7 @@
           u.title || '—',
           status,
           release || '—',
+          ga || '—',
           date || '—',
           summary || '—',
           linkCell,
@@ -658,7 +741,7 @@
         title:    'Azure Updates',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' update' + (rows.length !== 1 ? 's' : ''),
         baseFilename: 'azureupdates-export-' + window.CPUtil.formatDateInput(new Date()),
-        columns:  ['ID', 'Product / Area', 'Title', 'Status', 'Release Type', 'Published', 'Description', 'Link'],
+        columns:  ['ID', 'Product / Area', 'Title', 'Status', 'Release Type', 'GA Date', 'Published', 'Description', 'Link'],
         rows: tableRows,
         format:   format || 'html',
       });
@@ -672,6 +755,11 @@
       if ([...document.getElementById('au-sort').options].some(o => o.value === savedSort)) {
         document.getElementById('au-sort').value = savedSort;
       }
+      const savedFrom = window.CPUtil.queryValue('from');
+      const savedTo = window.CPUtil.queryValue('to');
+      if (DATE_INPUT_RE.test(savedFrom)) document.getElementById('au-date-from').value = savedFrom;
+      if (DATE_INPUT_RE.test(savedTo)) document.getElementById('au-date-to').value = savedTo;
+      syncDateFilterUi();
     }
     loadAzureUpdates(false);
 
@@ -738,8 +826,8 @@
   </div>
 
   <script src="/static/product-icons.js" defer></script>
-  <script src="/static/outlook-export.js?v=20260411-audit2" defer></script>
-  <script src="/static/export-formats.js?v=20260411-audit2" defer></script>
+  <script src="/static/outlook-export.js?v=20260929-saveas2" defer></script>
+  <script src="/static/export-formats.js?v=20260929-saveas2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
 </body>
 </html>

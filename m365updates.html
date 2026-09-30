@@ -11,7 +11,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
-  <script src="/static/util.js?v=20260411-audit2"></script>
+  <script src="/static/util.js?v=20260929-saveas2"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -76,6 +76,16 @@
           Expand all
         </label>
       </div>
+      <div class="au-filter-group" role="group" aria-labelledby="au-date-filter-label">
+        <span class="au-filter-label" id="au-date-filter-label">GA date:</span>
+        <input type="date" class="au-filter-select au-date-input" id="au-date-from" aria-label="General Availability from date" data-act="onDateInputChange" data-on="change">
+        <span class="au-date-sep" aria-hidden="true">to</span>
+        <input type="date" class="au-filter-select au-date-input" id="au-date-to" aria-label="General Availability to date" data-act="onDateInputChange" data-on="change">
+        <button type="button" class="au-preset-btn" data-act="applyDatePreset" data-days="30" aria-pressed="false" aria-label="GA in the next 30 days" title="GA in the next 30 days">Next 30d</button>
+        <button type="button" class="au-preset-btn" data-act="applyDatePreset" data-days="90" aria-pressed="false" aria-label="GA in the next 90 days" title="GA in the next 90 days">Next 90d</button>
+        <button type="button" class="au-preset-btn" data-act="applyDatePreset" data-days="180" aria-pressed="false" aria-label="GA in the next 180 days" title="GA in the next 180 days">Next 180d</button>
+        <button type="button" class="au-preset-btn" id="au-date-clear" data-act="clearDateFilter" hidden>Clear</button>
+      </div>
       <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
         <span id="au-source-status" class="au-source-status" role="status" aria-live="polite"></span>
         <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
@@ -118,11 +128,12 @@
       toggleProductGroup:      (e, el) => toggleProductGroup(el),
       openUpdate:              (e, el) => openUpdate(el.dataset.id),
       selectAllExportProducts: (e, el) => selectAllExportProducts(el.dataset.state === '1'),
-      applyExportPreset7:      () => applyExportPreset(7),
       applyExportPreset30:     () => applyExportPreset(30),
-      applyExportPreset60:     () => applyExportPreset(60),
+      applyExportPreset90:     () => applyExportPreset(90),
+      applyExportPreset180:    () => applyExportPreset(180),
       loadM365Updates:         () => loadM365Updates(true),
       retry:                   () => loadM365Updates(true),
+      applyDatePreset:         (e, el) => applyDatePreset(parseInt(el.dataset.days, 10)),
     });
 
     // Known categorical sets so we can split RSS <category> values into buckets.
@@ -184,6 +195,27 @@
       return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     }
 
+    // The RSS description carries a month-granularity GA date, e.g. "GA date: October CY2026".
+    const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june',
+                         'july', 'august', 'september', 'october', 'november', 'december'];
+    function parseGaMonth(description) {
+      const m = /GA date:\s*([A-Za-z]+)\s+CY\s*(\d{4})/i.exec(String(description || ''));
+      if (!m) return null;
+      const month = MONTH_NAMES.indexOf(m[1].toLowerCase());
+      if (month < 0) return null;
+      const year = parseInt(m[2], 10);
+      const start = new Date(year, month, 1);
+      return {
+        start: start.getTime(),
+        end: new Date(year, month + 1, 1).getTime(),
+        label: start.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      };
+    }
+
+    function gaInBounds(ga, bounds) {
+      return !!ga && ga.start < bounds.toExclusive && ga.end > bounds.from;
+    }
+
     async function loadM365Updates(refresh) {
       const container = document.getElementById('au-cards-container');
       const refreshBtn = document.getElementById('au-refresh-btn');
@@ -198,7 +230,7 @@
         }
         allUpdates = (data.items || []).map(item => {
           const buckets = classifyCategories(item.categories);
-          return { ...item, buckets };
+          return { ...item, buckets, ga: parseGaMonth(item.description) };
         });
         if (window.CPUtil) window.CPUtil.renderFeedStatus('au-source-status', data.meta);
         rebuildFilters();
@@ -329,11 +361,66 @@
       __searchTimer = setTimeout(filterUpdates, 150);
     }
 
+    // ── GA date filter ────────────────────────────────────────────────────
+    const DATE_INPUT_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+    function daysFromTodayInput(days) {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return window.CPUtil.formatDateInput(d);
+    }
+
+    function applyDatePreset(days) {
+      if (!window.CPUtil || !(days > 0)) return;
+      document.getElementById('au-date-from').value = daysFromTodayInput(0);
+      document.getElementById('au-date-to').value = daysFromTodayInput(days);
+      syncDateFilterUi();
+      filterUpdates();
+    }
+
+    function clearDateFilter() {
+      document.getElementById('au-date-from').value = '';
+      document.getElementById('au-date-to').value = '';
+      syncDateFilterUi();
+      filterUpdates();
+    }
+
+    function onDateInputChange() {
+      const fromEl = document.getElementById('au-date-from');
+      const toEl = document.getElementById('au-date-to');
+      if (fromEl.value && toEl.value && fromEl.value > toEl.value) {
+        const tmp = fromEl.value;
+        fromEl.value = toEl.value;
+        toEl.value = tmp;
+      }
+      syncDateFilterUi();
+      filterUpdates();
+    }
+
+    function syncDateFilterUi() {
+      const fromEl = document.getElementById('au-date-from');
+      const toEl = document.getElementById('au-date-to');
+      fromEl.max = toEl.value || '';
+      toEl.min = fromEl.value || '';
+      const today = window.CPUtil ? daysFromTodayInput(0) : '';
+      document.querySelectorAll('.au-preset-btn[data-days]').forEach(btn => {
+        const days = parseInt(btn.dataset.days, 10);
+        const active = !!today && fromEl.value === today && toEl.value === daysFromTodayInput(days);
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', String(active));
+      });
+      document.getElementById('au-date-clear').hidden = !(fromEl.value || toEl.value);
+    }
+
     function filterUpdates() {
       const rawQuery = (document.getElementById('au-search').value || '').trim();
       const q = rawQuery.toLowerCase();
       const sort = document.getElementById('au-sort').value;
       const groupByProduct = !!document.getElementById('au-group-product').checked;
+      const dateFrom = document.getElementById('au-date-from').value;
+      const dateTo = document.getElementById('au-date-to').value;
+      const dateActive = !!(dateFrom || dateTo) && !!window.CPUtil;
+      const dateBounds = dateActive ? window.CPUtil.dateInputBounds(dateFrom, dateTo) : null;
 
       const allKnownStatuses = Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value);
       const allKnownProducts = Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value);
@@ -344,6 +431,8 @@
           q: rawQuery || null,
           sort: sort === 'date-desc' ? null : sort,
           group: groupByProduct ? 'product' : null,
+          from: dateFrom || null,
+          to: dateTo || null,
           status: statusActive ? [...statusFilter].sort() : [],
           product: productActive ? [...productFilter].sort() : [],
         });
@@ -352,6 +441,7 @@
       let filtered = allUpdates.filter(u => {
         if (statusActive && !statusFilter.has(u.buckets.status)) return false;
         if (productActive && !u.buckets.product.some(p => productFilter.has(p))) return false;
+        if (dateBounds && !gaInBounds(u.ga, dateBounds)) return false;
         if (q) {
           const hay = (u.title + ' ' + stripHtml(u.description)).toLowerCase();
           if (!hay.includes(q)) return false;
@@ -470,7 +560,8 @@
             ${snippet ? `<div class="au-card-snippet">${escapeHtml(snippet)}</div>` : ''}
             <div class="au-card-meta">
               ${release ? `<span class="au-tag-pill release">${escapeHtml(release)}</span>` : ''}
-              ${date ? `<span>${escapeHtml(date)}</span>` : ''}
+              ${u.ga ? `<span>GA ${escapeHtml(u.ga.label)}</span>` : ''}
+              ${date ? `<span>Published ${escapeHtml(date)}</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -482,6 +573,7 @@
       document.getElementById('au-modal-title').textContent = u.title || 'Update';
       const metaParts = [];
       if (u.buckets.status) metaParts.push(u.buckets.status);
+      if (u.ga) metaParts.push(`GA ${u.ga.label}`);
       if (u.pubDate) metaParts.push(`Published ${formatDate(u.pubDate)}`);
       if (u.id) metaParts.push(`ID ${u.id}`);
       document.getElementById('au-modal-meta').textContent = metaParts.join(' · ');
@@ -531,7 +623,7 @@
     const EXPORT_MODAL_CONFIG = {
       getAllRows:  () => currentFiltered || [],
       getProducts: (u) => (u && u.buckets && u.buckets.product) || [],
-      getDate:     (u) => { const d = Date.parse(u && u.pubDate || ''); return isNaN(d) ? null : d; },
+      getGa:       (u) => (u && u.ga) || null,
       runExport:   (rows, format) => exportM365UpdatesToHtml(rows, format),
     };
     const EXPORT_UNCLASSIFIED = '(Unclassified)';
@@ -580,11 +672,8 @@
       updateExportCount();
     }
     function applyExportPreset(days) {
-      const now = new Date();
-      const from = new Date(now); from.setDate(from.getDate() - days);
-      const to   = new Date(now); to.setDate(to.getDate() + days);
-      document.getElementById('gen-from-date').value = window.CPUtil.formatDateInput(from);
-      document.getElementById('gen-to-date').value   = window.CPUtil.formatDateInput(to);
+      document.getElementById('gen-from-date').value = daysFromTodayInput(0);
+      document.getElementById('gen-to-date').value   = daysFromTodayInput(days);
       updateExportCount();
     }
     function filterExportProductSearch() {
@@ -604,11 +693,7 @@
       const selected = getSelectedExportProducts();
       const all = EXPORT_MODAL_CONFIG.getAllRows() || [];
       return all.filter(row => {
-        const ts = EXPORT_MODAL_CONFIG.getDate(row);
-        if (datesActive) {
-          if (ts == null) return false;
-          if (ts < bounds.from || ts >= bounds.toExclusive) return false;
-        }
+        if (datesActive && !gaInBounds(EXPORT_MODAL_CONFIG.getGa(row), bounds)) return false;
         const prods = getExportProducts(row);
         return prods.some(p => selected.has(p));
       });
@@ -638,12 +723,7 @@
       if (btn) { btn.disabled = true; btn.textContent = '…Exporting'; }
 
       const tableRows = rows.map(u => {
-        const status   = u.buckets.status || 'Unknown';
         const product  = (u.buckets.product || []).join(', ');
-        const release  = (u.buckets.release || []).join(', ');
-        const cloud    = (u.buckets.cloud || []).join(', ');
-        const platform = (u.buckets.platform || []).join(', ');
-        const date     = formatDate(u.pubDate);
         const summary  = stripHtml(u.description);
         const linkCell = u.link
           ? { html: window.OutlookExport.link(safeUrl(u.link), 'View') }
@@ -652,11 +732,7 @@
           u.id || '—',
           product || '—',
           u.title || '—',
-          status,
-          release || '—',
-          cloud || '—',
-          platform || '—',
-          date || '—',
+          (u.ga && u.ga.label) || '—',
           summary || '—',
           linkCell,
         ];
@@ -667,8 +743,7 @@
         title:    'Microsoft 365 Roadmap',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' update' + (rows.length !== 1 ? 's' : ''),
         baseFilename: 'm365updates-export-' + window.CPUtil.formatDateInput(new Date()),
-        columns:  ['ID', 'Product', 'Title', 'Status', 'Release Type', 'Cloud / Audience',
-                   'Platforms', 'Published', 'Description', 'Link'],
+        columns:  ['ID', 'Product', 'Title', 'GA Date', 'Description', 'Link'],
         rows: tableRows,
         format:   format || 'html',
       });
@@ -684,6 +759,11 @@
       }
       document.getElementById('au-group-product').checked =
         window.CPUtil.queryValue('group') === 'product';
+      const savedFrom = window.CPUtil.queryValue('from');
+      const savedTo = window.CPUtil.queryValue('to');
+      if (DATE_INPUT_RE.test(savedFrom)) document.getElementById('au-date-from').value = savedFrom;
+      if (DATE_INPUT_RE.test(savedTo)) document.getElementById('au-date-to').value = savedTo;
+      syncDateFilterUi();
     }
     loadM365Updates(false);
 
@@ -717,11 +797,11 @@
           <p class="gen-format-note">PDF opens a print dialog (choose "Save as PDF"). Word export opens in Word / LibreOffice.</p>
         </div>
         <div class="gen-field">
-          <span class="gen-field-label">Date range (Published)</span>
+          <span class="gen-field-label">Date range (GA date)</span>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
-            <button type="button" class="gen-quick" data-act="applyExportPreset7">±7 days</button>
-            <button type="button" class="gen-quick" data-act="applyExportPreset30">±30 days</button>
-            <button type="button" class="gen-quick" data-act="applyExportPreset60">±60 days</button>
+            <button type="button" class="gen-quick" data-act="applyExportPreset30">Next 30 days</button>
+            <button type="button" class="gen-quick" data-act="applyExportPreset90">Next 90 days</button>
+            <button type="button" class="gen-quick" data-act="applyExportPreset180">Next 180 days</button>
           </div>
           <div class="gen-range">
             <input type="date" id="gen-from-date" data-act="updateExportCount" data-on="change" aria-label="From date">
@@ -750,8 +830,8 @@
   </div>
 
   <script src="/static/product-icons.js" defer></script>
-  <script src="/static/outlook-export.js?v=20260411-audit2" defer></script>
-  <script src="/static/export-formats.js?v=20260411-audit2" defer></script>
+  <script src="/static/outlook-export.js?v=20260929-saveas2" defer></script>
+  <script src="/static/export-formats.js?v=20260929-saveas2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
   <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>

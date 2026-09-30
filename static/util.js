@@ -220,6 +220,55 @@
     return '"' + text.replace(/"/g, '""') + '"';
   }
 
+  // ── File save ────────────────────────────────────────────────────────────
+  function anchorDownload(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+  }
+
+  // Shows the browser's Save As dialog where supported (Chromium's File System
+  // Access API) and falls back to a regular download elsewhere, or when the
+  // picker is unavailable (e.g. the user activation expired). Resolves to true
+  // when the file was saved or handed to the browser, false when the user
+  // cancelled the dialog.
+  function saveBlob(blob, filename) {
+    if (typeof window.showSaveFilePicker !== 'function') {
+      anchorDownload(blob, filename);
+      return Promise.resolve(true);
+    }
+    var opts = { suggestedName: filename };
+    var ext = (/\.([a-z0-9]+)$/i.exec(filename) || [])[1];
+    var mime = String(blob.type || '').split(';')[0].trim();
+    if (ext && /^[a-z]+\/[a-z0-9.+-]+$/i.test(mime)) {
+      var accept = {};
+      accept[mime] = ['.' + ext.toLowerCase()];
+      opts.types = [{ description: ext.toUpperCase() + ' file', accept: accept }];
+    }
+    var picked;
+    try {
+      picked = window.showSaveFilePicker(opts);
+    } catch (e) {
+      picked = Promise.reject(e);
+    }
+    return picked.then(function (handle) {
+      return handle.createWritable().then(function (writable) {
+        return writable.write(blob)
+          .then(function () { return writable.close(); })
+          .then(function () { return true; });
+      });
+    }, function (err) {
+      if (err && err.name === 'AbortError') return false;
+      anchorDownload(blob, filename);
+      return true;
+    });
+  }
+
   // ── Focus trap for modals ────────────────────────────────────────────────
   var FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
   var _focusTrapState = null;
@@ -366,6 +415,7 @@
     dateInputBounds: dateInputBounds,
     releaseMonthCutoff: releaseMonthCutoff,
     csvCell: csvCell,
+    saveBlob: saveBlob,
     renderLoading: renderLoading,
     renderError: renderError,
     renderEmpty: renderEmpty,

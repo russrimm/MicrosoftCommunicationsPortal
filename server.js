@@ -307,6 +307,9 @@ const M365_UPDATES_PATH = '/releasecommunications/api/v2/m365/rss';
 // Azure Updates RSS feed
 const AZURE_UPDATES_HOST = 'www.microsoft.com';
 const AZURE_UPDATES_PATH = '/releasecommunications/api/v2/azure/rss';
+// The RSS feed omits GA dates; the OData endpoint exposes them per update ID.
+const AZURE_UPDATES_API_PATH = '/releasecommunications/api/v2/azure';
+const AZURE_GA_BATCH_SIZE = 50;
 
 // Microsoft Fabric Roadmap JSON API
 const FABRIC_ROADMAP_HOST = 'roadmap.fabric.microsoft.com';
@@ -1419,7 +1422,54 @@ function fetchM365Updates(options, done) {
 
 function fetchAzureUpdates(options, done) {
   if (typeof options === 'function') { done = options; options = {}; }
-  fetchRssFeed(AZURE_UPDATES_HOST, AZURE_UPDATES_PATH, options, done);
+  fetchRssFeed(AZURE_UPDATES_HOST, AZURE_UPDATES_PATH, options, (err, result, cacheMeta) => {
+    if (err || !result || !Array.isArray(result.items) || !result.items.length) {
+      return done(err, result, cacheMeta);
+    }
+    fetchAzureGaDates(result.items.map(i => i.id), options, (gaErr, gaById) => {
+      if (gaErr) console.warn('[azureupdates] GA date lookup failed:', gaErr.message);
+      const map = gaById || {};
+      const items = result.items.map(i => ({ ...i, gaDate: map[i.id] || null }));
+      done(null, { ...result, items }, cacheMeta);
+    });
+  });
+}
+
+// Resolve { id: 'YYYY-MM' } GA months for the given Azure update IDs.
+function fetchAzureGaDates(ids, options, done) {
+  const safeIds = [...new Set((ids || []).map(String).filter(id => /^\d{1,12}$/.test(id)))];
+  if (!safeIds.length) return done(null, {});
+  const cacheKey = `azure-ga:${safeIds.slice().sort().join(',')}`;
+  cachedFetch(cacheKey, 5 * 60_000, (cb) => {
+    const batches = [];
+    for (let i = 0; i < safeIds.length; i += AZURE_GA_BATCH_SIZE) {
+      batches.push(safeIds.slice(i, i + AZURE_GA_BATCH_SIZE));
+    }
+    const gaById = {};
+    let pending = batches.length;
+    let failed = null;
+    batches.forEach(batch => {
+      const filter = encodeURIComponent(`id in (${batch.map(id => `'${id}'`).join(',')})`);
+      const pathname = `${AZURE_UPDATES_API_PATH}?$filter=${filter}&$select=id,generalAvailabilityDate&$top=${batch.length}`;
+      httpsGetFollow(AZURE_UPDATES_HOST, pathname, MAX_REDIRECTS, (err, result) => {
+        try {
+          if (err) throw err;
+          if (result.status >= 400) throw new Error(`Upstream returned status ${result.status}`);
+          const rows = (JSON.parse(result.body) || {}).value;
+          (Array.isArray(rows) ? rows : []).forEach(row => {
+            const ga = row && typeof row.generalAvailabilityDate === 'string' ? row.generalAvailabilityDate : '';
+            if (/^\d{4}-\d{2}/.test(ga)) gaById[String(row.id)] = ga.slice(0, 7);
+          });
+        } catch (e) {
+          failed = failed || e;
+        }
+        if (--pending === 0) {
+          if (failed && !Object.keys(gaById).length) return cb(failed);
+          cb(null, gaById);
+        }
+      });
+    });
+  }, (err, gaById) => done(err, gaById), { force: !!(options && options.force) });
 }
 
 // Fetch a single Fabric product's roadmap items from the Power Pages JSON endpoint.

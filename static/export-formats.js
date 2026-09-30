@@ -212,8 +212,13 @@
   }
 
   // ── Blob download ─────────────────────────────────────────────────────────
+  // Prefers the shared Save As helper so users choose where the file goes.
   function downloadBlob(text, mime, filename) {
     const blob = new Blob([text], { type: mime });
+    if (window.CPUtil && window.CPUtil.saveBlob) {
+      window.CPUtil.saveBlob(blob, filename);
+      return;
+    }
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href = url;
