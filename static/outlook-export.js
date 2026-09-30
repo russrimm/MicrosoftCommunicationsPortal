@@ -209,13 +209,18 @@
   function download(spec) {
     const html = buildHtml(spec);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
     const date = window.CPUtil && window.CPUtil.formatDateInput
       ? window.CPUtil.formatDateInput(new Date())
       : new Date().toISOString().slice(0, 10);
-    a.download = spec.filename || ('export-' + date + '.html');
+    const filename = spec.filename || ('export-' + date + '.html');
+    if (window.CPUtil && window.CPUtil.saveBlob) {
+      window.CPUtil.saveBlob(blob, filename);
+      return html;
+    }
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);

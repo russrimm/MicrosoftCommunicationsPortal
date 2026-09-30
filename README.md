@@ -716,8 +716,11 @@ configured data sources so you can confirm which pages are working.
 
 ### Content sources
 - **Power Platform Release Planner** — browse release features by product, wave, and date.
-- **Microsoft 365 Roadmap** — current and upcoming M365 features from the official RSS feed.
-- **Azure Updates** — Azure product announcements from the official RSS feed.
+- **Microsoft 365 Roadmap** — current and upcoming M365 features from the official RSS feed,
+  filterable by status, product, and General Availability (GA) month.
+- **Azure Updates** — Azure product announcements from the official RSS feed,
+  filterable by status, product, and published date. The server adds each update's
+  GA month from the Azure Updates API when one is available.
 - **Microsoft Fabric Roadmap** — browse Fabric release features across 14 product areas from the official roadmap.
 - **Message Center** — tenant-specific Microsoft 365 Message Center announcements,
   filterable by severity and date.
@@ -756,7 +759,7 @@ configured data sources so you can confirm which pages are working.
   buttons bypass both browser and server TTL caches, while concurrent refreshes
   still coalesce into one upstream request.
 - **Shareable public filters** — Microsoft 365 Roadmap, Azure Updates, and Fabric
-  Roadmap keep search, sort, grouping, timeframe, and multi-select filters in the
+  Roadmap keep search, sort, grouping, timeframe, date range, and multi-select filters in the
   URL. Reloading or sharing the URL restores the same public-data view without
   persisting tenant-specific searches.
 - **Visible data freshness** — public roadmap pages show the upstream source,
@@ -972,7 +975,7 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /api/auth-check` | Reports auth configuration status for Graph, ARM, and AI | None | — |
 | `GET /proxy?productId=...&langCode=...` | Power Platform Release Planner proxy (follows 301/302/307/308 redirects; auto-skips IDs cached as known-empty). Also reachable as `GET /api/proxy?...`, which is the path the pages call so Azure Static Web Apps can forward it to the linked backend. | None | 600/min |
 | `GET /api/m365updates[?refresh=1]` | Microsoft 365 Roadmap RSS, parsed to JSON; optional forced refresh | None | 60/min |
-| `GET /api/azureupdates[?refresh=1]` | Azure Updates RSS, parsed to JSON; optional forced refresh | None | 60/min |
+| `GET /api/azureupdates[?refresh=1]` | Azure Updates RSS, parsed to JSON and enriched with each item's `gaDate` (`YYYY-MM`) from the Azure Updates API; optional forced refresh | None | 60/min |
 | `GET /api/fabricroadmap[?refresh=1]` | Microsoft Fabric Roadmap JSON (14 product areas); optional forced refresh | None | 60/min |
 | `GET /api/featuregeo[?refresh=1]` | Regional release plans (feature availability by geography), normalised from the public release plans site (30 min server cache) | None | 60/min |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` | 60/min |
