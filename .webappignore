@@ -37,6 +37,7 @@ Dockerfile
 # Runtime caches and scratch output
 response.json
 empty-products.json
+data/
 .playwright-mcp/
 playwright-report/
 test-results/

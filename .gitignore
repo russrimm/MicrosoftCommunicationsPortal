@@ -23,6 +23,8 @@ build/
 
 # Runtime caches
 empty-products.json
+# Weekly briefing Release Planner snapshots (BRIEFING_SNAPSHOT_DIR default)
+data/
 
 # Sample/debug data
 response.json

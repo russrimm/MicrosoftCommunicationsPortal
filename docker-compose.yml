@@ -45,9 +45,16 @@ services:
       # - GITHUB_TOKEN=
       # - GITHUB_MODEL=openai/gpt-4o-mini
     restart: unless-stopped
+    # Persists the weekly briefing's Release Planner snapshots across
+    # container rebuilds so "What changed" diffs keep working.
+    volumes:
+      - briefing-data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/readyz"]
       interval: 2s
       timeout: 2s
       start_period: 10s
       retries: 3
+
+volumes:
+  briefing-data:

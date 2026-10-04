@@ -37,6 +37,10 @@ RUN npm ci --omit=dev --ignore-scripts
 
 COPY --chown=node:node . .
 
+# Writable, volume-friendly home for the weekly briefing's Release Planner
+# snapshots (BRIEFING_SNAPSHOT_DIR defaults to /app/data/briefing-snapshots).
+RUN mkdir -p /app/data && chown node:node /app/data
+
 USER node
 
 EXPOSE 3000

@@ -11,6 +11,10 @@
       "allowedRoles": ["authenticated"]
     },
     {
+      "route": "/api/briefing/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
       "route": "/api/messagecenter",
       "allowedRoles": ["authenticated"]
     },
@@ -88,6 +92,11 @@
     {
       "route": "/guidedreport",
       "rewrite": "/guidedreport.html",
+      "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "route": "/weeklybriefing",
+      "rewrite": "/weeklybriefing.html",
       "headers": { "Cache-Control": "no-store" }
     },
     {

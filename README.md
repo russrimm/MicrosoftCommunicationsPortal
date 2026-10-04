@@ -39,6 +39,7 @@ tenant-side incidents in one place.
 | Microsoft 365 Service Health | `/servicehealth` | `servicehealth.html` | Microsoft Graph |
 | Azure Service Health | `/azureservicehealth` | `azureservicehealth.html` | Azure Management API (ARM) |
 | Guided Report | `/guidedreport` | `guidedreport.html` | — (multi-source report wizard) |
+| Weekly Customer Briefing | `/weeklybriefing` | `weeklybriefing.html` | Microsoft Graph + `releaseplans.microsoft.com` (snapshotted weekly) |
 
 Every page supports light and dark themes. Pass `?clawpilotTheme=light` or
 `?clawpilotTheme=dark` on the URL, or click the theme toggle in the header.
@@ -47,7 +48,7 @@ The site root (`/`) redirects to `/home`.
 
 ## Quick Deploy
 
-Seven of ten pages work with **zero credentials** — you can be up and running in
+Seven of eleven pages work with **zero credentials** — you can be up and running in
 under a minute. The remaining pages need extra setup, and each is optional:
 
 | Pages | What you need | Who should care |
@@ -55,6 +56,7 @@ under a minute. The remaining pages need extra setup, and each is optional:
 | Home, Power Platform Release Planner, M365 Roadmap, Azure Updates, Fabric Roadmap, Guided Report | **Nothing** — works immediately | Everyone |
 | Message Center, Service Health | An **Entra app registration** that can read your tenant's Microsoft Graph data (see [Setup step 2](#setup)) | IT admins who want tenant-specific M365 announcements and incident reports |
 | Azure Service Health | The same Entra credentials **plus** an Azure role assignment (see [Setup step 3](#setup)) | Teams that also monitor Azure subscription-level health events |
+| Weekly Customer Briefing | **Nothing** for the release plan sections; the Entra app registration above for Message Center posts; optionally an AI provider for drafted intros | Architects and account teams who send customers a weekly update |
 | AI Insights (available on seven feed pages) | An API key from **Azure OpenAI**, **OpenAI**, or **GitHub Models** (see [AI summarization](#ai-summarization-optional)) | Anyone who wants AI-generated summaries and "top 5 most impactful changes" digests |
 
 > **Not sure where to start?** Pick the deployment option below that matches your
@@ -307,7 +309,7 @@ npm start            # production mode
 npm run dev           # watch mode — auto-restarts on file changes
 ```
 
-Open http://localhost:3000. Seven of ten pages work immediately with no credentials.
+Open http://localhost:3000. Seven of eleven pages work immediately with no credentials.
 
 For Graph-backed pages (Message Center, Service Health), copy `.env.example` to `.env` and fill in your Entra app credentials — or run `pwsh scripts/create-entra-app.ps1` to automate it.
 
@@ -346,8 +348,8 @@ need updating when the client secret expires or is rotated.
 
 ## Screenshots
 
-Nine of the ten pages are shown in light and dark mode below (18 screenshots).
-The Feature Geography page does not yet have checked-in screenshots. Regenerate with
+Nine of the eleven pages are shown in light and dark mode below (18 screenshots).
+The Feature Geography and Weekly Customer Briefing pages do not yet have checked-in screenshots. Regenerate with
 `node scripts/capture-screenshots.js` (Playwright) while the server is running
 on `http://localhost:3000`. The script visits each route with both theme query
 strings, waits for any visible "Loading…" banner to clear (up to 45 s, since
@@ -727,6 +729,43 @@ configured data sources so you can confirm which pages are working.
 - **Service Health** — current service incidents and advisories for your tenant.
 - **Azure Service Health** — Azure-level service health events, resource availability, and emerging issues for selected subscriptions.
 
+### Weekly Customer Briefing
+
+`/weeklybriefing` builds the Monday "Power Platform & Copilot Studio" customer email
+from live data and copies it to the clipboard as Outlook-ready rich HTML (plus a
+plain-text alternative). The email is ordered for readers, not by source:
+
+1. **Header, intro, and at-a-glance counts** — items that need attention, new
+   announcements, features landing in the release window, and release plan changes.
+2. **⚠️ Action required & upcoming retirements** — Message Center posts with a
+   deadline, real "what do I need to do to prepare" steps, or a retirement, sorted by
+   the soonest date. Older posts whose deadline is still ahead stay as reminders.
+3. **✨ Top highlights** — three to five bullets, drafted by AI when a provider is
+   configured, otherwise built automatically; always editable.
+4. **📅 Key dates** — GA, preview, rollout, retirement, and action dates parsed from
+   the posts for the next 60 days.
+5. **📬 New in Message Center** — grouped by product area (Copilot Studio first), one
+   or two sentences of impact per post instead of the full body.
+6. **🔄 What changed in the release plans** — new, now scheduled, slipped, pulled in,
+   and removed features since last week.
+7. **🗺️ Coming soon** — Release Planner features reaching preview or GA in the chosen
+   months, with a one-sentence benefit from the plan's business value.
+8. **📚 Resources** and a **signature card** with "Book time" and feedback buttons.
+
+The author controls the briefing date, product areas (Power BI is off by default),
+Message Center window, release-plan months, routine-post filtering, section order and
+visibility, per-item inclusion, and which posts appear under "Action required".
+Settings, the signature, resources, and each week's draft are saved in the browser.
+
+"What changed" relies on server-side snapshots: the first complete Release Planner
+fetch for each briefing week is saved as one JSON file in `BRIEFING_SNAPSHOT_DIR` and
+never overwritten, and the newest 12 are kept. A briefing week runs from the Saturday
+before its Monday through Friday (UTC), so weekend prep and the Monday send share one
+snapshot and one baseline. The first week only captures a baseline. Partial fetches are
+never saved, and products that fail to load are left out of the comparison so they
+don't show up as removed. Copilot Studio no longer publishes a Release Planner product,
+so Copilot Studio content comes from Message Center.
+
 ### Across every page
 - **Product / service logos on every card** — each card's product badge auto-resolves
   to a Microsoft product icon from `/public/*.svg` using a curated alias map plus
@@ -993,9 +1032,11 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /api/ai-status` | Reports whether AI is configured and which provider is active | None | — |
 | `POST /api/summarize` | Body `{source, items[]}` → per-item AI summaries | AI provider | 5/min |
 | `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth\|fabricroadmap&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider | 10/min |
+| `GET /api/briefing/release-plan[?week=YYYY-MM-DD][&refresh=1]` | Normalized Release Planner features for the weekly briefing's Power Platform products, plus the diff against the newest snapshot older than `week` (a Monday, default the current briefing week). Saves the current week's snapshot on its first complete fetch | `/api/*` auth | 30/min |
+| `POST /api/briefing/draft` | Body `{weekOf, items[]}` (max 40) → AI-drafted `{intro, highlights[]}` for the weekly briefing; 503 `AI_NOT_CONFIGURED` without a provider | AI provider | 5/min |
 | `GET /api/empty-products` | List product IDs cached as known-empty by the `/proxy` route | Loopback + `ADMIN_TOKEN` | — |
 | `DELETE /api/empty-products` | Clear the entire known-empty cache | Loopback + `ADMIN_TOKEN` | — |
-| `GET /static/<file>` | Shared client JS (`util.js`, `nav.js`, `feed-kit.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`, `subscription-picker.js`) and CSS (`common.css`, page-specific stylesheets) | None | — |
+| `GET /static/<file>` | Shared client JS (`util.js`, `nav.js`, `feed-kit.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`, `subscription-picker.js`, `briefing-model.js`, `briefing-email.js`) and CSS (`common.css`, page-specific stylesheets) | None | — |
 | `GET /public/<file>` | Microsoft product / service SVG icons | None | — |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
@@ -1034,6 +1075,8 @@ messagecenter.html               M365 Message Center UI
 servicehealth.html               M365 Service Health UI
 azureservicehealth.html          Azure Service Health UI
 guidedreport.html                Guided Report wizard (multi-source report builder)
+weeklybriefing.html              Weekly Customer Briefing (Outlook-ready Monday email builder)
+briefing.js                      Weekly briefing server helpers: Release Planner normalization, weekly snapshots, diffs
 server.js                        Node HTTP server, static file host, API proxy, AI endpoints
 static/
   util.js                        Shared client-side utilities (escapeHtml, sanitizeHtml, safeUrl, theme toggle, event delegation)
@@ -1045,10 +1088,14 @@ static/
   export-formats.js              Multi-format export (HTML, Markdown, PDF, Word) for the Generate Full Export modal
   subscription-picker.js         Azure subscription picker, opened from the Azure Service Health page
   feed-kit.js                    Shared feed helpers: quick-view lenses, collapsible filters, incremental card rendering
+  briefing-model.js              Weekly briefing model: Message Center parsing, prioritization, key dates, fallback draft
+  briefing-email.js              Weekly briefing Outlook-safe email renderer (inline styles, tables) + plain-text version
+  weeklybriefing.css             Weekly briefing page styles (control rail, live preview)
   featuregeo.css                 Regional Release Plans page styles (map, filter rail, rollout table)
   worldmap.js                    Generated world outline (Natural Earth 110m) used by the Regional Release Plans map
 public/                          Microsoft product / service SVG icons served at /public/<file>.svg
 empty-products.json              Persisted cache of known-empty Release Planner product IDs (auto-skip list)
+data/briefing-snapshots/         Weekly Release Planner snapshots for the briefing's "What changed" diff (git-ignored; see BRIEFING_SNAPSHOT_DIR)
 package.json                     Dependencies (dotenv only)
 .env.example                     Template for Graph auth, AI providers, and server/security options
 scripts/capture-screenshots.js   Playwright script that regenerates the README screenshot gallery

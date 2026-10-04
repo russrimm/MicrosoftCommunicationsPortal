@@ -34,6 +34,7 @@ const PAGES = [
   'fabricroadmap.html',
   'featuregeo.html',
   'guidedreport.html',
+  'weeklybriefing.html',
 ];
 
 // Only ship asset types the site actually references. Anything else in

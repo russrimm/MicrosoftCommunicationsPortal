@@ -47,7 +47,10 @@
       { label: 'Microsoft 365', href: '/servicehealth' },
       { label: 'Azure',         href: '/azureservicehealth' }
     ]},
-    { label: 'Guided Report', href: '/guidedreport' }
+    { label: 'Reports', items: [
+      { label: 'Guided Report', href: '/guidedreport' },
+      { label: 'Weekly Customer Briefing', href: '/weeklybriefing' }
+    ]}
   ];
 
   function buildNav(path) {

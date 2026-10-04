@@ -22,6 +22,7 @@ CAPABILITIES-AUDIT-2026-07-04.md
 # Runtime cache / debug
 response.json
 empty-products.json
+data/
 npm-debug.log*
 
 # OS junk
