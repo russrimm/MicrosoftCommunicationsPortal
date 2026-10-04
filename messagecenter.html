@@ -14,7 +14,7 @@
   <script src="/static/util.js?v=20260929-saveas2"></script>
   <script src="/static/feed-kit.js"></script>
   <link rel="stylesheet" href="/static/common.css">
-  <link rel="stylesheet" href="/static/messagecenter.css?v=20260411-audit2">
+  <link rel="stylesheet" href="/static/messagecenter.css?v=20261004-mspulse">
 </head>
 <body>
   <script src="/static/nav.js" defer></script>
@@ -556,6 +556,11 @@
 
     let currentFiltered = [];
 
+    const MC_ID_RE = /^MC\d+$/i;
+    function mspulse360MessageUrl(messageId) {
+      return 'https://www.mspulse360.app/message/' + encodeURIComponent(String(messageId).toUpperCase());
+    }
+
     // escapeHtml() is provided by /static/util.js.
 
     function formatDateTime(value) {
@@ -579,7 +584,12 @@
         `${iconHtml}<span>${escapeHtml(product)}</span>`;
 
       const badgeParts = [];
-      if (msg.id) badgeParts.push(`<span class="mc-modal-id">${escapeHtml(msg.id)}</span>`);
+      if (msg.id) {
+        const msgId = String(msg.id);
+        badgeParts.push(MC_ID_RE.test(msgId)
+          ? `<a class="mc-modal-id" href="${escapeHtml(mspulse360MessageUrl(msgId))}" target="_blank" rel="noopener noreferrer" title="Open ${escapeHtml(msgId)} on MSPulse360" aria-label="Open ${escapeHtml(msgId)} on MSPulse360 (opens in a new tab)">${escapeHtml(msgId)}</a>`
+          : `<span class="mc-modal-id">${escapeHtml(msgId)}</span>`);
+      }
       badgeParts.push(`<span class="mc-modal-severity ${severity}">${escapeHtml(severity.toUpperCase())}</span>`);
       document.getElementById('mc-modal-badges').innerHTML = badgeParts.join('');
 
@@ -809,7 +819,7 @@
         const severity = (msg.severity || 'normal');
         const messageId = msg.id ? String(msg.id) : '';
         const messageLink = messageId
-          ? window.OutlookExport.link('https://www.mspulse360.app/message/' + encodeURIComponent(messageId), messageId)
+          ? window.OutlookExport.link(mspulse360MessageUrl(messageId), messageId)
           : '—';
         const summary = String(getMessageDescription(msg) || '')
           .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();

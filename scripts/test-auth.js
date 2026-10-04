@@ -20,9 +20,12 @@ const {
   createTtlCache,
   mergeVaryHeaders,
   mergeServiceHealth,
+  mspulse360MessageUrl,
   parseBoundedInteger,
   rateLimitBucketKey,
   retryCallback,
+  rewriteMessageCenterLinks,
+  rewriteMessageCenterMessage,
   shouldRetryTransientResponse,
   shouldUseSecureCookie,
 } = require('../runtime-utils.js');
@@ -282,6 +285,66 @@ test('mergeVaryHeaders preserves encoding and origin cache variants', () => {
     mergeVaryHeaders('Accept-Encoding', 'Origin', 'Accept-Encoding, User-Agent'),
     'Accept-Encoding, Origin, User-Agent'
   );
+});
+
+test('rewriteMessageCenterLinks points admin center Message Center links at MSPulse360', () => {
+  const target = 'https://www.mspulse360.app/message/MC1484591';
+  for (const url of [
+    'https://admin.microsoft.com/AdminPortal/home#/MessageCenter/:/messages/MC1484591',
+    'https://admin.microsoft.com/Adminportal/Home?#/MessageCenter/:/messages/MC1484591',
+    'https://admin.microsoft.com/#/MessageCenter/:/messages/MC1484591',
+    'https://admin.microsoft.com/?ref=MessageCenter/:/messages/MC1484591',
+    'https://admin.cloud.microsoft/?ref=MessageCenter/:/messages/MC1484591',
+    'http://ADMIN.MICROSOFT.COM/adminportal/home#/messagecenter/:/messages/mc1484591?source=email',
+  ]) {
+    assert.equal(rewriteMessageCenterLinks(url), target, url);
+  }
+
+  assert.equal(
+    rewriteMessageCenterLinks('<a href="https://admin.microsoft.com/AdminPortal/home#/MessageCenter/:/messages/MC1484591">MC1484591</a>'),
+    `<a href="${target}">MC1484591</a>`
+  );
+  assert.equal(
+    rewriteMessageCenterLinks('See [MC1484591](https://admin.microsoft.com/AdminPortal/home#/MessageCenter/:/messages/MC1484591).'),
+    `See [MC1484591](${target}).`
+  );
+  assert.equal(
+    rewriteMessageCenterLinks('Two: https://admin.microsoft.com/#/MessageCenter/:/messages/MC1 and https://admin.microsoft.com/#/MessageCenter/:/messages/MC2'),
+    'Two: https://www.mspulse360.app/message/MC1 and https://www.mspulse360.app/message/MC2'
+  );
+  assert.equal(
+    rewriteMessageCenterLinks('Details: https://admin.microsoft.com/#/MessageCenter/:/messages/MC1484591.'),
+    `Details: ${target}.`
+  );
+
+  const unrelated = 'https://admin.microsoft.com/AdminPortal/home#/servicehealth https://learn.microsoft.com/MessageCenter/:/messages/MC1';
+  assert.equal(rewriteMessageCenterLinks(unrelated), unrelated);
+  assert.equal(rewriteMessageCenterLinks(rewriteMessageCenterLinks(target)), target);
+  assert.equal(rewriteMessageCenterLinks(null), null);
+  assert.equal(rewriteMessageCenterLinks(''), '');
+  assert.equal(mspulse360MessageUrl('mc42'), 'https://www.mspulse360.app/message/MC42');
+});
+
+test('rewriteMessageCenterMessage rewrites body content and detail values', () => {
+  const link = 'https://admin.microsoft.com/AdminPortal/home#/MessageCenter/:/messages/MC123';
+  const msg = {
+    id: 'MC999',
+    body: { contentType: 'html', content: `<p><a href="${link}">MC123</a></p>` },
+    details: [{ name: 'Summary', value: `Replaces ${link}` }, { name: 'Count', value: 3 }, null],
+  };
+  assert.equal(rewriteMessageCenterMessage(msg), msg);
+  assert.equal(msg.body.content, '<p><a href="https://www.mspulse360.app/message/MC123">MC123</a></p>');
+  assert.equal(msg.details[0].value, 'Replaces https://www.mspulse360.app/message/MC123');
+  assert.equal(msg.details[1].value, 3);
+  assert.equal(rewriteMessageCenterMessage(null), null);
+
+  const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.match(source, /messages\.forEach\(rewriteMessageCenterMessage\)/,
+    'Message Center Graph results must have admin center links rewritten');
+
+  const page = fs.readFileSync(path.join(__dirname, '..', 'messagecenter.html'), 'utf8');
+  assert.match(page, /<a class="mc-modal-id" href="\$\{escapeHtml\(mspulse360MessageUrl\(msgId\)\)\}" target="_blank" rel="noopener noreferrer"/,
+    'Message Center modal ID badge must link to MSPulse360');
 });
 
 test('collectPaginated follows next links and reports complete results', async () => {
