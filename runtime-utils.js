@@ -240,14 +240,47 @@ function createTtlCache(options) {
   return { cache, inflight, fetch };
 }
 
+const MSPULSE360_MESSAGE_BASE = 'https://www.mspulse360.app/message/';
+// Matches any Microsoft 365 admin center Message Center deep link (admin.microsoft.com
+// or admin.cloud.microsoft, with or without /AdminPortal/home, #, or ?ref= prefixes).
+const ADMIN_MESSAGE_CENTER_URL_RE =
+  /https?:\/\/admin\.(?:microsoft\.com|cloud\.microsoft)\/[^\s"'<>()]*?MessageCenter\/:\/messages\/(MC\d+)(?:[?&#][^\s"'<>()]*)?/gi;
+
+function mspulse360MessageUrl(messageId) {
+  return MSPULSE360_MESSAGE_BASE + encodeURIComponent(String(messageId).toUpperCase());
+}
+
+function rewriteMessageCenterLinks(text) {
+  if (typeof text !== 'string' || !text) return text;
+  return text.replace(ADMIN_MESSAGE_CENTER_URL_RE, (_, id) => mspulse360MessageUrl(id));
+}
+
+function rewriteMessageCenterMessage(msg) {
+  if (!msg || typeof msg !== 'object') return msg;
+  if (msg.body && typeof msg.body.content === 'string') {
+    msg.body.content = rewriteMessageCenterLinks(msg.body.content);
+  }
+  if (Array.isArray(msg.details)) {
+    for (const detail of msg.details) {
+      if (detail && typeof detail.value === 'string') {
+        detail.value = rewriteMessageCenterLinks(detail.value);
+      }
+    }
+  }
+  return msg;
+}
+
 module.exports = {
   collectPaginated,
   createTtlCache,
   mergeServiceHealth,
   mergeVaryHeaders,
+  mspulse360MessageUrl,
   parseBoundedInteger,
   rateLimitBucketKey,
   retryCallback,
+  rewriteMessageCenterLinks,
+  rewriteMessageCenterMessage,
   shouldRetryTransientResponse,
   shouldUseSecureCookie,
 };
