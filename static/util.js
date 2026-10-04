@@ -9,6 +9,7 @@
 //   window.toggleTheme()            — flip data-theme, persist, update button label
 //   window.applyThemeButtonLabel()  — set the #theme-btn label from current theme
 //   window.CPUtil.{escapeHtml, safeUrl, sanitizeHtml} — namespaced accessors
+//   window.CPUtil.openModal(el) / closeModal(el) — focus-trapped detail popups
 //   window.CPActions.register(map)  — register data-act event delegation handlers
 //
 // Theme is also persisted in localStorage so reloads keep the user's choice.
@@ -307,9 +308,23 @@
       delete modal._trapHandler;
     }
     _focusTrapState = null;
-    if (returnTo && returnTo.focus) {
+    if (returnTo && returnTo.focus && returnTo.isConnected !== false) {
       try { returnTo.focus(); } catch (_) {}
     }
+  }
+
+  // Idempotent wrappers for detail popups: trap focus on open, return focus
+  // to the card that opened it on close. Closing a popup that isn't open is a
+  // no-op, so page-wide Escape handlers can't release another popup's trap.
+  function openModal(el) {
+    if (!el || el._cpModalOpen) return;
+    el._cpModalOpen = true;
+    trapFocus(el, document.activeElement);
+  }
+  function closeModal(el) {
+    if (!el || !el._cpModalOpen) return;
+    el._cpModalOpen = false;
+    if (_focusTrapState && _focusTrapState.modal === el) releaseFocus();
   }
 
   // ── Standard loading / error / empty state helpers ─────────────────────
@@ -483,7 +498,9 @@
     renderFeedStatus: renderFeedStatus,
     setDataStatus: setDataStatus,
     renderNotice: renderNotice,
-    formatClockTime: formatClockTime
+    formatClockTime: formatClockTime,
+    openModal: openModal,
+    closeModal: closeModal
   };
 
   // ── Event delegation (replaces inline on* handlers for CSP compliance) ──────

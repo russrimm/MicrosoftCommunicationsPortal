@@ -39,7 +39,7 @@ html[data-theme="dark"] {
   display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
 }
 .fg-field-reset {
-  font: inherit; font-size: 10px; font-weight: 600; text-transform: none;
+  font: inherit; font-size: 12px; font-weight: 600; text-transform: none;
   letter-spacing: 0; padding: 0; border: none; background: none;
   color: var(--cp-accent); cursor: pointer;
 }
@@ -80,7 +80,7 @@ html[data-theme="dark"] {
 /* ── Chip-style multi-select ── */
 .fg-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .fg-chip {
-  font: inherit; font-size: 11px; font-weight: 600;
+  font: inherit; font-size: 12px; font-weight: 600;
   padding: 0.2rem 0.55rem; border-radius: 999px;
   border: 1px solid var(--cp-border);
   background: var(--cp-surface); color: var(--cp-text-soft);
@@ -135,7 +135,7 @@ html[data-theme="dark"] {
   background: var(--cp-surface); color: var(--cp-text);
   border: 1px solid var(--cp-border); border-radius: 0.375rem;
   box-shadow: 0 6px 18px rgba(0,0,0,0.18);
-  padding: 0.35rem 0.55rem; font-size: 11px; line-height: 1.35;
+  padding: 0.35rem 0.55rem; font-size: 12px; line-height: 1.35;
   white-space: nowrap; margin-top: -8px;
 }
 .fg-map-tooltip[hidden] { display: none; }
@@ -147,7 +147,7 @@ html[data-theme="dark"] {
   padding: 0.4rem 0.625rem;
   border-top: 1px solid var(--cp-border);
   background: var(--cp-surface);
-  font-size: 11px; color: var(--cp-text-muted);
+  font-size: 12px; color: var(--cp-text-muted);
 }
 .fg-map-hint .fg-legend-dot {
   display: inline-block; width: 9px; height: 9px; border-radius: 50%;
@@ -197,12 +197,12 @@ html[data-theme="dark"] {
 .fg-col-product { width: 17%; color: var(--cp-text-soft); }
 .fg-col-feature { width: 34%; }
 .fg-col-copilot, .fg-col-status, .fg-col-date { white-space: nowrap; width: 1%; }
-.fg-feature-link { color: var(--cp-link); text-decoration: none; font-weight: 600; }
+.fg-feature-link { color: var(--cp-link-text); text-decoration: none; font-weight: 600; }
 .fg-feature-link:hover { text-decoration: underline; }
 
 .fg-geo-list { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .fg-geo-tag {
-  font: inherit; font-size: 10.5px; font-weight: 600;
+  font: inherit; font-size: 12px; font-weight: 600;
   padding: 0.05rem 0.4rem; border-radius: 999px;
   border: 1px solid var(--cp-border); background: var(--cp-surface-soft);
   color: var(--cp-text-soft); cursor: pointer; white-space: nowrap;

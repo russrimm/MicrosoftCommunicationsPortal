@@ -532,7 +532,7 @@
         : '';
 
       return `
-        <div class="mc-message" data-idx="${idx}" title="${escapeHtml(title)}">
+        <div class="mc-message" data-idx="${idx}" title="${escapeHtml(title)}" role="button" tabindex="0" aria-label="${escapeHtml(title)}">
           ${isMajor ? '<div class="mc-major-banner">⚠ Major Change</div>' : ''}
           <div class="mc-card-body">
             <div class="mc-card-top">
@@ -645,6 +645,7 @@
 
       document.getElementById('mc-modal-body').innerHTML = sections.join('') || '<div class="mc-empty">No additional details.</div>';
       document.getElementById('mc-modal').classList.add('open');
+      window.CPUtil.openModal(document.getElementById('mc-modal'));
       if (window.CportalAi && window.CportalAi.isEnabled()) {
         window.CportalAi.attachToModal(document.getElementById('mc-modal-body'), 'messagecenter', msg);
       }
@@ -652,6 +653,7 @@
 
     function closeMessage() {
       document.getElementById('mc-modal').classList.remove('open');
+      window.CPUtil.closeModal(document.getElementById('mc-modal'));
     }
 
     function handleModalBackdrop(e) {
@@ -899,6 +901,13 @@
       if (reset) { resetFeedView(); return; }
       const card = e.target.closest('.mc-message[data-idx]');
       if (card) openMessage(Number(card.dataset.idx));
+    });
+    document.getElementById('mc-messages-container').addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const card = e.target.closest('.mc-message[data-idx]');
+      if (!card || e.target !== card) return;
+      e.preventDefault();
+      openMessage(Number(card.dataset.idx));
     });
     // Re-render product icons once deferred scripts (product-icons.js) finish loading
     window.addEventListener('load', function() {

@@ -46,7 +46,7 @@
                 <svg class="sh-donut-svg" id="sh-donut-svg" viewBox="0 0 42 42" role="img" aria-label="Service health overview"></svg>
                 <div class="sh-donut-center">
                   <div class="sh-donut-num" id="sh-donut-total">—</div>
-                  <div class="sh-donut-label">Services</div>
+                  <div class="sh-donut-label">services</div>
                 </div>
               </div>
               <div class="sh-legend">
@@ -557,7 +557,7 @@
           <div class="sh-issue-card sev-${sev}"
                role="button" tabindex="0"
                data-issue-id="${escapeHtml(it.id)}"
-               aria-label="${escapeHtml(it.title)} — ${escapeHtml(it.service)}"
+               aria-label="${escapeHtml(it.title)}, ${escapeHtml(it.service)}"
                title="${escapeHtml(it.title)}">
             <div class="sh-issue-head">
               ${cls ? `<span class="sh-issue-class">${escapeHtml(cls)}</span>` : ''}
@@ -703,7 +703,7 @@
           const dk = dayKey(d);
           const v = dayMap.get(dk) || 0;
           const cls = v >= 2 ? 'hm-incident' : v === 1 ? 'hm-degraded' : 'hm-ok';
-          const tip = `${name} — ${d.getMonth()+1}/${d.getDate()}: ${v >= 2 ? 'Incident open' : v === 1 ? 'Advisory open' : 'No open issues'}`;
+          const tip = `${name}, ${d.getMonth()+1}/${d.getDate()}: ${v >= 2 ? 'Incident open' : v === 1 ? 'Advisory open' : 'No open issues'}`;
           html += `<div class="sh-heatmap-cell ${cls}" title="${escapeHtml(tip)}" data-svc="${escapeHtml(name)}" data-day="${dk}"></div>`;
         }
       }
@@ -775,7 +775,7 @@
     function openHeatmapIssuePicker(svcName, dayStr, issues) {
       const d = new Date(dayStr + 'T00:00:00');
       const dateLabel = `${d.getMonth()+1}/${d.getDate()}`;
-      document.getElementById('sh-modal-title').textContent = `${svcName} — ${dateLabel}`;
+      document.getElementById('sh-modal-title').textContent = `${svcName} · ${dateLabel}`;
       document.getElementById('sh-modal-sub').innerHTML =
         `<span class="sh-issue-class">${issues.length} issue${issues.length > 1 ? 's' : ''} on this day</span>`;
       document.getElementById('sh-modal-meta').innerHTML = '';
@@ -790,11 +790,11 @@
           <div class="sh-modal-post" style="cursor:pointer" role="button" tabindex="0"
                data-issue-id="${escapeHtml(it.id)}">
             <div class="sh-modal-post-head">
-              <span class="sh-issue-pill sev-${sev}" style="font-size:10px"><span class="sh-issue-pill-dot"></span>${escapeHtml(status)}</span>
+              <span class="sh-issue-pill sev-${sev}" style="font-size:11px"><span class="sh-issue-pill-dot"></span>${escapeHtml(status)}</span>
               <span>${escapeHtml(timeStr)}</span>
             </div>
             <div class="sh-modal-post-body" style="font-weight:600">${escapeHtml(it.title)}</div>
-            <div style="font-size:11px;color:var(--cp-text-muted);margin-top:0.3rem">
+            <div style="font-size:12px;color:var(--cp-text-muted);margin-top:0.3rem">
               ${cls ? `<span>${escapeHtml(cls)}</span> · ` : ''}${escapeHtml(it.feature || '')}
             </div>
           </div>`;
@@ -802,6 +802,7 @@
       const backdrop = document.getElementById('sh-modal-backdrop');
       backdrop.classList.add('open');
       backdrop.setAttribute('aria-hidden', 'false');
+      window.CPUtil.openModal(backdrop);
       document.body.style.overflow = 'hidden';
     }
 
@@ -943,19 +944,19 @@
         const v = Math.round((niceMax / ticks) * i);
         const yy = y(v);
         grid.push(`<line x1="${pad.left}" x2="${W - pad.right}" y1="${yy}" y2="${yy}" stroke="currentColor" stroke-opacity="0.12" stroke-dasharray="2,3"/>`);
-        grid.push(`<text x="${pad.left - 6}" y="${yy + 3}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.55">${v}</text>`);
+        grid.push(`<text x="${pad.left - 6}" y="${yy + 3}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity="0.7">${v}</text>`);
       }
 
       const xLabels = [];
       const labelCount = Math.min(6, series.length);
       if (labelCount === 1) {
-        xLabels.push(`<text x="${x(0)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity="0.55">Today</text>`);
+        xLabels.push(`<text x="${x(0)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.7">Today</text>`);
       } else {
         for (let k = 0; k < labelCount; k++) {
           const i = Math.round(((series.length - 1) * k) / (labelCount - 1));
           const d = series[i].date;
           const text = (k === labelCount - 1) ? 'Today' : formatTickDate(d);
-          xLabels.push(`<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity="0.55">${text}</text>`);
+          xLabels.push(`<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.7">${text}</text>`);
         }
       }
 
@@ -1056,6 +1057,7 @@
       const backdrop = document.getElementById('sh-modal-backdrop');
       backdrop.classList.add('open');
       backdrop.setAttribute('aria-hidden', 'false');
+      window.CPUtil.openModal(backdrop);
       document.body.style.overflow = 'hidden';
       if (window.CportalAi && window.CportalAi.isEnabled()) {
         // Service health issues lack a description field — synthesize one for the AI from impact + latest post.
@@ -1080,6 +1082,7 @@
       const backdrop = document.getElementById('sh-modal-backdrop');
       backdrop.classList.remove('open');
       backdrop.setAttribute('aria-hidden', 'true');
+      window.CPUtil.closeModal(backdrop);
       document.body.style.overflow = '';
     }
 
@@ -1283,7 +1286,7 @@
         : `${issues.length} active issue${issues.length !== 1 ? 's' : ''}`;
       const now = new Date().toLocaleString();
       let subtitle = 'Exported ' + now + ' • ' + summary;
-      if (!issues.length) subtitle += ' — ✓ No active issues at the time of export.';
+      if (!issues.length) subtitle += ' · No active issues at the time of export.';
       if (serviceHealthWarning) subtitle += ' • Partial data: ' + serviceHealthWarning;
 
       window.ExportFormats.download({

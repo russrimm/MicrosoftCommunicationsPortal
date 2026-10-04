@@ -43,6 +43,7 @@
         <button class="export-btn" id="pp-refresh-btn" data-act="reloadAll">↻ Refresh</button>
       </div>
     </div>
+    <div id="au-scope" hidden></div>
     <div class="au-filters fk-filters-panel" id="au-filters">
       <div class="au-filter-group">
         <label class="au-filter-label" id="au-product-filter-label">Product:</label>
@@ -546,9 +547,48 @@
       return all.length ? set.size > 0 && set.size < all.length : false;
     }
 
+    // The page opens scoped to Power Platform products (Dynamics 365 data is
+    // only fetched on demand). That default is stated in a scope note, so it
+    // shouldn't also count as a user-applied filter in the Filters badge.
+    const DYNAMICS_PRODUCTS = PRODUCTS.filter(p => p.category === 'Dynamics 365');
+    function isDefaultProductScope() {
+      if (!productFilter.size) return false;
+      if (DYNAMICS_PRODUCTS.some(p => productFilter.has(p.name))) return false;
+      return getAllKnownValues('product').every(n =>
+        productFilter.has(n) || categoryForProductName(n) === 'Dynamics 365');
+    }
+
+    async function includeDynamics() {
+      DYNAMICS_PRODUCTS.forEach(p => { productFilter.add(p.name); selectedProductIds.add(p.id); });
+      const toLoad = DYNAMICS_PRODUCTS.filter(p => !loadedProductIds.has(p.id));
+      if (toLoad.length) {
+        let completed = 0;
+        setLoading(true, `Loading Dynamics 365… 0 of ${toLoad.length}`, 0);
+        const results = await Promise.all(toLoad.map(p => fetchProduct(p.id).then(r => {
+          completed++;
+          loadedProductIds.add(p.id);
+          setLoading(true, `Loading Dynamics 365… ${completed} of ${toLoad.length}`, Math.round((completed / toLoad.length) * 100));
+          return r;
+        })));
+        const newFeats = results.flat().filter(f => f.FeatureName && !isExcludedFeature(f));
+        if (newFeats.length) allFeatures = dedup([...allFeatures, ...newFeats]);
+        setLoading(false);
+      }
+      rebuildFilters();
+      filterAndRender();
+    }
+
+    function renderProductScope() {
+      window.FeedKit.renderScope('au-scope', isDefaultProductScope() ? {
+        text: 'Showing Power Platform products. Dynamics 365 isn\u2019t loaded yet.',
+        actionLabel: 'Include Dynamics 365',
+        onAction: includeDynamics,
+      } : null);
+    }
+
     function activeFilterCount() {
       return [
-        filterSetIsActive('product', productFilter),
+        filterSetIsActive('product', productFilter) && !isDefaultProductScope(),
         filterSetIsActive('area', areaFilter),
         filterSetIsActive('status', statusFilter),
         filterSetIsActive('wave', waveFilter),
@@ -951,6 +991,7 @@
       }
 
       filterToggle.refresh();
+      renderProductScope();
       filtered = lenses.apply(filtered);
       currentFiltered = filtered;
       const exportBtn = document.getElementById('export-btn');
@@ -1077,7 +1118,7 @@
       if (f.AiContribution === 'true') metaParts.push('<span class="au-tag-pill ai">AI</span>');
 
       return `
-        <div class="au-card" data-act="openFeature" data-id="${xa(fid)}">
+        <div class="au-card" data-act="openFeature" data-id="${xa(fid)}" role="button" tabindex="0" aria-label="${xa(f.FeatureName || 'Untitled feature')}">
           <div class="au-card-body">
             <div class="au-card-top">
               <span class="au-status-pill ${sc}">${xh(f.GAStatus || 'N/A')}</span>
@@ -1140,6 +1181,7 @@
         </div>` : ''}
       `;
       document.getElementById('au-modal').classList.add('open');
+      window.CPUtil.openModal(document.getElementById('au-modal'));
       if (window.CportalAi && window.CportalAi.isEnabled()) {
         window.CportalAi.attachToModal(body, 'powerplatform', f);
       }
@@ -1147,6 +1189,7 @@
 
     function closeFeature() {
       document.getElementById('au-modal').classList.remove('open');
+      window.CPUtil.closeModal(document.getElementById('au-modal'));
     }
     function handleModalBackdrop(ev) {
       if (ev.target.id === 'au-modal') closeFeature();

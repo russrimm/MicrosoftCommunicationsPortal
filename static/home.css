@@ -101,7 +101,7 @@
   flex: 1;
 }
 .card-source {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--cp-text-soft);
   display: flex;
   align-items: center;
@@ -161,7 +161,7 @@
   margin-top: auto;
   padding: 1.5rem 2rem;
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--cp-text-soft);
   border-top: 1px solid var(--cp-border);
 }
@@ -324,7 +324,7 @@
 .sub-card .card-icon img { width: 28px; height: 28px; }
 .sub-card .card-title { font-size: 14px; font-weight: 700; }
 .sub-card .card-desc { font-size: 12px; color: var(--cp-text-muted); line-height: 1.5; flex: 1; }
-.sub-card .card-source { font-size: 11px; }
+.sub-card .card-source { font-size: 12px; }
 .sub-card .card-cta { font-size: 12px; }
 
 /* ── Responsive ── */

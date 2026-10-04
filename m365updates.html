@@ -614,7 +614,7 @@
       const date = formatDate(u.pubDate);
       const snippet = stripHtml(u.description).slice(0, 220);
       return `
-        <div class="au-card" data-act="openUpdate" data-id="${escapeHtml(u.id)}">
+        <div class="au-card" data-act="openUpdate" data-id="${escapeHtml(u.id)}" role="button" tabindex="0" aria-label="${escapeHtml(u.title || 'Untitled update')}">
           <div class="au-card-body">
             <div class="au-card-top">
               <span class="au-card-id">#${escapeHtml(u.id || '')}</span>
@@ -673,6 +673,7 @@
           </div>` : ''}
       `;
       document.getElementById('au-modal').classList.add('open');
+      window.CPUtil.openModal(document.getElementById('au-modal'));
       if (window.CportalAi && window.CportalAi.isEnabled()) {
         window.CportalAi.attachToModal(body, 'm365', u);
       }
@@ -680,6 +681,7 @@
 
     function closeUpdate() {
       document.getElementById('au-modal').classList.remove('open');
+      window.CPUtil.closeModal(document.getElementById('au-modal'));
     }
     function handleModalBackdrop(ev) {
       if (ev.target.id === 'au-modal') closeUpdate();

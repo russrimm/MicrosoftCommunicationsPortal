@@ -15,7 +15,7 @@
   transition: color 0.2s;
 }
 .step-item.active { color: var(--cp-accent); }
-.step-item.completed { color: var(--cp-success); }
+.step-item.completed { color: var(--cp-success-text); }
 .step-num {
   width: 28px; height: 28px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -86,10 +86,10 @@
 .source-card-name { font-size: 15px; font-weight: 700; color: var(--cp-text); margin-bottom: 0.25rem; }
 .source-card-desc { font-size: 12px; color: var(--cp-text-muted); line-height: 1.5; }
 .source-card-auth {
-  display: inline-block; margin-top: 0.5rem; font-size: 10px; font-weight: 700;
+  display: inline-block; margin-top: 0.5rem; font-size: 11px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.04em;
   padding: 0.15rem 0.5rem; border-radius: 999px;
-  background: rgba(0,120,212,0.1); color: var(--cp-link);
+  background: rgba(0,120,212,0.1); color: var(--cp-link-text);
   border: 1px solid rgba(0,120,212,0.25);
 }
 .source-card-check {
@@ -119,7 +119,7 @@
 .product-section-header img { width: 24px; height: 24px; object-fit: contain; }
 .product-section-title { font-size: 14px; font-weight: 700; color: var(--cp-text); flex: 1; }
 .product-section-badge {
-  font-size: 11px; font-weight: 700; padding: 0.1rem 0.5rem;
+  font-size: 12px; font-weight: 700; padding: 0.1rem 0.5rem;
   border-radius: 999px; background: var(--cp-accent-soft); color: var(--cp-accent);
 }
 .product-section-chevron {
@@ -177,7 +177,7 @@
 .review-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .review-chip {
   display: inline-flex; align-items: center; gap: 0.3rem;
-  font-size: 11px; font-weight: 600; padding: 0.2rem 0.5rem 0.2rem 0.6rem;
+  font-size: 12px; font-weight: 600; padding: 0.2rem 0.5rem 0.2rem 0.6rem;
   border-radius: 999px; background: var(--cp-surface-soft);
   border: 1px solid var(--cp-border); color: var(--cp-text);
 }
@@ -261,7 +261,7 @@
 /* ── Footer ── */
 .page-footer {
   margin-top: auto; padding: 1rem 2rem; text-align: center;
-  font-size: 11px; color: var(--cp-text-soft); border-top: 1px solid var(--cp-border);
+  font-size: 12px; color: var(--cp-text-soft); border-top: 1px solid var(--cp-border);
 }
 .page-footer a { color: var(--cp-text-muted); text-decoration: none; }
 .page-footer a:hover { text-decoration: underline; }

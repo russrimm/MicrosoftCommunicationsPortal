@@ -425,7 +425,7 @@ window.SubscriptionPicker = (() => {
       }
       .sp-item-id {
         display: block;
-        font-size: 11px;
+        font-size: 12px;
         color: var(--cp-text-muted, #888);
         font-family: monospace;
         white-space: nowrap;
@@ -433,7 +433,7 @@ window.SubscriptionPicker = (() => {
         text-overflow: ellipsis;
       }
       .sp-item-state {
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 600;
         padding: 2px 6px;
         border-radius: 4px;
@@ -441,9 +441,9 @@ window.SubscriptionPicker = (() => {
         white-space: nowrap;
         flex-shrink: 0;
       }
-      .sp-state-enabled { background: rgba(22,163,74,0.12); color: #16a34a; }
-      .sp-state-disabled { background: rgba(220,38,38,0.12); color: #dc2626; }
-      .sp-state-warned { background: rgba(245,158,11,0.12); color: #d97706; }
+      .sp-state-enabled { background: rgba(22,163,74,0.12); color: var(--cp-success-text, #166534); }
+      .sp-state-disabled { background: rgba(220,38,38,0.12); color: var(--cp-danger-text, #b91c1c); }
+      .sp-state-warned { background: rgba(245,158,11,0.12); color: var(--cp-warning-text, #92400e); }
       .sp-footer {
         display: flex;
         align-items: center;

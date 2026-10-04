@@ -12,6 +12,8 @@
 //   renderPaged(container, items, renderItem, { pageSize, emptyHtml })
 //     Renders the first page of cards and appends more on scroll or on
 //     "Show more", so a 1,900-item feed doesn't build 1,900 cards up front.
+//   renderScope(target, { text, actionLabel, onAction } | null)
+//     States a default narrowing of the feed and offers one action to widen it.
 (function () {
   'use strict';
 
@@ -181,9 +183,25 @@
     }
   }
 
+  // A one-line note stating any default narrowing ("Showing the last 6
+  // months · 507 older hidden") with a single action to widen it.
+  // note: null to hide, or { text, actionLabel, onAction }.
+  function renderScope(target, note) {
+    var el = byId(target);
+    if (!el) return;
+    if (!note) { el.hidden = true; el.innerHTML = ''; return; }
+    el.classList.add('fk-scope');
+    el.innerHTML = '<span>' + esc(note.text) + '</span>' +
+      (note.actionLabel ? '<button type="button" class="fk-scope-btn">' + esc(note.actionLabel) + '</button>' : '');
+    var btn = el.querySelector('.fk-scope-btn');
+    if (btn && typeof note.onAction === 'function') btn.addEventListener('click', note.onAction);
+    el.hidden = false;
+  }
+
   window.FeedKit = {
     createLenses: createLenses,
     createFilterToggle: createFilterToggle,
-    renderPaged: renderPaged
+    renderPaged: renderPaged,
+    renderScope: renderScope
   };
 })();
