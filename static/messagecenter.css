@@ -232,10 +232,18 @@
 .mc-product-header .product-icon {
   width: 20px; height: 20px; object-fit: contain; flex-shrink: 0;
 }
+.mc-messages.is-product-sorted .mc-inline-product-header {
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+}
 .mc-multi-option .product-icon {
   width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;
 }
-.mc-empty { text-align: center; padding: 2rem; color: var(--cp-text-muted); }
+.mc-empty {
+  grid-column: 1 / -1;
+  text-align: center; padding: 2rem; color: var(--cp-text-muted);
+}
+.mc-empty .fk-more-btn { margin-left: 0.5rem; }
 .mc-data-warning {
   margin: 0 0 0.75rem;
   padding: 0.65rem 0.8rem;

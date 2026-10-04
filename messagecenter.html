@@ -12,6 +12,7 @@
     })();
   </script>
   <script src="/static/util.js?v=20260929-saveas2"></script>
+  <script src="/static/feed-kit.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/messagecenter.css?v=20260411-audit2">
 </head>
@@ -20,20 +21,28 @@
 
   <div class="page-content">
     <h1 class="page-heading">Microsoft 365 Message Center</h1>
-    <div class="mc-toolbar-row">
+    <div class="fk-toolbar">
       <div class="mc-search-bar">
         <label for="mc-search" class="sr-only">Search messages by title or description</label>
         <input type="text" class="mc-search-input" id="mc-search"
                placeholder="Search messages by title or description…"
                aria-label="Search messages by title or description">
       </div>
-      <div class="mc-toolbar-actions">
-        <span id="mc-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
+      <button type="button" class="fk-filter-toggle" id="mc-filter-toggle">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+        <span>Filters</span>
+        <span class="fk-filter-badge" hidden></span>
+      </button>
+    </div>
+    <div class="fk-lens-row">
+      <div id="mc-lenses"></div>
+      <div class="fk-meta">
+        <span id="mc-result-count" class="fk-result-count" role="status" aria-live="polite"></span>
         <button class="export-btn" id="mc-export-btn" type="button" disabled>⬇ Export</button>
         <button class="export-btn" id="mc-refresh-btn">↻ Refresh</button>
       </div>
     </div>
-    <div class="mc-filters">
+    <div class="mc-filters fk-filters-panel" id="mc-filters">
       <div class="mc-filters-left">
         <div class="mc-filter-group">
           <label class="mc-filter-label" for="mc-severity-filter">Severity:</label>
@@ -184,7 +193,7 @@
       return typeof fallback === 'string' ? fallback : String(fallback);
     }
 
-    let selectedServices = new Set();
+    let selectedServices = new Set(window.CPUtil ? window.CPUtil.queryValues('service') : []);
     let allServiceNames = [];
 
     function populateServiceFilter() {
@@ -272,6 +281,85 @@
       return new Date(msg.startDateTime || msg.lastModifiedDateTime || 0);
     }
 
+    // ── Quick views + collapsible filters ─────────────────────────────────
+    const MC_AI_RE = /copilot|\bai\b|\bagents?\b/i;
+    const MC_RETIRE_RE = /retir|deprecat|end of support/i;
+    const MC_DATE_INPUT_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+    function getMessageTags(msg) {
+      return (msg.tags || []).map(t => String(t).toLowerCase());
+    }
+
+    function hasCurrentActionDate(msg) {
+      if (!msg.actionRequiredByDateTime) return false;
+      const due = Date.parse(msg.actionRequiredByDateTime);
+      return !isNaN(due) && due >= Date.now();
+    }
+
+    function isActionRequiredMessage(msg) {
+      const tags = getMessageTags(msg);
+      return hasCurrentActionDate(msg) ||
+        (msg.category || '').toLowerCase() === 'planforchange' ||
+        tags.some(t => t.includes('plan for change') || t.includes('admin impact'));
+    }
+
+    function isMajorChangeMessage(msg) {
+      return !!msg.isMajorChange || getMessageTags(msg).some(t => t.includes('major'));
+    }
+
+    function isRetirementMessage(msg) {
+      const tags = getMessageTags(msg);
+      return tags.some(t => t.includes('retirement')) || MC_RETIRE_RE.test(msg.title || '');
+    }
+
+    function isCopilotAiMessage(msg) {
+      const services = (msg.services || []).map(getServiceName).join(' ');
+      return MC_AI_RE.test(msg.title || '') || MC_AI_RE.test(services);
+    }
+
+    const lenses = window.FeedKit.createLenses({
+      container: 'mc-lenses',
+      label: 'Quick views',
+      onChange: () => filterMessages(),
+      lenses: [
+        { id: 'all', label: 'All messages' },
+        { id: 'action', label: 'Action required', title: 'Has a current action required date, Plan for Change category/tag, or Admin impact tag',
+          test: isActionRequiredMessage },
+        { id: 'major', label: 'Major changes', title: 'Marked as a major change by Microsoft',
+          test: isMajorChangeMessage },
+        { id: 'retirements', label: 'Retirements', title: 'Tagged Retirement or title mentions retirement, deprecation, or end of support',
+          test: isRetirementMessage },
+        { id: 'ai', label: 'Copilot & AI', title: 'Title or services mention Copilot, AI, or agents',
+          test: isCopilotAiMessage },
+      ],
+    });
+
+    let filterState = { severity: false, service: false, sort: false, date: false };
+    const filterToggle = window.FeedKit.createFilterToggle({
+      button: 'mc-filter-toggle',
+      panel: 'mc-filters',
+      activeCount: () => Object.values(filterState).filter(Boolean).length,
+    });
+
+    function resetFeedView() {
+      document.getElementById('mc-search').value = '';
+      document.getElementById('mc-severity-filter').value = '';
+      document.getElementById('mc-sort').value = 'date-desc';
+      document.getElementById('mc-date-from').value = '';
+      document.getElementById('mc-date-to').value = '';
+      selectedServices.clear();
+      document.querySelectorAll('#mc-service-options input[type=checkbox]').forEach(cb => { cb.checked = false; });
+      updateServiceLabel();
+      updateDatePresetButtons(null);
+      lenses.reset();
+      filterMessages();
+    }
+
+    function emptyStateHtml() {
+      return '<div class="mc-empty">No messages match this view.' +
+        ' <button type="button" class="fk-more-btn" data-act="resetFeedView">Clear search, filters, and view</button></div>';
+    }
+
     function applyDatePreset(days) {
       const now = new Date();
       const from = new Date(now); from.setDate(from.getDate() - days);
@@ -303,12 +391,13 @@
         document.getElementById('mc-date-to').value
       );
       const serviceFilterActive = selectedServices.size > 0 && selectedServices.size < allServiceNames.length;
+      const dateActive = !!(document.getElementById('mc-date-from').value || document.getElementById('mc-date-to').value);
 
-      const filtered = allMessages.filter(msg => {
+      let filtered = allMessages.filter(msg => {
         const msgDate     = getMessageDate(msg);
         const msgSeverity = (msg.severity || 'normal').toLowerCase();
         const msgServices = (msg.services || []).map(s => getServiceName(s)).filter(Boolean);
-        const msgText     = ((msg.title || '') + ' ' + (msg.details || msg.description || msg.summary || '')).toLowerCase();
+        const msgText     = ((msg.title || '') + ' ' + getMessageDescription(msg)).toLowerCase();
 
         return msgDate.getTime() >= dateBounds.from && msgDate.getTime() < dateBounds.toExclusive &&
                (!severity || msgSeverity === severity) &&
@@ -317,13 +406,39 @@
       });
 
       filtered.sort((a, b) => {
+        if (sortBy === 'product') {
+          const svcA = (a.services || []).map(getServiceName).filter(Boolean)[0] || 'General';
+          const svcB = (b.services || []).map(getServiceName).filter(Boolean)[0] || 'General';
+          const serviceCompare = svcA.localeCompare(svcB);
+          if (serviceCompare) return serviceCompare;
+        }
         const timeA = getMessageDate(a).getTime();
         const timeB = getMessageDate(b).getTime();
         return sortBy === 'date-asc' ? timeA - timeB : timeB - timeA;
       });
 
+      filterState = {
+        severity: !!severity,
+        service: serviceFilterActive,
+        sort: sortBy !== 'date-desc',
+        date: dateActive,
+      };
+      filterToggle.refresh();
+      filtered = lenses.apply(filtered);
+      currentFiltered = filtered;
+      if (window.CPUtil) {
+        window.CPUtil.replaceQueryState({
+          q: document.getElementById('mc-search').value.trim() || null,
+          severity: severity || null,
+          service: serviceFilterActive ? [...selectedServices].sort() : [],
+          sort: sortBy === 'date-desc' ? null : sortBy,
+          from: document.getElementById('mc-date-from').value || null,
+          to: document.getElementById('mc-date-to').value || null,
+        });
+      }
+
       const countEl = document.getElementById('mc-result-count');
-      if (countEl) countEl.textContent = `${filtered.length} of ${allMessages.length}`;
+      if (countEl) countEl.textContent = `${filtered.length.toLocaleString('en-US')} of ${allMessages.length.toLocaleString('en-US')}`;
       const exportBtn = document.getElementById('mc-export-btn');
       if (exportBtn) {
         exportBtn.disabled = filtered.length === 0;
@@ -334,48 +449,52 @@
 
     function renderMessages(messages) {
       const container = document.getElementById('mc-messages-container');
+      const sortBy = document.getElementById('mc-sort').value;
       if (!messages || messages.length === 0) {
-        container.classList.remove('is-grouped');
-        container.innerHTML = '<div class="mc-empty">No messages match the current filters.</div>';
-        currentFiltered = [];
+        container.classList.remove('is-grouped', 'is-product-sorted');
+        container.innerHTML = emptyStateHtml();
         return;
       }
-      currentFiltered = messages;
-      const sortBy = document.getElementById('mc-sort').value;
 
       if (sortBy === 'product') {
-        container.classList.add('is-grouped');
-        // Group by primary service. If a message has no services, label "General".
-        const groups = new Map();
-        messages.forEach((msg, idx) => {
-          const svcList = (msg.services || []).map(getServiceName).filter(Boolean);
-          const key = svcList[0] || 'General';
-          if (!groups.has(key)) groups.set(key, []);
-          groups.get(key).push({ msg, idx });
-        });
-        const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
-        container.innerHTML = sortedKeys.map(key => {
-          const items = groups.get(key).sort((a, b) =>
-            new Date(b.msg.startDateTime || b.msg.lastModifiedDateTime || 0).getTime() -
-            new Date(a.msg.startDateTime || a.msg.lastModifiedDateTime || 0).getTime()
-          );
-          const cards = items.map(({ msg, idx }) => renderMessageCard(msg, idx)).join('');
-          const groupIcon = (window.ProductIcons && window.ProductIcons.getProductIcon(key))
-            ? window.ProductIcons.productIconImg(key) : '';
-          return `
-            <div class="mc-product-group">
-              <div class="mc-product-header">${groupIcon}${escapeHtml(key)} <span class="mc-product-count">(${items.length})</span></div>
-              <div class="mc-product-cards">${cards}</div>
-            </div>`;
-        }).join('');
+        renderProductSorted(messages);
         return;
       }
 
-      container.classList.remove('is-grouped');
-      container.innerHTML = messages.map((msg, idx) => renderMessageCard(msg, idx)).join('');
+      container.classList.remove('is-grouped', 'is-product-sorted');
+      window.FeedKit.renderPaged(container, messages, renderMessageCard, { emptyHtml: emptyStateHtml() });
     }
 
-    function renderMessageCard(msg, idx) {
+    function renderProductSorted(messages) {
+      const container = document.getElementById('mc-messages-container');
+      container.classList.remove('is-grouped');
+      container.classList.add('is-product-sorted');
+      const counts = new Map();
+      messages.forEach(msg => {
+        const key = (msg.services || []).map(getServiceName).filter(Boolean)[0] || 'General';
+        counts.set(key, (counts.get(key) || 0) + 1);
+      });
+      let lastKey = null;
+      const entries = messages.map(msg => {
+        const key = (msg.services || []).map(getServiceName).filter(Boolean)[0] || 'General';
+        const showHeader = key !== lastKey;
+        lastKey = key;
+        return { msg, key, showHeader };
+      });
+      window.FeedKit.renderPaged(container, entries, renderProductSortedEntry, { emptyHtml: emptyStateHtml() });
+
+      function renderProductSortedEntry(entry) {
+        const groupIcon = (window.ProductIcons && window.ProductIcons.getProductIcon(entry.key))
+          ? window.ProductIcons.productIconImg(entry.key) : '';
+        const header = entry.showHeader
+          ? `<div class="mc-product-header mc-inline-product-header">${groupIcon}${escapeHtml(entry.key)} <span class="mc-product-count">(${counts.get(entry.key)})</span></div>`
+          : '';
+        return header + renderMessageCard(entry.msg);
+      }
+    }
+
+    function renderMessageCard(msg) {
+      const idx = currentFiltered.indexOf(msg);
       const tags = (msg.tags || []).map(t => String(t).toLowerCase());
       const isMajor = !!msg.isMajorChange || tags.some(t => t.includes('major'));
       const isUpdated = tags.some(t => t.includes('updated'));
@@ -722,6 +841,22 @@
       if (btn) { btn.disabled = false; btn.textContent = '⬇ Export'; }
     }
 
+    if (window.CPUtil) {
+      document.getElementById('mc-search').value = window.CPUtil.queryValue('q');
+      const savedSeverity = window.CPUtil.queryValue('severity');
+      if ([...document.getElementById('mc-severity-filter').options].some(o => o.value === savedSeverity)) {
+        document.getElementById('mc-severity-filter').value = savedSeverity;
+      }
+      const savedSort = window.CPUtil.queryValue('sort');
+      if ([...document.getElementById('mc-sort').options].some(o => o.value === savedSort)) {
+        document.getElementById('mc-sort').value = savedSort;
+      }
+      const savedFrom = window.CPUtil.queryValue('from');
+      const savedTo = window.CPUtil.queryValue('to');
+      if (MC_DATE_INPUT_RE.test(savedFrom)) document.getElementById('mc-date-from').value = savedFrom;
+      if (MC_DATE_INPUT_RE.test(savedTo)) document.getElementById('mc-date-to').value = savedTo;
+    }
+
     // Load immediately on page open
     loadMessageCenter();
 
@@ -760,6 +895,8 @@
     });
     // Delegated handler for dynamically generated message cards
     document.getElementById('mc-messages-container').addEventListener('click', function(e) {
+      const reset = e.target.closest('[data-act="resetFeedView"]');
+      if (reset) { resetFeedView(); return; }
       const card = e.target.closest('.mc-message[data-idx]');
       if (card) openMessage(Number(card.dataset.idx));
     });
@@ -847,6 +984,5 @@
   <script src="/static/outlook-export.js?v=20260929-saveas2" defer></script>
   <script src="/static/export-formats.js?v=20260929-saveas2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
-  <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>
 </html>

@@ -55,7 +55,7 @@ window.SubscriptionPicker = (() => {
           </h2>
           <button class="sp-close" aria-label="Close" type="button">&times;</button>
         </div>
-        <p class="sp-desc">Select one or more subscriptions to scope Azure queries (Resource Health, MCP, etc.).</p>
+        <p class="sp-desc">Choose the Azure subscription the Azure Service Health page checks. Resource availability and service events use the first subscription you select.</p>
         <div class="sp-search-row">
           <input class="sp-search" type="search" placeholder="Filter subscriptions..." aria-label="Filter subscriptions" />
         </div>
@@ -480,84 +480,19 @@ window.SubscriptionPicker = (() => {
       }
       .sp-btn-primary:hover { background: var(--cp-accent-hover, #9a1a41); }
       .sp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-      /* Subscription badge in nav bar */
-      .sp-header-btn {
-        position: absolute;
-        right: 1.25rem;
-        top: 50%;
-        transform: translateY(-50%);
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        background: transparent;
-        border: 1px solid var(--cp-border, #ddd);
-        border-radius: 0.625rem;
-        padding: 0.35rem 0.75rem;
-        cursor: pointer;
-        font-size: 12px;
-        color: var(--cp-text-muted, #666);
-        font-family: inherit;
-        transition: all 0.15s;
-        white-space: nowrap;
-      }
-      .sp-header-btn:hover {
-        background: var(--cp-accent-soft, rgba(177,31,75,0.08));
-        color: var(--cp-accent, #b11f4b);
-        border-color: var(--cp-accent, #b11f4b);
-      }
-      .sp-header-btn svg { width: 14px; height: 14px; }
-      .sp-badge {
-        background: var(--cp-accent, #b11f4b);
-        color: var(--cp-accent-fg, #fff);
-        font-size: 9px;
-        font-weight: 700;
-        padding: 0 4px;
-        border-radius: 8px;
-        min-width: 14px;
-        height: 14px;
-        line-height: 14px;
-        text-align: center;
-        position: absolute;
-        top: -2px;
-        right: -4px;
-      }
     `;
   }
 
-  // ── Auto-init: add subscription button to the nav bar ────────────────
+  // ── Auto-init: wire an opt-in trigger button ──────────────────────────
+  // The picker only scopes Azure queries, so it lives on the Azure Service
+  // Health page (its own in-page control) rather than in the global nav,
+  // where it confused Microsoft 365 pages and collided with the tabs on
+  // mobile. Any page can still opt in with a #subscription-picker-btn.
   function autoInit() {
-    const nav = document.querySelector('.page-tabs');
-    if (!nav) return;
-
-    // Inject styles early so the button renders correctly
-    if (!document.getElementById('sp-styles')) {
-      const style = document.createElement('style');
-      style.id = 'sp-styles';
-      style.textContent = getStyles();
-      document.head.appendChild(style);
-    }
-
-    // Check if button already exists
-    if (nav.querySelector('.sp-header-btn')) return;
-
-    const btn = document.createElement('button');
-    btn.className = 'sp-header-btn';
-    btn.id = 'subscription-picker-btn';
-    btn.type = 'button';
-    btn.setAttribute('aria-label', 'Azure subscription scope');
-    btn.innerHTML = `
-      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M2 3h12v2H2V3Zm0 4h12v2H2V7Zm0 4h8v2H2v-2Z" fill="currentColor" opacity="0.7"/>
-      </svg>
-      <span class="sp-header-label">Subscriptions</span>
-      <span class="sp-badge sp-badge-count" style="display:none;">0</span>
-    `;
+    const btn = document.getElementById('subscription-picker-btn');
+    if (!btn || btn.dataset.spWired) return;
+    btn.dataset.spWired = '1';
     btn.addEventListener('click', open);
-
-    nav.appendChild(btn);
-
-    // Update badge with saved selection count
     updateBadge();
   }
 

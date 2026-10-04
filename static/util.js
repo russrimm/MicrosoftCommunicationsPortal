@@ -127,7 +127,10 @@
     var btn = document.getElementById('theme-btn');
     if (!btn) return;
     var theme = document.documentElement.getAttribute('data-theme');
-    btn.textContent = theme === 'dark' ? '\u2600\uFE0F Light' : '\uD83C\uDF19 Dark';
+    var dark = theme === 'dark';
+    btn.innerHTML = '<span aria-hidden="true">' + (dark ? '\u2600\uFE0F' : '\uD83C\uDF19') + '</span>' +
+      '<span class="theme-btn-label">' + (dark ? 'Light' : 'Dark') + '</span>';
+    btn.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
   }
 
   function toggleTheme() {
@@ -394,6 +397,61 @@
     else el.removeAttribute('title');
   }
 
+  // ── Data status pill + data-quality notice ──────────────────────────────
+  // One vocabulary for "how trustworthy is what you're looking at" across
+  // the health pages: live, partial, stale (refresh failed, showing last good
+  // data), error (nothing to show), loading, paused.
+  var DATA_STATUS_LABELS = {
+    loading: 'Loading\u2026',
+    live: 'Live',
+    current: 'Up to date',
+    idle: 'Waiting for input',
+    partial: 'Partial data',
+    stale: 'Not updating',
+    error: 'Data unavailable',
+    paused: 'Auto-refresh paused'
+  };
+  function setDataStatus(target, state, opts) {
+    var el = typeof target === 'string' ? document.getElementById(target) : target;
+    if (!el) return;
+    opts = opts || {};
+    el.setAttribute('data-state', state);
+    el.textContent = opts.label || DATA_STATUS_LABELS[state] || state;
+    if (opts.detail) el.title = opts.detail;
+    else el.removeAttribute('title');
+  }
+
+  // notice: null to hide, or { tone: 'warning'|'error', title, detail,
+  // actionLabel, onAction }.
+  function renderNotice(target, notice) {
+    var el = typeof target === 'string' ? document.getElementById(target) : target;
+    if (!el) return;
+    if (!notice) {
+      el.hidden = true;
+      el.innerHTML = '';
+      return;
+    }
+    var tone = notice.tone === 'error' ? 'error' : 'warning';
+    el.setAttribute('data-tone', tone);
+    el.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+    el.innerHTML =
+      '<div class="cp-notice-body">' +
+        '<span class="cp-notice-title">' + escapeHtml(notice.title || '') + '</span>' +
+        (notice.detail ? '<span class="cp-notice-detail">' + escapeHtml(notice.detail) + '</span>' : '') +
+      '</div>' +
+      (notice.actionLabel
+        ? '<button type="button" class="cp-notice-action">' + escapeHtml(notice.actionLabel) + '</button>'
+        : '');
+    var btn = el.querySelector('.cp-notice-action');
+    if (btn && typeof notice.onAction === 'function') btn.addEventListener('click', notice.onAction);
+    el.hidden = false;
+  }
+
+  function formatClockTime(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
+  }
+
   // Export globals.
   window.escapeHtml = escapeHtml;
   window.safeUrl = safeUrl;
@@ -422,7 +480,10 @@
     queryValue: queryValue,
     queryValues: queryValues,
     replaceQueryState: replaceQueryState,
-    renderFeedStatus: renderFeedStatus
+    renderFeedStatus: renderFeedStatus,
+    setDataStatus: setDataStatus,
+    renderNotice: renderNotice,
+    formatClockTime: formatClockTime
   };
 
   // ── Event delegation (replaces inline on* handlers for CSP compliance) ──────

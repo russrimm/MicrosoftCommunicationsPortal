@@ -21,6 +21,12 @@
           ', Microsoft Cloud Solution Architect, to help customers keep up with the pace of change.</div>' +
       '</div>' +
       '<button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle dark or light theme" data-act="toggleTheme">\uD83C\uDF19 Dark</button>' +
+      '<button class="nav-menu-btn" id="nav-menu-btn" type="button" aria-expanded="false" aria-controls="primary-nav">' +
+        '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">' +
+          '<path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/>' +
+        '</svg>' +
+        '<span>Menu</span>' +
+      '</button>' +
     '</header>';
 
   // Nav tab definitions. Each entry is either a simple link { label, href }
@@ -45,7 +51,7 @@
   ];
 
   function buildNav(path) {
-    var html = '<nav class="page-tabs" aria-label="Primary">';
+    var html = '<nav class="page-tabs" id="primary-nav" aria-label="Primary">';
     for (var i = 0; i < NAV_ITEMS.length; i++) {
       var item = NAV_ITEMS[i];
       if (item.items) {
@@ -97,7 +103,8 @@
         this.setAttribute('aria-expanded', isOpen);
       });
     }
-    document.addEventListener('click', function () {
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('#nav-menu-btn')) return;
       var allOpen = document.querySelectorAll('.nav-dropdown.open');
       for (var k = 0; k < allOpen.length; k++) {
         allOpen[k].classList.remove('open');
@@ -121,11 +128,53 @@
     });
   }
 
+  // Below 768px the tab bar collapses behind a Menu button and opens as a
+  // full-width panel; dropdown groups expand inline instead of floating.
+  function wireMobileMenu() {
+    var btn = document.getElementById('nav-menu-btn');
+    var nav = document.getElementById('primary-nav');
+    if (!btn || !nav) return;
+
+    function setOpen(open) {
+      nav.classList.toggle('is-open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      document.body.classList.toggle('nav-menu-open', open);
+      if (open) {
+        // Expand the group that holds the current page so it's one tap away.
+        var activeGroup = nav.querySelector('.nav-dropdown-toggle.active');
+        if (activeGroup) {
+          activeGroup.closest('.nav-dropdown').classList.add('open');
+          activeGroup.setAttribute('aria-expanded', 'true');
+        }
+        var first = nav.querySelector('.nav-tab');
+        if (first) first.focus();
+      }
+    }
+
+    btn.addEventListener('click', function () {
+      setOpen(!nav.classList.contains('is-open'));
+    });
+    document.addEventListener('click', function (e) {
+      if (!nav.classList.contains('is-open')) return;
+      if (nav.contains(e.target) || btn.contains(e.target)) return;
+      setOpen(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || !nav.classList.contains('is-open')) return;
+      setOpen(false);
+      btn.focus();
+    });
+    window.matchMedia('(min-width: 769px)').addEventListener('change', function (mq) {
+      if (mq.matches) setOpen(false);
+    });
+  }
+
   function init() {
     var path = window.location.pathname.replace(/\/+$/, '') || '/home';
     var markup = HEADER_HTML + buildNav(path);
     document.body.insertAdjacentHTML('afterbegin', markup);
     wireDropdowns();
+    wireMobileMenu();
     // Update the theme button label now that the button is in the DOM.
     if (typeof window.applyThemeButtonLabel === 'function') {
       window.applyThemeButtonLabel();
