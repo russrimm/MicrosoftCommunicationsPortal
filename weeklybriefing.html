@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Customer Briefing – Microsoft Communications Portal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <script src="/static/util.js?v=20260929-saveas2"></script>
+  <script src="/static/briefing-model.js"></script>
+  <script src="/static/briefing-email.js"></script>
+  <link rel="stylesheet" href="/static/common.css">
+  <link rel="stylesheet" href="/static/weeklybriefing.css">
+</head>
+<body>
+  <script src="/static/nav.js" defer></script>
+
+  <main class="wb-page">
+    <div class="wb-intro">
+      <div>
+        <h1>Weekly Customer Briefing</h1>
+        <p>Builds the Monday Power Platform &amp; Copilot Studio email from live Message Center posts and release plans, ordered so readers see what needs action first. Review, adjust, then copy it into Outlook.</p>
+      </div>
+      <div class="wb-status-row" aria-live="polite">
+        <span class="wb-status" id="wb-status-mc" data-state="loading">Message Center: loading</span>
+        <span class="wb-status" id="wb-status-rp" data-state="loading">Release plans: loading</span>
+        <span class="wb-status" id="wb-status-ai" data-state="idle">AI: checking</span>
+      </div>
+    </div>
+
+    <div class="wb-notices" id="wb-notices"></div>
+
+    <div class="wb-layout">
+      <!-- ── Control rail ── -->
+      <aside class="wb-rail" aria-label="Briefing settings">
+        <section class="wb-card" aria-labelledby="wb-h-briefing">
+          <h2 id="wb-h-briefing">Briefing</h2>
+          <div class="wb-row">
+            <div class="wb-field">
+              <label for="wb-date">Week of (Monday)</label>
+              <input type="date" class="wb-input" id="wb-date">
+            </div>
+            <div class="wb-field" style="flex:0 0 auto; justify-content:flex-end;">
+              <button type="button" class="wb-btn" id="wb-refresh" title="Fetch the latest Message Center posts and release plans">↻ Refresh data</button>
+            </div>
+          </div>
+          <div class="wb-field">
+            <label for="wb-headline">Email headline</label>
+            <input type="text" class="wb-input" id="wb-headline" maxlength="120">
+          </div>
+          <div class="wb-field">
+            <label for="wb-subject-template">Subject line</label>
+            <input type="text" class="wb-input" id="wb-subject-template" maxlength="160" aria-describedby="wb-subject-hint">
+            <span class="wb-hint" id="wb-subject-hint">Use {date} for the briefing date, for example “October 5, 2026”.</span>
+          </div>
+        </section>
+
+        <section class="wb-card" aria-labelledby="wb-h-scope">
+          <h2 id="wb-h-scope">Scope</h2>
+          <div class="wb-field">
+            <span class="wb-label" id="wb-areas-label">Product areas</span>
+            <div class="wb-chips" id="wb-areas" role="group" aria-labelledby="wb-areas-label"></div>
+          </div>
+          <div class="wb-row">
+            <div class="wb-field">
+              <label for="wb-mc-days">Message Center posts from</label>
+              <select class="wb-select" id="wb-mc-days">
+                <option value="7">Last 7 days</option>
+                <option value="14">Last 14 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="60">Last 60 days</option>
+              </select>
+            </div>
+            <div class="wb-field">
+              <label for="wb-rp-months">Release plans for</label>
+              <select class="wb-select" id="wb-rp-months">
+                <option value="1">This month</option>
+                <option value="2">This + next month</option>
+                <option value="3">Next 3 months</option>
+              </select>
+            </div>
+          </div>
+          <label class="wb-check"><input type="checkbox" id="wb-hide-routine"> Hide routine posts (version releases, planned maintenance)</label>
+        </section>
+
+        <section class="wb-card" aria-labelledby="wb-h-intro">
+          <h2 id="wb-h-intro">Intro &amp; highlights</h2>
+          <div class="wb-ai-row">
+            <button type="button" class="wb-btn wb-btn-small" id="wb-draft-ai">✨ Draft with AI</button>
+            <button type="button" class="wb-btn wb-btn-small" id="wb-draft-auto" title="Replace the intro and highlights with an automatic summary built from this week's items">Rebuild summary</button>
+            <span class="wb-ai-note" id="wb-draft-note" aria-live="polite"></span>
+          </div>
+          <div class="wb-field">
+            <label for="wb-greeting">Greeting</label>
+            <input type="text" class="wb-input" id="wb-greeting" maxlength="80">
+          </div>
+          <div class="wb-field">
+            <label for="wb-intro">Intro</label>
+            <textarea class="wb-textarea" id="wb-intro" maxlength="2000"></textarea>
+          </div>
+          <div class="wb-field">
+            <span class="wb-label">Top highlights</span>
+            <div id="wb-highlights"></div>
+            <div><button type="button" class="wb-btn wb-btn-small" id="wb-add-highlight">+ Add highlight</button></div>
+          </div>
+        </section>
+
+        <details class="wb-card" id="wb-items-card">
+          <summary>Items <span class="wb-summary-count" id="wb-items-count"></span></summary>
+          <p class="wb-hint">Clear a box to leave an item out. Use ⚑ to move a post into “Action required” or take it out.</p>
+          <div id="wb-items"></div>
+        </details>
+
+        <details class="wb-card">
+          <summary>Sections &amp; order</summary>
+          <ul class="wb-sections" id="wb-sections"></ul>
+        </details>
+
+        <details class="wb-card">
+          <summary>Resources <span class="wb-summary-count" id="wb-resources-count"></span></summary>
+          <p class="wb-hint">Links such as licensing guides. Saved in this browser.</p>
+          <div class="wb-list-editor" id="wb-resources"></div>
+          <div style="margin-top:0.5rem;"><button type="button" class="wb-btn wb-btn-small" id="wb-add-resource">+ Add link</button></div>
+        </details>
+
+        <details class="wb-card">
+          <summary>Signature</summary>
+          <p class="wb-hint">Saved in this browser only.</p>
+          <div class="wb-field"><label for="wb-sig-closing">Closing line</label><input type="text" class="wb-input" id="wb-sig-closing" data-sig="closing" maxlength="300"></div>
+          <div class="wb-row">
+            <div class="wb-field"><label for="wb-sig-name">Name</label><input type="text" class="wb-input" id="wb-sig-name" data-sig="name" maxlength="80" autocomplete="name"></div>
+            <div class="wb-field"><label for="wb-sig-title">Title</label><input type="text" class="wb-input" id="wb-sig-title" data-sig="title" maxlength="120" autocomplete="organization-title"></div>
+          </div>
+          <div class="wb-row">
+            <div class="wb-field"><label for="wb-sig-email">Email</label><input type="email" class="wb-input" id="wb-sig-email" data-sig="email" maxlength="120" autocomplete="email"></div>
+            <div class="wb-field"><label for="wb-sig-phone">Phone</label><input type="tel" class="wb-input" id="wb-sig-phone" data-sig="phone" maxlength="40" autocomplete="tel"></div>
+          </div>
+          <div class="wb-field"><label for="wb-sig-linkedin">LinkedIn URL</label><input type="url" class="wb-input" id="wb-sig-linkedin" data-sig="linkedin" maxlength="300" placeholder="https://www.linkedin.com/in/…"></div>
+          <div class="wb-field"><label for="wb-sig-booking">“Book time” URL</label><input type="url" class="wb-input" id="wb-sig-booking" data-sig="bookingUrl" maxlength="500" placeholder="https://outlook.office.com/bookwithme/…"></div>
+          <div class="wb-field"><label for="wb-sig-feedback">Feedback URL</label><input type="url" class="wb-input" id="wb-sig-feedback" data-sig="feedbackUrl" maxlength="500" placeholder="https://forms.office.com/…"></div>
+        </details>
+      </aside>
+
+      <!-- ── Live preview ── -->
+      <section class="wb-preview-wrap" aria-labelledby="wb-h-preview">
+        <h2 id="wb-h-preview" class="sr-only">Email preview</h2>
+        <div class="wb-toolbar">
+          <button type="button" class="wb-btn wb-btn-primary" id="wb-copy">📋 Copy email</button>
+          <button type="button" class="wb-btn" id="wb-copy-subject">Copy subject</button>
+          <span class="wb-subject" id="wb-subject-preview"></span>
+          <span class="wb-toast" id="wb-toast" role="status" aria-live="polite"></span>
+        </div>
+        <div class="wb-preview-frame">
+          <div class="wb-preview" id="wb-preview"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="page-footer">
+    <a href="https://github.com/russrimm/MicrosoftCommunicationsPortal" target="_blank" rel="noopener noreferrer">GitHub</a>
+    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; Not an official Microsoft product
+  </footer>
+
+  <script>
+    (() => {
+      'use strict';
+      const BM = window.BriefingModel;
+      const BE = window.BriefingEmail;
+      const $ = (id) => document.getElementById(id);
+      const esc = window.CPUtil.escapeHtml;
+
+      const SETTINGS_KEY = 'briefing.settings.v1';
+      const DRAFT_PREFIX = 'briefing.draft.v1.';
+      const SECTION_LABELS = {
+        actions: 'Action required',
+        highlights: 'Top highlights',
+        keydates: 'Key dates',
+        messages: 'New in Message Center',
+        changes: 'Release plan changes',
+        releaseplan: 'Coming soon (release plans)',
+        resources: 'Resources',
+      };
+      const DEFAULT_SETTINGS = {
+        areas: Object.fromEntries(BM.AREAS.map(a => [a.key, a.defaultOn])),
+        mcDays: 7,
+        rpMonths: 2,
+        hideRoutine: true,
+        headline: 'Power Platform & Copilot Studio Weekly',
+        subjectTemplate: 'Power Platform & Copilot Studio News — Week of {date}',
+        greeting: 'Happy Monday!',
+        sections: Object.keys(SECTION_LABELS).map(key => ({ key, on: true })),
+        resources: [],
+        signature: {
+          closing: 'Questions or ideas to make this update more useful? Just reply. I read every response.',
+          name: '', title: '', email: '', phone: '', linkedin: '', bookingUrl: '', feedbackUrl: '',
+        },
+      };
+      const MAX_KEY_DATES = 12;
+      const MAX_CHANGES_PER_LIST = 12;
+
+      // ── Persistence ──────────────────────────────────────────────────────
+      function readJson(key) {
+        try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+      }
+      function writeJson(key, value) {
+        try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage full or disabled */ }
+      }
+      function loadSettings() {
+        const saved = readJson(SETTINGS_KEY) || {};
+        const s = Object.assign({}, DEFAULT_SETTINGS, saved);
+        s.areas = Object.assign({}, DEFAULT_SETTINGS.areas, saved.areas || {});
+        s.signature = Object.assign({}, DEFAULT_SETTINGS.signature, saved.signature || {});
+        const known = new Set(Object.keys(SECTION_LABELS));
+        const order = (Array.isArray(saved.sections) ? saved.sections : []).filter(x => x && known.has(x.key));
+        Object.keys(SECTION_LABELS).forEach(key => {
+          if (!order.some(x => x.key === key)) order.push({ key, on: true });
+        });
+        s.sections = order;
+        s.resources = Array.isArray(saved.resources) ? saved.resources.slice(0, 20) : [];
+        return s;
+      }
+      function emptyDraft() {
+        return { intro: '', highlights: [], excluded: {}, actionOverride: {}, source: '' };
+      }
+      function loadDraft(week) {
+        return Object.assign(emptyDraft(), readJson(DRAFT_PREFIX + week) || {});
+      }
+
+      const state = {
+        settings: loadSettings(),
+        week: BM.defaultBriefingDate(new Date()),
+        draft: null,
+        messages: [],        // parsed, in-scope Message Center posts
+        mcState: 'loading',
+        mcError: '',
+        rp: null,            // /api/briefing/release-plan payload
+        rpState: 'loading',
+        aiEnabled: false,
+        aiBusy: false,
+        lastView: null,
+      };
+      state.draft = loadDraft(state.week);
+
+      let saveTimer = null;
+      function persist() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          writeJson(SETTINGS_KEY, state.settings);
+          writeJson(DRAFT_PREFIX + state.week, state.draft);
+        }, 250);
+      }
+
+      // ── Data loading ─────────────────────────────────────────────────────
+      function setStatus(id, stateName, text) {
+        const el = $(id);
+        el.dataset.state = stateName;
+        el.textContent = text;
+      }
+
+      async function loadMessages() {
+        state.mcState = 'loading';
+        setStatus('wb-status-mc', 'loading', 'Message Center: loading');
+        try {
+          const res = await fetch('/api/messagecenter', { headers: { Accept: 'application/json' } });
+          const body = await res.json().catch(() => ({}));
+          if (res.status === 503 && body.code === 'AUTH_NOT_CONFIGURED') {
+            state.mcState = 'not-configured';
+            state.mcError = 'Microsoft Graph is not configured, so Message Center posts are unavailable.';
+          } else if (res.status === 401) {
+            state.mcState = 'error';
+            state.mcError = 'Sign in to load Message Center posts.';
+          } else if (!res.ok && !(body.messages && body.messages.length)) {
+            state.mcState = 'error';
+            state.mcError = body.error || `Message Center request failed (HTTP ${res.status}).`;
+          } else {
+            state.messages = (body.messages || []).filter(BM.isInScopeMessage).map(BM.parseMessage);
+            state.mcState = body.partial ? 'partial' : 'ok';
+            state.mcError = body.warning || '';
+          }
+        } catch (err) {
+          state.mcState = 'error';
+          state.mcError = 'Could not reach the portal server: ' + err.message;
+        }
+        const label = { ok: 'loaded', partial: 'partial', 'not-configured': 'not configured', error: 'unavailable' }[state.mcState];
+        setStatus('wb-status-mc', state.mcState === 'ok' ? 'ok' : state.mcState === 'partial' ? 'warn' : 'error', 'Message Center: ' + label);
+      }
+
+      // Responses can arrive out of order when the week changes quickly, so
+      // only the latest request is applied.
+      let releasePlanSeq = 0;
+      function loadReleasePlans(refresh) {
+        const seq = ++releasePlanSeq;
+        state.rpState = 'loading';
+        setStatus('wb-status-rp', 'loading', 'Release plans: loading');
+        return fetchReleasePlans(state.week, refresh).then((result) => {
+          if (seq !== releasePlanSeq) return;
+          state.rp = result.rp;
+          state.rpState = result.rpState;
+          state.rpError = result.rpError;
+          const label = { ok: 'loaded', partial: 'partial', error: 'unavailable' }[state.rpState];
+          setStatus('wb-status-rp', state.rpState === 'ok' ? 'ok' : state.rpState === 'partial' ? 'warn' : 'error', 'Release plans: ' + label);
+        });
+      }
+
+      async function fetchReleasePlans(week, refresh) {
+        const params = new URLSearchParams();
+        // Future weeks aren't accepted by the server; it uses the current
+        // briefing week for those.
+        if (week <= BM.defaultBriefingDate(new Date())) params.set('week', week);
+        if (refresh) params.set('refresh', '1');
+        try {
+          const res = await fetch('/api/briefing/release-plan?' + params.toString(), { headers: { Accept: 'application/json' } });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            return {
+              rp: null,
+              rpState: 'error',
+              rpError: res.status === 401 ? 'Sign in to load release plans.' : (body.error || `Release plan request failed (HTTP ${res.status}).`),
+            };
+          }
+          const failed = (body.products || []).filter(p => !p.ok).length;
+          return {
+            rp: body,
+            rpState: failed ? 'partial' : 'ok',
+            rpError: failed ? `${failed} release plan product${failed === 1 ? '' : 's'} could not be loaded.` : '',
+          };
+        } catch (err) {
+          return { rp: null, rpState: 'error', rpError: 'Could not reach the portal server: ' + err.message };
+        }
+      }
+
+      async function loadAiStatus() {
+        try {
+          const res = await fetch('/api/ai-status');
+          const body = await res.json();
+          state.aiEnabled = !!body.enabled;
+        } catch {
+          state.aiEnabled = false;
+        }
+        setStatus('wb-status-ai', state.aiEnabled ? 'ok' : 'idle', state.aiEnabled ? 'AI: ready' : 'AI: not configured');
+        $('wb-draft-ai').disabled = !state.aiEnabled;
+        $('wb-draft-ai').title = state.aiEnabled ? 'Draft the intro and highlights from the included items'
+          : 'Configure an AI provider (see .env.example) to enable AI drafts';
+      }
+
+      async function loadAll(refresh) {
+        $('wb-refresh').disabled = true;
+        await Promise.all([loadMessages(), loadReleasePlans(refresh)]);
+        $('wb-refresh').disabled = false;
+        renderItemsPanel();
+        if (!state.draft.source) {
+          if (state.aiEnabled) await draftWithAi(true);
+          else applyAutoDraft(true);
+        }
+        render();
+      }
+
+      // ── View model ───────────────────────────────────────────────────────
+      const areaOn = (key) => !!state.settings.areas[key];
+      const isExcluded = (key) => !!state.draft.excluded[key];
+      function isActionItem(item) {
+        const override = state.draft.actionOverride[item.key];
+        return typeof override === 'boolean' ? override : item.isAction;
+      }
+      function withDateLabels(item) {
+        return Object.assign({}, item, {
+          areaInfo: BM.AREA_BY_KEY[item.area],
+          href: item.link,
+          keyDates: (item.keyDates || []).map(d => Object.assign({}, d, { dateLabel: BM.formatDate(d.date, 'short') })),
+        });
+      }
+
+      function computeCandidates() {
+        const week = state.week;
+        const mcStart = BM.addDays(week, -Number(state.settings.mcDays || 7));
+        const mcEnd = BM.addDays(week, 1);
+        const inScope = state.messages.filter(m => areaOn(m.area) && !(state.settings.hideRoutine && m.isRoutine));
+        const recent = inScope.filter(m => BM.messageInWindow(m, mcStart, mcEnd));
+        const recentKeys = new Set(recent.map(m => m.key));
+        // Older posts whose deadline or retirement date is still ahead stay
+        // visible as reminders in "Action required".
+        const carried = inScope
+          .filter(m => !recentKeys.has(m.key) && m.published < mcStart && m.isAction &&
+            (m.actionReason === 'deadline' || m.actionReason === 'retirement') &&
+            m.keyDates.some(d => d.date >= week))
+          .map(m => Object.assign({}, m, { carried: true }));
+
+        const win = BM.monthWindow(week, Number(state.settings.rpMonths || 2));
+        const diff = state.rp && state.rp.diff;
+        const addedIds = new Set(diff ? diff.added.map(f => f.id) : []);
+        const changedIds = new Set(diff ? diff.changed.map(c => c.feature.id) : []);
+        const features = ((state.rp && state.rp.features) || [])
+          .filter(f => areaOn(f.area))
+          .map(f => Object.assign({}, f, { key: 'rp:' + f.id, phase: BM.featurePhase(f, win, week) }))
+          .filter(f => f.phase.inWindow)
+          .map(f => Object.assign(f, { badge: addedIds.has(f.id) ? 'NEW' : changedIds.has(f.id) ? 'MOVED' : '' }));
+        features.sort((a, b) =>
+          BM.AREA_BY_KEY[a.area].order - BM.AREA_BY_KEY[b.area].order ||
+          (a.phase.sortKey < b.phase.sortKey ? -1 : a.phase.sortKey > b.phase.sortKey ? 1 : 0) ||
+          a.name.localeCompare(b.name));
+        return { recent, carried, features, win, mcStart, mcEnd, diff };
+      }
+
+      function buildChanges(diff) {
+        if (!diff) return null;
+        const keep = (f) => areaOn(f.area);
+        const entry = (f, detail) => ({ name: f.name, url: f.url, product: f.product, detail });
+        const featurePhaseLabel = (f) => {
+          const parts = [];
+          if (f.previewDate) parts.push('Preview ' + BM.formatDate(f.previewDate, 'month'));
+          if (f.gaDate) parts.push('GA ' + BM.formatDate(f.gaDate, 'month'));
+          return parts.join(' · ') || 'Date to be announced';
+        };
+        const lists = { added: [], scheduled: [], slipped: [], pulledIn: [], removed: [] };
+        diff.added.filter(keep).forEach(f => lists.added.push(entry(f, featurePhaseLabel(f))));
+        diff.removed.filter(keep).forEach(f => lists.removed.push(entry(f, 'no longer in the release plan')));
+        diff.changed.filter(c => keep(c.feature)).forEach(c => {
+          const kinds = c.changes.map(x => x.kind);
+          const detail = c.changes.map(x => BM.describeChange(x, state.week)).join('; ');
+          const bucket = kinds.includes('slipped') || kinds.includes('undated') ? 'slipped'
+            : kinds.includes('pulled-in') ? 'pulledIn' : 'scheduled';
+          lists[bucket].push(entry(c.feature, detail));
+        });
+        let overflow = 0;
+        Object.keys(lists).forEach(k => {
+          if (lists[k].length > MAX_CHANGES_PER_LIST) {
+            overflow += lists[k].length - MAX_CHANGES_PER_LIST;
+            lists[k] = lists[k].slice(0, MAX_CHANGES_PER_LIST);
+          }
+        });
+        const total = Object.values(lists).reduce((n, l) => n + l.length, 0) + overflow;
+        return Object.assign(lists, {
+          total,
+          note: state.rp.baselineWeek ? 'since the week of ' + BM.formatDate(state.rp.baselineWeek, 'short') : '',
+          overflowNote: overflow ? `Plus ${overflow} more change${overflow === 1 ? '' : 's'}. See the Power Platform release plans on Microsoft Learn for the full list.` : '',
+          emptyNote: 'No changes to the tracked release plans since last week.',
+        });
+      }
+
+      function buildView() {
+        const s = state.settings;
+        const c = computeCandidates();
+        const included = c.recent.filter(m => !isExcluded(m.key));
+        const carried = c.carried.filter(m => !isExcluded(m.key));
+        const features = c.features.filter(f => !isExcluded(f.key));
+
+        const actionItems = included.filter(isActionItem).concat(carried)
+          .map(m => {
+            const item = withDateLabels(m);
+            if (!m.isAction && isActionItem(m)) item.actionReason = 'pinned';
+            return item;
+          });
+        actionItems.sort((a, b) => (BM.soonestDate(a) < BM.soonestDate(b) ? -1 : BM.soonestDate(a) > BM.soonestDate(b) ? 1 : BM.compareMessages(a, b)));
+        const actionKeys = new Set(actionItems.map(a => a.key));
+        const otherMessages = included.filter(m => !actionKeys.has(m.key)).sort(BM.compareMessages).map(withDateLabels);
+
+        const keyDateStart = BM.addDays(state.week, -7);
+        const keyDateEnd = BM.addDays(state.week, 60);
+        const keyDates = BM.keyDateEntries(included.concat(carried), keyDateStart, keyDateEnd)
+          .slice(0, MAX_KEY_DATES)
+          .map(d => ({
+            date: d.date,
+            label: d.label,
+            dateLabel: BM.formatDate(d.date, 'short'),
+            past: d.date < state.week,
+            title: d.item.cleanTitle,
+            href: d.item.link,
+            areaInfo: BM.AREA_BY_KEY[d.item.area],
+          }));
+
+        const changes = buildChanges(c.diff);
+        const windowLabel = BM.monthRangeLabel(c.win);
+        const featureGroups = BM.groupByArea(features).map(g => ({
+          area: g.area,
+          items: g.items.map(f => ({
+            name: f.name,
+            url: f.url || f.docsUrl,
+            phaseLabel: f.phase.label,
+            benefit: f.benefit,
+            badge: f.badge,
+            productArea: f.productArea,
+          })),
+        }));
+
+        const byKey = new Map();
+        included.concat(carried).forEach(m => byKey.set(m.key, m.link || m.learnUrl));
+        features.forEach(f => byKey.set(f.key, f.url || f.docsUrl));
+        // Highlights tied to an item disappear with it (excluded, out of
+        // scope, or outside the window); free-text highlights always stay.
+        const highlights = (state.draft.highlights || [])
+          .filter(h => h && String(h.text || '').trim() && (!h.itemId || byKey.has(h.itemId)))
+          .map(h => ({ text: String(h.text).trim(), href: byKey.get(h.itemId) || '' }));
+
+        const stats = [];
+        stats.push({ value: actionItems.length, label: 'need attention', color: actionItems.length ? '#b91c1c' : '' });
+        stats.push({ value: included.length, label: 'new announcements' });
+        stats.push({ value: features.length, label: 'features landing ' + windowLabel });
+        if (changes) stats.push({ value: changes.total, label: 'release plan changes' });
+
+        const dateLong = BM.formatDate(state.week, 'long');
+        const dateNoWeekday = new Date(state.week + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const mcRange = BM.formatDate(c.mcStart, 'short') + ' – ' + BM.formatDate(state.week, 'short');
+
+        let messagesEmptyNote = '';
+        if (!otherMessages.length) {
+          messagesEmptyNote = state.mcState === 'ok' || state.mcState === 'partial'
+            ? (actionItems.length ? 'No other new announcements this week.' : 'No new announcements for these products this week.')
+            : '';
+        }
+
+        return {
+          subject: String(s.subjectTemplate || '').replace(/\{date\}/g, dateNoWeekday),
+          headline: s.headline,
+          dateLabel: dateLong,
+          coverageLabel: 'Message Center: ' + mcRange + '  ·  Release plans: ' + windowLabel,
+          greeting: s.greeting,
+          intro: state.draft.intro,
+          stats,
+          sectionOrder: s.sections.filter(x => x.on).map(x => x.key),
+          actions: actionItems,
+          highlights,
+          keyDates,
+          keyDatesNote: 'next 60 days',
+          messageGroups: BM.groupByArea(otherMessages),
+          messagesNote: mcRange,
+          messagesEmptyNote,
+          messagesFootnote: otherMessages.length && actionItems.length ? 'Posts that need action are listed under “Action required” above.' : '',
+          changes,
+          featureGroups,
+          featuresNote: windowLabel,
+          featuresEmptyNote: state.rp ? 'No tracked features reach preview or general availability in ' + windowLabel + '.' : '',
+          featuresFootnote: features.length ? 'Dates are Microsoft’s current targets by month and can change.' : '',
+          resources: s.resources,
+          signature: s.signature,
+          footerNote: 'Sources: Microsoft 365 Message Center and the Microsoft Power Platform release plans on Microsoft Learn. Compiled ' + dateNoWeekday + '.',
+          // For the AI / fallback draft
+          _candidates: { included, carried, features, actionItems, windowLabel },
+        };
+      }
+
+      // ── Drafting ─────────────────────────────────────────────────────────
+      function setDraftNote(text) { $('wb-draft-note').textContent = text; }
+
+      function applyAutoDraft(silent) {
+        const view = buildView();
+        const k = view._candidates;
+        const draft = BM.fallbackDraft({
+          actionItems: k.actionItems,
+          messages: k.included,
+          features: k.features,
+          featureCount: k.features.length,
+          windowLabel: k.windowLabel,
+        });
+        state.draft.intro = draft.intro;
+        state.draft.highlights = draft.highlights;
+        state.draft.source = 'auto';
+        persist();
+        syncDraftInputs();
+        if (!silent) setDraftNote('Summary rebuilt from this week’s items.');
+      }
+
+      function draftWithAi(isAutomatic) {
+        if (!state.aiEnabled || state.aiBusy) return Promise.resolve();
+        const view = buildView();
+        const k = view._candidates;
+        const items = k.actionItems.map(a => ({
+          id: a.key, kind: 'mc', area: a.areaInfo ? a.areaInfo.label : '', title: a.cleanTitle,
+          summary: a.actionText || a.summary, actionRequired: true,
+          dates: a.keyDates.map(d => d.label + ' ' + d.date).join('; '),
+        }));
+        k.included.filter(m => !items.some(i => i.id === m.key)).forEach(m => items.push({
+          id: m.key, kind: 'mc', area: BM.AREA_BY_KEY[m.area].label, title: m.cleanTitle, summary: m.summary,
+          actionRequired: false, dates: m.keyDates.map(d => d.label + ' ' + d.date).join('; '),
+        }));
+        k.features.filter(f => f.phase.isGa).slice(0, 12).forEach(f => items.push({
+          id: f.key, kind: 'rp', area: BM.AREA_BY_KEY[f.area].label, title: f.name, summary: f.benefit,
+          actionRequired: false, dates: f.phase.label,
+        }));
+        if (!items.length) {
+          if (isAutomatic) applyAutoDraft(true);
+          else setDraftNote('Nothing to summarize yet. Widen the scope or refresh the data.');
+          return;
+        }
+        state.aiBusy = true;
+        $('wb-draft-ai').disabled = true;
+        setDraftNote('Drafting…');
+        // The author may switch weeks while the request is in flight, so the
+        // result is applied to the week it was requested for.
+        const requestedWeek = state.week;
+        return requestAiDraft(requestedWeek, items.slice(0, 40))
+          .then((body) => {
+            const draft = requestedWeek === state.week ? state.draft : loadDraft(requestedWeek);
+            draft.intro = body.intro || '';
+            draft.highlights = (body.highlights || []).map(h => ({ itemId: h.itemId, text: h.text }));
+            draft.source = 'ai';
+            if (draft === state.draft) {
+              persist();
+              syncDraftInputs();
+            } else {
+              writeJson(DRAFT_PREFIX + requestedWeek, draft);
+            }
+            setDraftNote('AI draft ready. Review it before sending.');
+          })
+          .catch((err) => {
+            setDraftNote('AI draft failed (' + err.message + '). Using an automatic summary instead.');
+            if (requestedWeek === state.week && (isAutomatic || !state.draft.intro)) applyAutoDraft(true);
+          })
+          .finally(() => {
+            state.aiBusy = false;
+            $('wb-draft-ai').disabled = !state.aiEnabled;
+            render();
+          });
+      }
+
+      async function requestAiDraft(weekOf, items) {
+        const res = await fetch('/api/briefing/draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ weekOf, items }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+        return body;
+      }
+
+      // ── Rail rendering ───────────────────────────────────────────────────
+      function renderAreas() {
+        $('wb-areas').innerHTML = BM.AREAS.map(a =>
+          `<label class="wb-chip" style="--wb-area:${esc(a.color)}"><input type="checkbox" data-area="${esc(a.key)}"${areaOn(a.key) ? ' checked' : ''}><span>${esc(a.label)}</span></label>`
+        ).join('');
+      }
+
+      function renderSections() {
+        const list = state.settings.sections;
+        $('wb-sections').innerHTML = list.map((sec, i) => `
+          <li>
+            <label class="wb-check"><input type="checkbox" data-section="${esc(sec.key)}"${sec.on ? ' checked' : ''}> ${esc(SECTION_LABELS[sec.key])}</label>
+            <button type="button" class="wb-btn wb-btn-icon" data-move="${i}" data-dir="-1" aria-label="Move ${esc(SECTION_LABELS[sec.key])} up"${i === 0 ? ' disabled' : ''}>↑</button>
+            <button type="button" class="wb-btn wb-btn-icon" data-move="${i}" data-dir="1" aria-label="Move ${esc(SECTION_LABELS[sec.key])} down"${i === list.length - 1 ? ' disabled' : ''}>↓</button>
+          </li>`).join('');
+      }
+
+      function renderHighlightsEditor() {
+        const list = state.draft.highlights || [];
+        $('wb-highlights').innerHTML = list.length ? list.map((h, i) => `
+          <div class="wb-highlight">
+            <textarea class="wb-textarea" rows="2" data-highlight="${i}" aria-label="Highlight ${i + 1}" maxlength="300">${esc(h.text || '')}</textarea>
+            <button type="button" class="wb-btn wb-btn-icon" data-remove-highlight="${i}" aria-label="Remove highlight ${i + 1}">✕</button>
+          </div>`).join('') : '<p class="wb-hint" style="margin-bottom:0.4rem;">No highlights yet.</p>';
+      }
+
+      function renderResourcesEditor() {
+        const list = state.settings.resources;
+        $('wb-resources-count').textContent = list.length ? String(list.length) : '';
+        $('wb-resources').innerHTML = list.map((r, i) => `
+          <div class="wb-list-row">
+            <input type="text" class="wb-input" data-resource="${i}" data-field="label" value="${esc(r.label || '')}" placeholder="Label" aria-label="Resource ${i + 1} label" maxlength="160">
+            <input type="url" class="wb-input" data-resource="${i}" data-field="url" value="${esc(r.url || '')}" placeholder="https://…" aria-label="Resource ${i + 1} URL" maxlength="500">
+            <button type="button" class="wb-btn wb-btn-icon" data-remove-resource="${i}" aria-label="Remove resource ${i + 1}">✕</button>
+          </div>`).join('') || '<p class="wb-hint">No links yet.</p>';
+      }
+
+      function renderItemsPanel() {
+        const c = computeCandidates();
+        const mc = c.carried.concat(c.recent.slice().sort(BM.compareMessages));
+        const row = (key, title, meta, flagState) => {
+          const excluded = isExcluded(key);
+          const id = 'wb-item-' + key.replace(/[^a-z0-9]/gi, '_');
+          return `<li class="wb-item${excluded ? ' is-excluded' : ''}">
+            <input type="checkbox" id="${id}" data-include="${esc(key)}"${excluded ? '' : ' checked'}>
+            <label class="wb-item-text" for="${id}">${esc(title)}<span class="wb-item-meta">${esc(meta)}</span></label>
+            ${flagState === null ? '' : `<button type="button" class="wb-btn wb-btn-icon wb-flag" data-flag="${esc(key)}" aria-pressed="${flagState}" title="Show under Action required" aria-label="Show ${esc(title)} under Action required">⚑</button>`}
+          </li>`;
+        };
+        const mcRows = mc.map(m => row(m.key, m.cleanTitle,
+          [BM.AREA_BY_KEY[m.area].label, m.id, m.carried ? 'reminder' : BM.formatDate(m.published, 'short')].join(' · '),
+          m.carried ? null : isActionItem(m))).join('');
+        const rpRows = c.features.map(f => row(f.key, f.name, BM.AREA_BY_KEY[f.area].label + ' · ' + f.phase.label, null)).join('');
+        const included = mc.filter(m => !isExcluded(m.key)).length + c.features.filter(f => !isExcluded(f.key)).length;
+        $('wb-items-count').textContent = `${included} of ${mc.length + c.features.length} included`;
+        $('wb-items').innerHTML =
+          `<div class="wb-items-group"><h3>Message Center (${mc.length})</h3>${mcRows ? `<ul class="wb-items">${mcRows}</ul>` : '<p class="wb-hint">No posts in this window.</p>'}</div>` +
+          `<div class="wb-items-group"><h3>Release plans (${c.features.length})</h3>${rpRows ? `<ul class="wb-items">${rpRows}</ul>` : '<p class="wb-hint">No features in this window.</p>'}</div>`;
+      }
+
+      function renderNotices() {
+        const notices = [];
+        if (state.mcState === 'not-configured' || state.mcState === 'error') {
+          notices.push({ tone: state.mcState === 'error' ? 'error' : 'warning', title: 'Message Center posts are missing from this briefing.', detail: state.mcError });
+        } else if (state.mcState === 'partial' && state.mcError) {
+          notices.push({ tone: 'warning', title: 'Message Center data may be incomplete.', detail: state.mcError });
+        }
+        if (state.rpState === 'error') {
+          notices.push({ tone: 'error', title: 'Release plans are missing from this briefing.', detail: state.rpError });
+        } else if (state.rpState === 'partial') {
+          notices.push({ tone: 'warning', title: 'Some release plan products did not load.', detail: state.rpError });
+        }
+        if (state.rp && !state.rp.diff && state.rpState !== 'loading') {
+          const snap = state.rp.snapshot;
+          const detail = snap === 'unavailable'
+            ? 'The server could not read or save weekly snapshots, so week-over-week changes can’t be calculated. Check BRIEFING_SNAPSHOT_DIR.'
+            : snap === 'historical'
+              ? 'No snapshot exists from before the selected week, so changes can’t be calculated for it.'
+              : 'This is the first week with a saved snapshot. “Release plan changes” will appear starting next week.';
+          notices.push({ tone: 'info', title: 'Release plan changes aren’t available yet.', detail });
+        }
+        $('wb-notices').innerHTML = notices.map(n =>
+          `<div class="wb-notice" data-tone="${esc(n.tone)}" role="${n.tone === 'error' ? 'alert' : 'status'}"><strong>${esc(n.title)}</strong>${esc(n.detail || '')}</div>`
+        ).join('');
+      }
+
+      function syncDraftInputs() {
+        $('wb-intro').value = state.draft.intro || '';
+        renderHighlightsEditor();
+      }
+
+      function syncSettingsInputs() {
+        const s = state.settings;
+        $('wb-date').value = state.week;
+        $('wb-headline').value = s.headline;
+        $('wb-subject-template').value = s.subjectTemplate;
+        $('wb-greeting').value = s.greeting;
+        $('wb-mc-days').value = String(s.mcDays);
+        $('wb-rp-months').value = String(s.rpMonths);
+        $('wb-hide-routine').checked = !!s.hideRoutine;
+        document.querySelectorAll('[data-sig]').forEach(el => { el.value = s.signature[el.dataset.sig] || ''; });
+        renderAreas();
+        renderSections();
+        renderResourcesEditor();
+        syncDraftInputs();
+      }
+
+      // ── Preview ──────────────────────────────────────────────────────────
+      let renderTimer = null;
+      function render() {
+        clearTimeout(renderTimer);
+        renderTimer = setTimeout(renderNow, 60);
+      }
+      function renderNow() {
+        const view = buildView();
+        state.lastView = view;
+        $('wb-preview').innerHTML = BE.buildHtml(view);
+        $('wb-subject-preview').innerHTML = '<strong>Subject:</strong> ' + esc(view.subject);
+        $('wb-subject-preview').title = view.subject;
+        renderNotices();
+      }
+
+      // ── Clipboard ────────────────────────────────────────────────────────
+      let toastTimer = null;
+      function toast(text, tone) {
+        const el = $('wb-toast');
+        el.textContent = text;
+        el.dataset.tone = tone || 'ok';
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { el.textContent = ''; }, 6000);
+      }
+
+      // Primary path: a synchronous copy event inside the click gesture lets
+      // us set the exact HTML and plain text (no computed page styles leak in).
+      function copyViaEvent(html, text) {
+        let handled = false;
+        const onCopy = (e) => {
+          e.clipboardData.setData('text/html', html);
+          e.clipboardData.setData('text/plain', text);
+          e.preventDefault();
+          handled = true;
+        };
+        document.addEventListener('copy', onCopy);
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch { ok = false; }
+        document.removeEventListener('copy', onCopy);
+        return ok && handled;
+      }
+
+      async function copyEmail() {
+        renderNow();
+        const view = state.lastView;
+        const html = BE.buildHtml(view);
+        const text = BE.buildText(view);
+        if (copyViaEvent(html, text)) {
+          toast('Copied. Paste into a new Outlook email.');
+          return;
+        }
+        try {
+          if (!navigator.clipboard || typeof window.ClipboardItem !== 'function') throw new Error('unsupported');
+          await navigator.clipboard.write([new window.ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([text], { type: 'text/plain' }),
+          })]);
+          toast('Copied. Paste into a new Outlook email.');
+        } catch {
+          toast('Copy failed. Select the preview and press Ctrl+C.', 'error');
+        }
+      }
+
+      async function copySubject() {
+        const subject = (state.lastView || buildView()).subject;
+        try {
+          await navigator.clipboard.writeText(subject);
+          toast('Subject copied.');
+        } catch {
+          const ta = document.createElement('textarea');
+          ta.value = subject;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          let ok = false;
+          try { ok = document.execCommand('copy'); } catch { ok = false; }
+          ta.remove();
+          toast(ok ? 'Subject copied.' : 'Copy failed.', ok ? 'ok' : 'error');
+        }
+      }
+
+      // ── Events ───────────────────────────────────────────────────────────
+      // An untouched automatic summary follows scope and item changes; AI or
+      // hand-edited drafts are never overwritten.
+      function refreshAutoDraft() {
+        if (state.draft.source === 'auto') applyAutoDraft(true);
+      }
+
+      function onSettingsChange(rebuildItems) {
+        persist();
+        if (rebuildItems) {
+          renderItemsPanel();
+          refreshAutoDraft();
+        }
+        render();
+      }
+
+      $('wb-date').addEventListener('change', (e) => {
+        const value = e.target.value;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+        const [y, m, d] = value.split('-').map(Number);
+        const monday = BM.mondayOf(new Date(y, m - 1, d));
+        e.target.value = monday;
+        if (monday === state.week) return;
+        writeJson(DRAFT_PREFIX + state.week, state.draft);
+        state.week = monday;
+        state.draft = loadDraft(monday);
+        syncDraftInputs();
+        renderItemsPanel();
+        if (!state.draft.source) applyAutoDraft(true);
+        render();
+        // The release plan diff is tied to the briefing week.
+        loadReleasePlans(false).then(() => {
+          renderItemsPanel();
+          refreshAutoDraft();
+          render();
+        });
+      });
+      $('wb-refresh').addEventListener('click', () => loadAll(true));
+      $('wb-headline').addEventListener('input', (e) => { state.settings.headline = e.target.value; onSettingsChange(); });
+      $('wb-subject-template').addEventListener('input', (e) => { state.settings.subjectTemplate = e.target.value; onSettingsChange(); });
+      $('wb-greeting').addEventListener('input', (e) => { state.settings.greeting = e.target.value; onSettingsChange(); });
+      $('wb-mc-days').addEventListener('change', (e) => { state.settings.mcDays = Number(e.target.value); onSettingsChange(true); });
+      $('wb-rp-months').addEventListener('change', (e) => { state.settings.rpMonths = Number(e.target.value); onSettingsChange(true); });
+      $('wb-hide-routine').addEventListener('change', (e) => { state.settings.hideRoutine = e.target.checked; onSettingsChange(true); });
+
+      $('wb-areas').addEventListener('change', (e) => {
+        const key = e.target.dataset.area;
+        if (!key) return;
+        state.settings.areas[key] = e.target.checked;
+        onSettingsChange(true);
+      });
+
+      $('wb-sections').addEventListener('change', (e) => {
+        const key = e.target.dataset.section;
+        const sec = state.settings.sections.find(x => x.key === key);
+        if (!sec) return;
+        sec.on = e.target.checked;
+        onSettingsChange();
+      });
+      $('wb-sections').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-move]');
+        if (!btn) return;
+        const i = Number(btn.dataset.move);
+        const j = i + Number(btn.dataset.dir);
+        const list = state.settings.sections;
+        if (j < 0 || j >= list.length) return;
+        [list[i], list[j]] = [list[j], list[i]];
+        renderSections();
+        const moved = $('wb-sections').querySelector(`[data-move="${j}"][data-dir="${btn.dataset.dir}"]`) ||
+          $('wb-sections').querySelector(`[data-move="${j}"]`);
+        if (moved) moved.focus();
+        onSettingsChange();
+      });
+
+      $('wb-intro').addEventListener('input', (e) => {
+        state.draft.intro = e.target.value;
+        if (state.draft.source !== 'ai') state.draft.source = 'manual';
+        persist();
+        render();
+      });
+      $('wb-highlights').addEventListener('input', (e) => {
+        const i = e.target.dataset.highlight;
+        if (i === undefined) return;
+        state.draft.highlights[Number(i)].text = e.target.value;
+        if (state.draft.source === 'auto') state.draft.source = 'manual';
+        persist();
+        render();
+      });
+      $('wb-highlights').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-highlight]');
+        if (!btn) return;
+        state.draft.highlights.splice(Number(btn.dataset.removeHighlight), 1);
+        if (state.draft.source === 'auto') state.draft.source = 'manual';
+        renderHighlightsEditor();
+        persist();
+        render();
+      });
+      $('wb-add-highlight').addEventListener('click', () => {
+        state.draft.highlights.push({ itemId: '', text: '' });
+        if (state.draft.source === 'auto') state.draft.source = 'manual';
+        renderHighlightsEditor();
+        const inputs = $('wb-highlights').querySelectorAll('textarea');
+        if (inputs.length) inputs[inputs.length - 1].focus();
+        persist();
+      });
+      $('wb-draft-ai').addEventListener('click', () => draftWithAi(false));
+      $('wb-draft-auto').addEventListener('click', () => { applyAutoDraft(false); render(); });
+
+      $('wb-items').addEventListener('change', (e) => {
+        const key = e.target.dataset.include;
+        if (!key) return;
+        if (e.target.checked) delete state.draft.excluded[key];
+        else state.draft.excluded[key] = true;
+        e.target.closest('.wb-item').classList.toggle('is-excluded', !e.target.checked);
+        refreshAutoDraft();
+        persist();
+        render();
+      });
+      $('wb-items').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-flag]');
+        if (!btn) return;
+        const key = btn.dataset.flag;
+        const msg = state.messages.find(m => m.key === key);
+        if (!msg) return;
+        const next = !isActionItem(msg);
+        if (next === msg.isAction) delete state.draft.actionOverride[key];
+        else state.draft.actionOverride[key] = next;
+        btn.setAttribute('aria-pressed', String(next));
+        refreshAutoDraft();
+        persist();
+        render();
+      });
+
+      $('wb-resources').addEventListener('input', (e) => {
+        const i = e.target.dataset.resource;
+        if (i === undefined) return;
+        state.settings.resources[Number(i)][e.target.dataset.field] = e.target.value.trim();
+        onSettingsChange();
+      });
+      $('wb-resources').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-resource]');
+        if (!btn) return;
+        state.settings.resources.splice(Number(btn.dataset.removeResource), 1);
+        renderResourcesEditor();
+        onSettingsChange();
+      });
+      $('wb-add-resource').addEventListener('click', () => {
+        if (state.settings.resources.length >= 20) return;
+        state.settings.resources.push({ label: '', url: '' });
+        renderResourcesEditor();
+        const inputs = $('wb-resources').querySelectorAll('input[data-field="label"]');
+        if (inputs.length) inputs[inputs.length - 1].focus();
+      });
+
+      document.querySelectorAll('[data-sig]').forEach(el => {
+        el.addEventListener('input', () => {
+          state.settings.signature[el.dataset.sig] = el.value.trim();
+          onSettingsChange();
+        });
+      });
+
+      $('wb-copy').addEventListener('click', copyEmail);
+      $('wb-copy-subject').addEventListener('click', copySubject);
+
+      // ── Boot ─────────────────────────────────────────────────────────────
+      syncSettingsInputs();
+      render();
+      loadAiStatus().then(() => loadAll(false));
+    })();
+  </script>
+</body>
+</html>

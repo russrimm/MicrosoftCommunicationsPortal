@@ -1027,6 +1027,7 @@ test('the Static Web Apps config protects every tenant-scoped API route', () => 
   for (const route of [
     '/api/summarize',
     '/api/impact-digest',
+    '/api/briefing/*',
     '/api/messagecenter',
     '/api/servicemessages',
     '/api/servicehealth',
@@ -1231,6 +1232,46 @@ test('server rejects the legacy tenant-data alias and isolates rate-limit tiers'
       body: JSON.stringify({ items: [{ id: '1', description: 'x'.repeat(300_000) }] }),
     });
     assert.equal(oversized.status, 413);
+  });
+});
+
+test('weekly briefing endpoints require auth, reject wrong methods, and report missing AI', async () => {
+  await withServer({ AUTH_MODE: 'none-loopback-only' }, async (baseUrl) => {
+    const page = await fetch(`${baseUrl}/weeklybriefing`);
+    assert.equal(page.status, 200);
+    assert.match(await page.text(), /<script nonce="/);
+
+    const wrongMethod = await fetch(`${baseUrl}/api/briefing/draft`);
+    assert.equal(wrongMethod.status, 405);
+    const wrongMethodPlan = await fetch(`${baseUrl}/api/briefing/release-plan`, { method: 'POST' });
+    assert.equal(wrongMethodPlan.status, 405);
+
+    const empty = await fetch(`${baseUrl}/api/briefing/draft`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [] }),
+    });
+    assert.equal(empty.status, 400);
+
+    const noAi = await fetch(`${baseUrl}/api/briefing/draft`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weekOf: '2026-10-05', items: [{ id: 'mc:MC1', title: 'Test' }] }),
+    });
+    assert.equal(noAi.status, 503);
+    assert.equal((await noAi.json()).code, 'AI_NOT_CONFIGURED');
+
+    for (const week of ['2026-10-06', '9999-01-04', 'not-a-date']) {
+      const badWeek = await fetch(`${baseUrl}/api/briefing/release-plan?week=${week}`);
+      assert.equal(badWeek.status, 400, `week=${week} should be rejected`);
+    }
+  });
+
+  await withServer({ AUTH_MODE: 'reverse-proxy', API_AUTH_TOKEN: 'x'.repeat(40) }, async (baseUrl) => {
+    for (const route of ['/api/briefing/release-plan', '/api/briefing/draft']) {
+      const res = await fetch(`${baseUrl}${route}`);
+      assert.equal(res.status, 401, `${route} must require authentication`);
+    }
   });
 });
 
