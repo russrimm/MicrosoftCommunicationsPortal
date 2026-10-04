@@ -12,6 +12,7 @@
     })();
   </script>
   <script src="/static/util.js?v=20260929-saveas2"></script>
+  <script src="/static/feed-kit.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -20,13 +21,30 @@
 
   <div class="page-content">
     <h1 class="page-heading">Power Platform Roadmap</h1>
-    <div class="au-search-bar">
-      <label for="au-search" class="sr-only">Search features by name, product, or area</label>
-      <input type="text" class="au-search-input" id="au-search"
-             placeholder="Search features by name, product, or area…"
-             aria-label="Search features by name, product, or area" data-act="debouncedSearch" data-on="input">
+    <div class="fk-toolbar">
+      <div class="au-search-bar">
+        <label for="au-search" class="sr-only">Search features by name, product, or area</label>
+        <input type="text" class="au-search-input" id="au-search"
+               placeholder="Search features by name, product, or area…"
+               aria-label="Search features by name, product, or area" data-act="debouncedSearch" data-on="input">
+      </div>
+      <button type="button" class="fk-filter-toggle" id="au-filter-toggle">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+        <span>Filters</span>
+        <span class="fk-filter-badge" hidden></span>
+      </button>
     </div>
-    <div class="au-filters">
+    <div class="fk-lens-row">
+      <div id="au-lenses"></div>
+      <div class="fk-meta">
+        <span id="au-source-status" class="au-source-status" role="status" aria-live="polite"></span>
+        <span id="au-result-count" class="fk-result-count" role="status" aria-live="polite"></span>
+        <button class="export-btn" id="export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
+        <button class="export-btn" id="pp-refresh-btn" data-act="reloadAll">↻ Refresh</button>
+      </div>
+    </div>
+    <div id="au-scope" hidden></div>
+    <div class="au-filters fk-filters-panel" id="au-filters">
       <div class="au-filter-group">
         <label class="au-filter-label" id="au-product-filter-label">Product:</label>
         <div class="au-multi" id="au-product-multi">
@@ -136,11 +154,6 @@
           AI only
         </label>
       </div>
-      <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
-        <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
-        <button class="export-btn" id="pp-refresh-btn" data-act="reloadAll">↻ Refresh</button>
-      </div>
     </div>
 
     <div class="loading-banner hidden" id="loading-banner" role="status" aria-live="polite">
@@ -179,6 +192,7 @@
       openFeature:             (e, el) => openFeature(el.dataset.id),
       selectAllExportProducts: (e, el) => selectAllExportProducts(el.dataset.state === '1'),
       applyExportPreset:       (e, el) => applyExportPreset(Number(el.dataset.days)),
+      resetFeedView:           () => resetFeedView(),
     });
 
     // ════════════════════════════════════════════════
@@ -481,6 +495,138 @@
       if (!str) return null;
       const d = new Date(str);
       return isNaN(d.getTime()) ? null : d;
+    }
+
+    // ── Quick views + collapsible filters ─────────────────────────────────
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const AI_RE = /copilot|\bai\b|\bagents?\b/i;
+
+    function dateInNextDays(date, days) {
+      const d = parseDateField(date);
+      if (!d) return false;
+      const now = Date.now();
+      const t = d.getTime();
+      return t >= now && t <= now + days * DAY_MS;
+    }
+
+    function publicPreviewNow(f) {
+      const preview = parseDateField(f.PublicPreviewDate);
+      if (!preview || preview.getTime() > Date.now()) return false;
+      const ga = parseDateField(f.GADate);
+      return !ga || ga.getTime() > Date.now();
+    }
+
+    function enabledAutomatically(f) {
+      return /(users|admin|maker).*automatically|automatically.*(users|admin|maker)/i.test(f.EnabledFor || '');
+    }
+
+    function isCopilotAiFeature(f) {
+      if (f.AiContribution === 'true') return true;
+      return AI_RE.test([f.FeatureName, f.Product, f.ProductArea, f.BusinessValue, f.FeatureDetails].join(' '));
+    }
+
+    const lenses = window.FeedKit.createLenses({
+      container: 'au-lenses',
+      label: 'Quick views',
+      onChange: () => filterAndRender(),
+      lenses: [
+        { id: 'all', label: 'All features' },
+        { id: 'next90', label: 'Next 90 days', title: 'Public preview or general availability date is within the next 90 days',
+          test: f => dateInNextDays(f.PublicPreviewDate, 90) || dateInNextDays(f.GADate, 90) },
+        { id: 'preview', label: 'In preview', title: 'Public preview has started and general availability has not arrived',
+          test: publicPreviewNow },
+        { id: 'auto', label: 'Auto enable', title: 'Enabled For indicates users, admins, or makers are enabled automatically',
+          test: enabledAutomatically },
+        { id: 'ai', label: 'Copilot & AI', title: 'Mentions Copilot, AI, or agents, or is marked as an AI contribution',
+          test: isCopilotAiFeature },
+      ],
+    });
+
+    function filterSetIsActive(kind, set) {
+      const all = getAllKnownValues(kind);
+      return all.length ? set.size > 0 && set.size < all.length : false;
+    }
+
+    // The page opens scoped to Power Platform products (Dynamics 365 data is
+    // only fetched on demand). That default is stated in a scope note, so it
+    // shouldn't also count as a user-applied filter in the Filters badge.
+    const DYNAMICS_PRODUCTS = PRODUCTS.filter(p => p.category === 'Dynamics 365');
+    function isDefaultProductScope() {
+      if (!productFilter.size) return false;
+      if (DYNAMICS_PRODUCTS.some(p => productFilter.has(p.name))) return false;
+      return getAllKnownValues('product').every(n =>
+        productFilter.has(n) || categoryForProductName(n) === 'Dynamics 365');
+    }
+
+    async function includeDynamics() {
+      DYNAMICS_PRODUCTS.forEach(p => { productFilter.add(p.name); selectedProductIds.add(p.id); });
+      const toLoad = DYNAMICS_PRODUCTS.filter(p => !loadedProductIds.has(p.id));
+      if (toLoad.length) {
+        let completed = 0;
+        setLoading(true, `Loading Dynamics 365… 0 of ${toLoad.length}`, 0);
+        const results = await Promise.all(toLoad.map(p => fetchProduct(p.id).then(r => {
+          completed++;
+          loadedProductIds.add(p.id);
+          setLoading(true, `Loading Dynamics 365… ${completed} of ${toLoad.length}`, Math.round((completed / toLoad.length) * 100));
+          return r;
+        })));
+        const newFeats = results.flat().filter(f => f.FeatureName && !isExcludedFeature(f));
+        if (newFeats.length) allFeatures = dedup([...allFeatures, ...newFeats]);
+        setLoading(false);
+      }
+      rebuildFilters();
+      filterAndRender();
+    }
+
+    function renderProductScope() {
+      window.FeedKit.renderScope('au-scope', isDefaultProductScope() ? {
+        text: 'Showing Power Platform products. Dynamics 365 isn\u2019t loaded yet.',
+        actionLabel: 'Include Dynamics 365',
+        onAction: includeDynamics,
+      } : null);
+    }
+
+    function activeFilterCount() {
+      return [
+        filterSetIsActive('product', productFilter) && !isDefaultProductScope(),
+        filterSetIsActive('area', areaFilter),
+        filterSetIsActive('status', statusFilter),
+        filterSetIsActive('wave', waveFilter),
+        filterSetIsActive('type', typeFilter),
+        document.getElementById('au-timerange').value !== '0',
+        aiOnly,
+      ].filter(Boolean).length;
+    }
+
+    const filterToggle = window.FeedKit.createFilterToggle({
+      button: 'au-filter-toggle',
+      panel: 'au-filters',
+      activeCount: activeFilterCount,
+    });
+
+    function resetFeedView() {
+      document.getElementById('au-search').value = '';
+      productFilter.clear();
+      areaFilter.clear();
+      statusFilter.clear();
+      waveFilter.clear();
+      typeFilter.clear();
+      aiOnly = false;
+      document.getElementById('au-ai-toggle').checked = false;
+      document.getElementById('au-timerange').value = '0';
+      document.querySelectorAll('#au-product-options input, #au-area-options input, #au-status-options input, #au-wave-options input, #au-type-options input').forEach(i => { i.checked = false; });
+      updateMultiLabel('product', getAllKnownValues('product'), 'Products');
+      updateMultiLabel('area', getAllKnownValues('area'), 'Areas');
+      updateMultiLabel('status', getAllKnownValues('status'), 'Statuses');
+      updateMultiLabel('wave', getAllKnownValues('wave'), 'Waves');
+      updateMultiLabel('type', getAllKnownValues('type'), 'Types');
+      lenses.reset();
+      filterAndRender();
+    }
+
+    function emptyStateHtml() {
+      return '<div class="au-empty">No features match this view.' +
+        ' <button type="button" class="fk-more-btn" data-act="resetFeedView">Clear search, filters, and view</button></div>';
     }
 
     // Apply default: Power Platform products pre-selected, Dynamics 365 unchecked
@@ -832,9 +978,21 @@
     // RENDERING
     // ════════════════════════════════════════════════
     function filterAndRender() {
-      const filtered = getFiltered();
+      let filtered = getFiltered();
       const sort = document.getElementById('au-sort').value;
 
+      // Sort before applying a lens so exports and counts reflect the current triage view.
+      if (sort === 'name') {
+        filtered.sort((a,b) => (a.FeatureName||'').localeCompare(b.FeatureName||''));
+      } else if (sort === 'wave') {
+        filtered.sort((a,b) => sortableWave(getWave(b)) - sortableWave(getWave(a)));
+      } else if (sort === 'date') {
+        filtered.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
+      }
+
+      filterToggle.refresh();
+      renderProductScope();
+      filtered = lenses.apply(filtered);
       currentFiltered = filtered;
       const exportBtn = document.getElementById('export-btn');
       if (exportBtn) {
@@ -843,36 +1001,35 @@
       }
 
       document.getElementById('au-result-count').textContent =
-        `${filtered.length} of ${allFeatures.length}`;
+        `${filtered.length.toLocaleString('en-US')} of ${allFeatures.length.toLocaleString('en-US')}`;
 
       const groupByProduct = sort === 'product';
       document.getElementById('au-expand-all-label').style.display = groupByProduct ? 'flex' : 'none';
 
-      // Sort
-      let sorted = [...filtered];
-      if (sort === 'name') {
-        sorted.sort((a,b) => (a.FeatureName||'').localeCompare(b.FeatureName||''));
-      } else if (sort === 'wave') {
-        sorted.sort((a,b) => sortableWave(getWave(b)) - sortableWave(getWave(a)));
-      } else if (sort === 'date') {
-        sorted.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
-      }
-
-      if (groupByProduct) renderGrouped(sorted);
-      else renderFlat(sorted);
+      if (groupByProduct) renderGrouped(filtered);
+      else renderFlat(filtered);
     }
 
     function renderFlat(items) {
       const grid = document.getElementById('au-cards-container');
       grid.classList.remove('is-grouped');
-      if (!items.length) { grid.innerHTML = '<div class="au-empty">No features match the current filters.</div>'; return; }
-      grid.innerHTML = items.map(cardHtml).join('');
+      window.FeedKit.renderPaged(grid, items, cardHtml, { emptyHtml: emptyStateHtml() });
+    }
+
+    // Cards inside collapsed product groups are only built when a group opens.
+    let groupedItems = new Map();
+    function fillProductGroup(group) {
+      const cards = group.querySelector('.au-product-cards');
+      if (!cards || cards.dataset.filled) return;
+      const list = groupedItems.get(group.dataset.group) || [];
+      cards.innerHTML = list.map(cardHtml).join('');
+      cards.dataset.filled = '1';
     }
 
     function renderGrouped(items) {
       const grid = document.getElementById('au-cards-container');
       grid.classList.add('is-grouped');
-      if (!items.length) { grid.innerHTML = '<div class="au-empty">No features match the current filters.</div>'; return; }
+      if (!items.length) { grid.innerHTML = emptyStateHtml(); return; }
 
       const expandAll = !!document.getElementById('au-expand-all').checked;
       const groups = new Map();
@@ -881,6 +1038,7 @@
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(f);
       });
+      groupedItems = groups;
       const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
       const chevron = '<svg class="au-product-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       grid.innerHTML = sortedKeys.map(key => {
@@ -888,17 +1046,16 @@
         list.sort((a,b) => sortableDate(b.GADate) - sortableDate(a.GADate));
         const collapsedClass = expandAll ? '' : ' is-collapsed';
         return `
-          <div class="au-product-group${collapsedClass}">
+          <div class="au-product-group${collapsedClass}" data-group="${xh(key)}">
             <div class="au-product-header" role="button" tabindex="0" aria-expanded="${expandAll ? 'true' : 'false'}" data-act="toggleProductGroup">
               ${chevron}
               <span>${xh(key)}</span>
               <span class="au-product-count">${list.length} feature${list.length !== 1 ? 's' : ''}</span>
             </div>
-            <div class="au-product-cards">
-              ${list.map(cardHtml).join('')}
-            </div>
+            <div class="au-product-cards"></div>
           </div>`;
       }).join('');
+      if (expandAll) grid.querySelectorAll('.au-product-group').forEach(fillProductGroup);
     }
 
     function toggleProductGroup(header) {
@@ -906,6 +1063,7 @@
       if (!group) return;
       const collapsed = group.classList.toggle('is-collapsed');
       header.setAttribute('aria-expanded', String(!collapsed));
+      if (!collapsed) fillProductGroup(group);
       syncExpandAllCheckbox();
     }
 
@@ -915,6 +1073,7 @@
         g.classList.toggle('is-collapsed', !expand);
         const h = g.querySelector('.au-product-header');
         if (h) h.setAttribute('aria-expanded', String(expand));
+        if (expand) fillProductGroup(g);
       });
     }
 
@@ -959,7 +1118,7 @@
       if (f.AiContribution === 'true') metaParts.push('<span class="au-tag-pill ai">AI</span>');
 
       return `
-        <div class="au-card" data-act="openFeature" data-id="${xa(fid)}">
+        <div class="au-card" data-act="openFeature" data-id="${xa(fid)}" role="button" tabindex="0" aria-label="${xa(f.FeatureName || 'Untitled feature')}">
           <div class="au-card-body">
             <div class="au-card-top">
               <span class="au-status-pill ${sc}">${xh(f.GAStatus || 'N/A')}</span>
@@ -1022,6 +1181,7 @@
         </div>` : ''}
       `;
       document.getElementById('au-modal').classList.add('open');
+      window.CPUtil.openModal(document.getElementById('au-modal'));
       if (window.CportalAi && window.CportalAi.isEnabled()) {
         window.CportalAi.attachToModal(body, 'powerplatform', f);
       }
@@ -1029,6 +1189,7 @@
 
     function closeFeature() {
       document.getElementById('au-modal').classList.remove('open');
+      window.CPUtil.closeModal(document.getElementById('au-modal'));
     }
     function handleModalBackdrop(ev) {
       if (ev.target.id === 'au-modal') closeFeature();
@@ -1330,6 +1491,5 @@
   <script src="/static/outlook-export.js?v=20260929-saveas2" defer></script>
   <script src="/static/export-formats.js?v=20260929-saveas2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
-  <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>
 </html>

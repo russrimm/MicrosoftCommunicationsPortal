@@ -12,6 +12,7 @@
     })();
   </script>
   <script src="/static/util.js?v=20260929-saveas2"></script>
+  <script src="/static/feed-kit.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -20,13 +21,30 @@
 
   <div class="page-content">
     <h1 class="page-heading">Microsoft Fabric Roadmap</h1>
-    <div class="au-search-bar">
-      <label for="au-search" class="sr-only">Search features by name or description</label>
-      <input type="text" class="au-search-input" id="au-search"
-             placeholder="Search features by name or description…"
-             aria-label="Search features by name or description" data-act="debouncedSearch" data-on="input">
+    <div class="fk-toolbar">
+      <div class="au-search-bar">
+        <label for="au-search" class="sr-only">Search features by name or description</label>
+        <input type="text" class="au-search-input" id="au-search"
+               placeholder="Search features by name or description…"
+               aria-label="Search features by name or description" data-act="debouncedSearch" data-on="input">
+      </div>
+      <button type="button" class="fk-filter-toggle" id="au-filter-toggle">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+        <span>Filters</span>
+        <span class="fk-filter-badge" hidden></span>
+      </button>
     </div>
-    <div class="au-filters">
+    <div class="fk-lens-row">
+      <div id="au-lenses"></div>
+      <div class="fk-meta">
+        <span id="au-source-status" class="au-source-status" role="status" aria-live="polite"></span>
+        <span id="au-result-count" class="fk-result-count" role="status" aria-live="polite"></span>
+        <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
+        <button class="export-btn" id="au-refresh-btn" data-act="loadFabricRoadmap">↻ Refresh</button>
+      </div>
+    </div>
+    <div id="au-scope" hidden></div>
+    <div class="au-filters fk-filters-panel" id="au-filters">
       <div class="au-filter-group">
         <label class="au-filter-label" id="au-status-filter-label">Status:</label>
         <div class="au-multi" id="au-status-multi">
@@ -96,12 +114,6 @@
           Expand all
         </label>
       </div>
-      <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
-        <span id="au-source-status" class="au-source-status" role="status" aria-live="polite"></span>
-        <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
-        <button class="export-btn" id="au-refresh-btn" data-act="loadFabricRoadmap">↻ Refresh</button>
-      </div>
     </div>
     <div class="au-cards" id="au-cards-container">
       <div class="au-loading" role="status" aria-live="polite">
@@ -139,6 +151,7 @@
       selectAllExportProducts: (e, el) => selectAllExportProducts(el.dataset.state === '1'),
       loadFabricRoadmap:       () => loadFabricRoadmap(true),
       retry:                   () => loadFabricRoadmap(true),
+      resetFeedView:           () => resetFeedView(),
     });
 
     // Quarter sorting helper: converts "Q3 2026" → 20263, "Q1 2025" → 20251
@@ -167,6 +180,116 @@
       return window.CPUtil ? window.CPUtil.stripHtml(html) : '';
     }
 
+    // ── Quick views + collapsible filters ─────────────────────────────────
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const MONTH_LOOKUP = {
+      january: 0, jan: 0,
+      february: 1, feb: 1,
+      march: 2, mar: 2,
+      april: 3, apr: 3,
+      may: 4,
+      june: 5, jun: 5,
+      july: 6, jul: 6,
+      august: 7, aug: 7,
+      september: 8, sep: 8, sept: 8,
+      october: 9, oct: 9,
+      november: 10, nov: 10,
+      december: 11, dec: 11,
+    };
+    const MONTH_PATTERN = Object.keys(MONTH_LOOKUP).join('|');
+    const AI_RE = /copilot|\bai\b|\bagents?\b/i;
+    const lenses = window.FeedKit.createLenses({
+      container: 'au-lenses',
+      label: 'Quick views',
+      onChange: () => filterUpdates(),
+      lenses: [
+        { id: 'all', label: 'All features', title: 'Shows every feature in the current search and filters' },
+        { id: 'next90', label: 'Next 90 days', title: 'Release period overlaps the next 90 days',
+          test: u => periodOverlaps(u.releasePeriod, Date.now(), Date.now() + 90 * DAY_MS) },
+        { id: 'preview', label: 'In preview', title: 'Release type is Public Preview and status is shipped or released',
+          test: u => isPublicPreview(u.releaseType) && isShipped(u.status) },
+        { id: 'recent', label: 'Recently shipped', title: 'Status is shipped or released and release period overlaps the last 60 days',
+          test: u => isShipped(u.status) && periodOverlaps(u.releasePeriod, Date.now() - 60 * DAY_MS, Date.now() + DAY_MS) },
+        { id: 'ai', label: 'Copilot & AI', title: 'Title, product, or workload mentions Copilot, AI, or agents',
+          test: u => AI_RE.test(`${u.title || ''} ${u.product || ''} ${u.workload || ''}`) },
+      ],
+    });
+    let filterState = { status: false, product: false, type: false, time: false, sort: false };
+    const filterToggle = window.FeedKit.createFilterToggle({
+      button: 'au-filter-toggle',
+      panel: 'au-filters',
+      activeCount: () => Object.values(filterState).filter(Boolean).length,
+    });
+
+    function isShipped(status) {
+      return /shipped|released/i.test(status || '');
+    }
+
+    function isPublicPreview(type) {
+      return /public\s+preview/i.test(type || '');
+    }
+
+    function parseReleasePeriod(releaseDate) {
+      const raw = String(releaseDate || '').trim();
+      if (!raw) return null;
+      const quarter = /Q([1-4])\s*(?:CY\s*)?(\d{4})/i.exec(raw);
+      if (quarter) {
+        const q = parseInt(quarter[1], 10);
+        const year = parseInt(quarter[2], 10);
+        return {
+          start: new Date(year, (q - 1) * 3, 1).getTime(),
+          end: new Date(year, q * 3, 1).getTime(),
+        };
+      }
+      const month = new RegExp(`\\b(${MONTH_PATTERN})\\b\\s*(?:CY\\s*)?(\\d{4})`, 'i').exec(raw);
+      if (month) {
+        const m = MONTH_LOOKUP[month[1].toLowerCase()];
+        const year = parseInt(month[2], 10);
+        return {
+          start: new Date(year, m, 1).getTime(),
+          end: new Date(year, m + 1, 1).getTime(),
+        };
+      }
+      const parsed = Date.parse(raw);
+      if (!Number.isNaN(parsed)) {
+        return { start: parsed, end: parsed + DAY_MS };
+      }
+      const yearOnly = /(?:^|\b)(?:CY\s*)?(\d{4})(?:\b|$)/i.exec(raw);
+      if (yearOnly) {
+        const year = parseInt(yearOnly[1], 10);
+        return {
+          start: new Date(year, 0, 1).getTime(),
+          end: new Date(year + 1, 0, 1).getTime(),
+        };
+      }
+      return null;
+    }
+
+    function periodOverlaps(period, fromInclusive, toExclusive) {
+      return !!period && period.start < toExclusive && period.end > fromInclusive;
+    }
+
+    function resetFeedView() {
+      document.getElementById('au-search').value = '';
+      statusFilter.clear();
+      productFilter.clear();
+      typeFilter.clear();
+      document.querySelectorAll('#au-status-options input, #au-product-options input, #au-type-options input').forEach(i => { i.checked = false; });
+      document.getElementById('au-timerange').value = '6';
+      document.getElementById('au-sort').value = 'timeline-asc';
+      document.getElementById('au-expand-all').checked = false;
+      updateMultiLabel('status', Array.from(document.querySelectorAll('#au-status-options input')).map(i => i.dataset.value), 'Statuses');
+      updateMultiLabel('product', Array.from(document.querySelectorAll('#au-product-options input')).map(i => i.dataset.value), 'Products');
+      updateMultiLabel('type', Array.from(document.querySelectorAll('#au-type-options input')).map(i => i.dataset.value), 'Types');
+      lenses.reset();
+      filterUpdates();
+    }
+
+    function emptyStateHtml() {
+      return '<div class="au-empty">No Fabric features match this view.' +
+        ' <button type="button" class="fk-more-btn" data-act="resetFeedView">Clear search, filters, and view</button></div>';
+    }
+
     async function loadFabricRoadmap(refresh) {
       const container = document.getElementById('au-cards-container');
       const refreshBtn = document.getElementById('au-refresh-btn');
@@ -184,11 +307,13 @@
           title: item.FeatureName,
           description: item.FeatureDescription || '',
           product: item.ProductName || '',
+          workload: item.WorkloadName || item.Workload || item.ProductWorkload || '',
           status: item.ReleaseStatus || '',
           releaseType: item.ReleaseType || '',
           releaseDate: item.ReleaseDate || '',
           releaseSemester: item.ReleaseSemester || '',
           sortKey: quarterSortKey(item.ReleaseDate),
+          releasePeriod: parseReleasePeriod(item.ReleaseDate),
         }));
         if (window.CPUtil) window.CPUtil.renderFeedStatus('au-source-status', data.meta);
         rebuildFilters();
@@ -342,6 +467,8 @@
       const statusActive  = statusFilter.size > 0 && statusFilter.size < allKnownStatuses.length;
       const productActive = productFilter.size > 0 && productFilter.size < allKnownProducts.length;
       const typeActive    = typeFilter.size > 0 && typeFilter.size < allKnownTypes.length;
+      const timeActive = timeRange !== 6;
+      const sortActive = sort !== 'timeline-asc';
       if (window.CPUtil) {
         window.CPUtil.replaceQueryState({
           q: rawQuery || null,
@@ -362,26 +489,40 @@
         minQuarterNum = cutoff.getFullYear() * 4 + cutoffQ;
       }
 
+      let hiddenByTime = 0;
       let filtered = allUpdates.filter(u => {
         if (statusActive && !statusFilter.has(u.status)) return false;
         if (productActive && !productFilter.has(u.product)) return false;
         if (typeActive && !typeFilter.has(u.releaseType)) return false;
+        if (q) {
+          const hay = (u.title + ' ' + u.product + ' ' + u.workload + ' ' + u.releaseDate + ' ' + stripHtml(u.description)).toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        // Time last, so the "hidden" count reflects only what the date range removes.
         if (minQuarterNum > 0) {
           const qn = quarterToNum(u.releaseDate);
-          if (qn !== null && qn < minQuarterNum) return false;
-        }
-        if (q) {
-          const hay = (u.title + ' ' + u.product + ' ' + u.releaseDate + ' ' + stripHtml(u.description)).toLowerCase();
-          if (!hay.includes(q)) return false;
+          if (qn !== null && qn < minQuarterNum) { hiddenByTime++; return false; }
         }
         return true;
       });
+
+      const timeSelect = document.getElementById('au-timerange');
+      window.FeedKit.renderScope('au-scope', timeRange > 0 ? {
+        text: `Showing releases from the ${timeSelect.options[timeSelect.selectedIndex].text.toLowerCase()}` +
+          (hiddenByTime ? ` · ${hiddenByTime.toLocaleString('en-US')} older ${hiddenByTime === 1 ? 'feature' : 'features'} hidden` : ''),
+        actionLabel: hiddenByTime ? 'Show all dates' : '',
+        onAction: () => { timeSelect.value = '0'; filterUpdates(); },
+      } : null);
 
       if (sort === 'timeline-asc') {
         filtered.sort((a, b) => a.sortKey - b.sortKey || a.title.localeCompare(b.title));
       } else if (sort === 'timeline-desc') {
         filtered.sort((a, b) => b.sortKey - a.sortKey || a.title.localeCompare(b.title));
       }
+
+      filterState = { status: statusActive, product: productActive, type: typeActive, time: timeActive, sort: sortActive };
+      filterToggle.refresh();
+      filtered = lenses.apply(filtered);
 
       currentFiltered = filtered;
       const exportBtn = document.getElementById('au-export-btn');
@@ -391,7 +532,7 @@
       }
 
       document.getElementById('au-result-count').textContent =
-        `${filtered.length} of ${allUpdates.length}`;
+        `${filtered.length.toLocaleString('en-US')} of ${allUpdates.length.toLocaleString('en-US')}`;
 
       const groupByProduct = sort === 'product';
       document.getElementById('au-expand-all-label').style.display = groupByProduct ? 'flex' : 'none';
@@ -403,14 +544,23 @@
     function renderFlat(items) {
       const grid = document.getElementById('au-cards-container');
       grid.classList.remove('is-grouped');
-      if (!items.length) { grid.innerHTML = '<div class="au-empty">No features match the filter.</div>'; return; }
-      grid.innerHTML = items.map(cardHtml).join('');
+      window.FeedKit.renderPaged(grid, items, cardHtml, { emptyHtml: emptyStateHtml() });
+    }
+
+    // Cards inside a collapsed product group are only built when it opens.
+    let groupedItems = new Map();
+    function fillProductGroup(group) {
+      const cards = group.querySelector('.au-product-cards');
+      if (!cards || cards.dataset.filled) return;
+      const list = groupedItems.get(group.dataset.group) || [];
+      cards.innerHTML = list.map(cardHtml).join('');
+      cards.dataset.filled = '1';
     }
 
     function renderGrouped(items) {
       const grid = document.getElementById('au-cards-container');
       grid.classList.add('is-grouped');
-      if (!items.length) { grid.innerHTML = '<div class="au-empty">No features match the filter.</div>'; return; }
+      if (!items.length) { grid.innerHTML = emptyStateHtml(); return; }
 
       const expandAll = !!document.getElementById('au-expand-all').checked;
       const groups = new Map();
@@ -419,29 +569,30 @@
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(u);
       });
+      groupedItems = groups;
       const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
       const chevron = '<svg class="au-product-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       grid.innerHTML = sortedKeys.map(key => {
         const list = groups.get(key);
         const collapsedClass = expandAll ? '' : ' is-collapsed';
         return `
-          <div class="au-product-group${collapsedClass}">
+          <div class="au-product-group${collapsedClass}" data-group="${escapeHtml(key)}">
             <div class="au-product-header" role="button" tabindex="0" aria-expanded="${expandAll ? 'true' : 'false'}" data-act="toggleProductGroup">
               ${chevron}
               <span>${escapeHtml(key)}</span>
               <span class="au-product-count">${list.length} feature${list.length !== 1 ? 's' : ''}</span>
             </div>
-            <div class="au-product-cards">
-              ${list.map(cardHtml).join('')}
-            </div>
+            <div class="au-product-cards"></div>
           </div>`;
       }).join('');
+      if (expandAll) grid.querySelectorAll('.au-product-group').forEach(fillProductGroup);
     }
 
     function toggleProductGroup(header) {
       const group = header.closest('.au-product-group');
       if (!group) return;
       const collapsed = group.classList.toggle('is-collapsed');
+      if (!collapsed) fillProductGroup(group);
       header.setAttribute('aria-expanded', String(!collapsed));
       syncExpandAllCheckbox();
     }
@@ -450,6 +601,7 @@
       const expand = !!document.getElementById('au-expand-all').checked;
       document.querySelectorAll('.au-product-group').forEach(g => {
         g.classList.toggle('is-collapsed', !expand);
+        if (expand) fillProductGroup(g);
         const h = g.querySelector('.au-product-header');
         if (h) h.setAttribute('aria-expanded', String(expand));
       });
@@ -470,7 +622,7 @@
       const tc = typeClass(u.releaseType);
       const snippet = stripHtml(u.description).slice(0, 220);
       return `
-        <div class="au-card" data-act="openUpdate" data-id="${escapeHtml(u.id)}">
+        <div class="au-card" data-act="openUpdate" data-id="${escapeHtml(u.id)}" role="button" tabindex="0" aria-label="${escapeHtml(u.title || 'Untitled feature')}">
           <div class="au-card-body">
             <div class="au-card-top">
               <span class="au-status-pill ${sc}">${escapeHtml(u.status || 'Unknown')}</span>
@@ -521,6 +673,7 @@
         </div>
       `;
       document.getElementById('au-modal').classList.add('open');
+      window.CPUtil.openModal(document.getElementById('au-modal'));
       if (window.CportalAi && window.CportalAi.isEnabled()) {
         window.CportalAi.attachToModal(body, 'fabricroadmap', u);
       }
@@ -528,6 +681,7 @@
 
     function closeUpdate() {
       document.getElementById('au-modal').classList.remove('open');
+      window.CPUtil.closeModal(document.getElementById('au-modal'));
     }
     function handleModalBackdrop(ev) {
       if (ev.target.id === 'au-modal') closeUpdate();
@@ -713,6 +867,5 @@
   <script src="/static/outlook-export.js?v=20260929-saveas2" defer></script>
   <script src="/static/export-formats.js?v=20260929-saveas2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
-  <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>
 </html>

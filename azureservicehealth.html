@@ -23,21 +23,23 @@
     <div class="sh-hero">
       <div>
         <h1 class="sh-hero-title">Azure Service Health</h1>
-        <div class="sh-hero-sub">Real-time monitoring of Azure resource health, emerging issues, and service events</div>
+        <div class="sh-hero-sub">Resource health, emerging issues, and service events for your selected Azure subscription</div>
       </div>
-      <div style="display:flex;align-items:center;gap:0.75rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;min-width:0;max-width:100%;">
         <div class="arh-sub-filter" id="arh-sub-filter">
           <button class="arh-sub-filter-btn" id="arh-sub-filter-btn" type="button" aria-haspopup="true" aria-expanded="false">
             <span class="arh-sub-filter-icon" aria-hidden="true">🔑</span>
-            <span id="arh-sub-filter-label">Subscriptions</span>
+            <span id="arh-sub-filter-label">Choose subscription</span>
             <span class="arh-sub-filter-count" id="arh-sub-filter-count" style="display:none">0</span>
             <span class="arh-sub-filter-caret" aria-hidden="true">▾</span>
           </button>
           <div class="arh-sub-filter-menu" id="arh-sub-filter-menu" role="menu"></div>
         </div>
-        <span class="sh-live">Live Monitoring</span>
+        <span class="cp-data-status" id="arh-data-status" data-state="loading" role="status" aria-live="polite">Loading…</span>
       </div>
     </div>
+
+    <div class="cp-notice" id="arh-notice" hidden></div>
 
     <!-- Status Summary + Dashboard Grid -->
     <div class="arh-section" id="arh-section">
@@ -62,14 +64,14 @@
           <div class="sh-stat-icon" aria-hidden="true">💚</div>
           <div class="sh-stat-body">
             <div class="sh-stat-value" id="sh-stat-avail-val">—</div>
-            <div class="sh-stat-label">Resources Healthy</div>
+            <div class="sh-stat-label" id="sh-stat-avail-label">Resources Healthy</div>
           </div>
         </div>
         <div class="sh-stat-card sh-stat-pct" id="sh-stat-pct-card">
           <div class="sh-stat-icon" aria-hidden="true">📊</div>
           <div class="sh-stat-body">
             <div class="sh-stat-value" id="sh-stat-pct-val">—</div>
-            <div class="sh-stat-label">Availability %</div>
+            <div class="sh-stat-label" id="sh-stat-pct-label">Availability %</div>
           </div>
         </div>
         <div class="sh-stat-card sh-stat-ts" id="sh-stat-ts-card">
@@ -159,6 +161,96 @@
       var eventsRequest = null;
       var availabilityRequest = null;
 
+      // ── Per-source data quality ──────────────────────
+      // Each panel reports loading / ok / partial / error / nosub so the page
+      // status, notice, and KPI tiles never claim more than what loaded.
+      var SOURCE_NAMES = {
+        emerging: 'Emerging issues',
+        events: 'Service health events',
+        availability: 'Resource availability'
+      };
+      var sources = window._arhSources = {
+        emerging: { state: 'loading', detail: '' },
+        events: { state: 'loading', detail: '' },
+        availability: { state: 'loading', detail: '' }
+      };
+      function setSource(key, state, detail) {
+        sources[key] = { state: state, detail: detail || '' };
+        if (state === 'ok' || state === 'partial') window._arhLastRefresh = new Date();
+        updateDataQuality();
+        if (typeof window._arhSyncStats === 'function') window._arhSyncStats();
+      }
+      function retryFailedSources() {
+        Object.keys(sources).forEach(function (k) {
+          var st = sources[k].state;
+          if (st !== 'error' && st !== 'partial') return;
+          if (k === 'emerging') loadEmergingIssues();
+          else if (k === 'events') loadEvents();
+          else loadAvailability();
+        });
+      }
+      function updateDataQuality() {
+        var keys = Object.keys(sources);
+        var states = keys.map(function (k) { return sources[k].state; });
+        var notice = document.getElementById('arh-notice');
+        if (states.indexOf('loading') !== -1) {
+          window.CPUtil.setDataStatus('arh-data-status', 'loading', { label: 'Updating\u2026' });
+          return;
+        }
+        var failed = keys.filter(function (k) { return sources[k].state === 'error'; });
+        var partial = keys.filter(function (k) { return sources[k].state === 'partial'; });
+        var noSub = keys.filter(function (k) { return sources[k].state === 'nosub'; });
+        var time = window.CPUtil.formatClockTime(window._arhLastRefresh);
+
+        if (failed.length === keys.length) {
+          window.CPUtil.setDataStatus('arh-data-status', 'error', { detail: sources[failed[0]].detail });
+          window.CPUtil.renderNotice(notice, {
+            tone: 'error',
+            title: 'Azure service health couldn\u2019t be loaded',
+            detail: sources[failed[0]].detail + ' Nothing on this page reflects current Azure status.',
+            actionLabel: 'Try again',
+            onAction: retryFailedSources
+          });
+          return;
+        }
+        if (failed.length || partial.length) {
+          var parts = failed.map(function (k) {
+            return SOURCE_NAMES[k] + ' didn\u2019t load: ' + sources[k].detail;
+          }).concat(partial.map(function (k) {
+            return SOURCE_NAMES[k] + ' is incomplete: ' + sources[k].detail;
+          }));
+          window.CPUtil.setDataStatus('arh-data-status', 'partial', { detail: parts.join(' ') });
+          window.CPUtil.renderNotice(notice, {
+            tone: 'warning',
+            title: 'Some Azure health data is missing',
+            detail: parts.join(' ') + ' Totals above count only what loaded, so they may look healthier than reality.',
+            actionLabel: 'Try again',
+            onAction: retryFailedSources
+          });
+          return;
+        }
+        window.CPUtil.renderNotice(notice, null);
+        if (noSub.length) {
+          window.CPUtil.setDataStatus('arh-data-status', 'idle', {
+            label: 'No subscription selected',
+            detail: 'Choose a subscription to load resource availability and service health events.'
+          });
+          return;
+        }
+        window.CPUtil.setDataStatus('arh-data-status', 'current', {
+          label: time ? 'Up to date as of ' + time : 'Up to date',
+          detail: 'All sources loaded. Use the refresh buttons to check again.'
+        });
+      }
+      function sourceErrorText(res, data, err) {
+        if (err) return navigator.onLine === false ? 'Your device appears to be offline.' : 'The request failed (' + err.message + ').';
+        if (data && data.error) return data.error;
+        return 'The server responded with HTTP ' + res.status + '.';
+      }
+      async function readJson(res) {
+        try { return await res.json(); } catch (_e) { return {}; }
+      }
+
       // ── Helpers ──────────────────────────────────────
       // Relative time: "3d ago", "2h ago", "5m ago"; if future=true: "in 2h"
       function relativeTime(isoStr, future) {
@@ -233,8 +325,8 @@
           });
         } else {
           countEl.style.display = 'none';
-          labelEl.textContent = 'Subscriptions';
-          menuEl.innerHTML = '<div class="arh-sub-filter-empty">No subscriptions selected</div>'
+          labelEl.textContent = 'Choose subscription';
+          menuEl.innerHTML = '<div class="arh-sub-filter-empty">No subscription selected yet</div>'
             + '<button class="arh-sub-filter-change" type="button">Select subscriptions…</button>';
           menuEl.querySelector('.arh-sub-filter-change').addEventListener('click', function() {
             document.getElementById('arh-sub-filter').classList.remove('open');
@@ -266,14 +358,18 @@
         var request = new AbortController();
         emergingRequest = request;
         refreshBtn.disabled = true;
+        setSource('emerging', 'loading');
         list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
         try {
           var res = await fetch('/api/azure-resource-health/emerging-issues', { signal: request.signal });
-          var data = await res.json();
-          if (data.error) {
-            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+          var data = await readJson(res);
+          if (data.error || !res.ok) {
+            var emErr = sourceErrorText(res, data);
+            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(emErr) + '</div>';
+            setSource('emerging', 'error', emErr);
             return;
           }
+          setSource('emerging', data.warning ? 'partial' : 'ok', data.warning);
           var warningHtml = data.warning
             ? '<div class="arh-error" role="status">\u26a0\ufe0f ' + escapeHtml(data.warning) + '</div>'
             : '';
@@ -337,6 +433,7 @@
         } catch (err) {
           if (err.name === 'AbortError') return;
           list.innerHTML = '<div class="arh-error" role="alert">\u274c ' + escapeHtml(err.message) + '</div>';
+          setSource('emerging', 'error', sourceErrorText(null, null, err));
         } finally {
           if (emergingRequest === request) {
             emergingRequest = null;
@@ -355,21 +452,27 @@
         var request = new AbortController();
         eventsRequest = request;
         refreshBtn.disabled = true;
+        setSource('events', 'loading');
         list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
         try {
           var url = '/api/azure-resource-health/events';
           if (subId) url += '?subscriptionId=' + encodeURIComponent(subId);
           var res = await fetch(url, { signal: request.signal });
-          var data = await res.json();
+          var data = await readJson(res);
           if (res.status === 400 && !subId) {
             list.innerHTML = '<div class="arh-no-sub">Select a subscription above to view events.</div>';
             countEl.style.display = 'none';
+            setSource('events', 'nosub');
             return;
           }
-          if (data.error) {
-            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+          if (data.error || !res.ok) {
+            var evErr = sourceErrorText(res, data);
+            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(evErr) + '</div>';
+            countEl.style.display = 'none';
+            setSource('events', 'error', evErr);
             return;
           }
+          setSource('events', data.warning ? 'partial' : 'ok', data.warning);
           var warningHtml = data.warning
             ? '<div class="arh-error" role="status">\u26a0\ufe0f ' + escapeHtml(data.warning) + '</div>'
             : '';
@@ -426,6 +529,8 @@
         } catch (err) {
           if (err.name === 'AbortError') return;
           list.innerHTML = '<div class="arh-error" role="alert">\u274c ' + escapeHtml(err.message) + '</div>';
+          countEl.style.display = 'none';
+          setSource('events', 'error', sourceErrorText(null, null, err));
         } finally {
           if (eventsRequest === request) {
             eventsRequest = null;
@@ -445,28 +550,39 @@
         var request = new AbortController();
         availabilityRequest = request;
         refreshBtn.disabled = true;
+        setSource('availability', 'loading');
         list.innerHTML = '<div class="sh-loading" role="status"><div class="spinner"></div></div>';
         try {
           var url = '/api/azure-resource-health/availability-statuses';
           if (subId) url += '?subscriptionId=' + encodeURIComponent(subId);
           var res = await fetch(url, { signal: request.signal });
-          var data = await res.json();
+          var data = await readJson(res);
           if (res.status === 400 && !subId) {
             list.innerHTML = '<div class="arh-no-sub">Select a subscription above to view resource availability.</div>';
             countEl.style.display = 'none';
+            window._arhAvailData = [];
+            setSource('availability', 'nosub');
             return;
           }
-          if (data.error) {
-            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(data.error) + '</div>';
+          if (data.error || !res.ok) {
+            var avErr = sourceErrorText(res, data);
+            list.innerHTML = '<div class="arh-error" role="alert">\u26a0\ufe0f ' + escapeHtml(avErr) + '</div>';
+            countEl.style.display = 'none';
+            window._arhAvailData = [];
+            setSource('availability', 'error', avErr);
             return;
           }
           var items = data.value || [];
           window._arhAvailData = items; // cache for filtering
           window._arhAvailWarning = data.warning || '';
           renderAvailability(items, window._arhAvailWarning);
+          setSource('availability', data.warning ? 'partial' : 'ok', data.warning);
         } catch (err) {
           if (err.name === 'AbortError') return;
           list.innerHTML = '<div class="arh-error" role="alert">\u274c ' + escapeHtml(err.message) + '</div>';
+          countEl.style.display = 'none';
+          window._arhAvailData = [];
+          setSource('availability', 'error', sourceErrorText(null, null, err));
         } finally {
           if (availabilityRequest === request) {
             availabilityRequest = null;
@@ -657,6 +773,13 @@
   <script>
     // ── Stat card sync (mirrors counts from panel headers to KPI tiles) ──
     (function initStatCards() {
+      function srcState(key) {
+        var s = window._arhSources && window._arhSources[key];
+        return s ? s.state : 'loading';
+      }
+      function setTile(card, baseClass, mode) {
+        card.className = baseClass + (mode ? ' sh-stat-' + mode : '');
+      }
       function sync() {
         requestAnimationFrame(() => {
         // Emerging issues
@@ -664,43 +787,55 @@
         var emStat = document.getElementById('sh-stat-emerging-val');
         var emCard = document.getElementById('sh-stat-emerging-card');
         if (emCount && emStat && emCard) {
+          var emState = srcState('emerging');
           var n = parseInt(emCount.textContent) || 0;
-          var vis = emCount.style.display !== 'none';
-          emStat.textContent = vis ? n : '0';
-          emCard.classList.toggle('sh-stat-ok', !vis || n === 0);
-          emCard.classList.toggle('sh-stat-warn', vis && n > 0);
+          if (emState === 'error' || emState === 'loading') {
+            emStat.textContent = '\u2014';
+            setTile(emCard, 'sh-stat-card', 'unknown');
+          } else {
+            emStat.textContent = n;
+            setTile(emCard, 'sh-stat-card', emState === 'partial' ? 'partial' : (n > 0 ? 'warn' : 'ok'));
+          }
         }
         // Service events
         var evCount = document.getElementById('arh-events-count');
         var evStat = document.getElementById('sh-stat-events-val');
         var evCard = document.getElementById('sh-stat-events-card');
         if (evCount && evStat && evCard) {
+          var evState = srcState('events');
           var n2 = parseInt(evCount.textContent) || 0;
-          var vis2 = evCount.style.display !== 'none';
-          evStat.textContent = vis2 ? n2 : '0';
-          evCard.classList.toggle('sh-stat-ok', !vis2 || n2 === 0);
-          evCard.classList.toggle('sh-stat-warn', vis2 && n2 > 0);
+          if (evState === 'error' || evState === 'loading' || evState === 'nosub') {
+            evStat.textContent = '\u2014';
+            setTile(evCard, 'sh-stat-card', 'unknown');
+          } else {
+            evStat.textContent = n2;
+            setTile(evCard, 'sh-stat-card', evState === 'partial' ? 'partial' : (n2 > 0 ? 'warn' : 'ok'));
+          }
         }
         // Resource availability (healthy / total from cached data)
         var avStat = document.getElementById('sh-stat-avail-val');
         var avCard = document.getElementById('sh-stat-avail-card');
+        var avLabel = document.getElementById('sh-stat-avail-label');
         var pctStat = document.getElementById('sh-stat-pct-val');
         var pctCard = document.getElementById('sh-stat-pct-card');
+        var pctLabel = document.getElementById('sh-stat-pct-label');
         var tsStat = document.getElementById('sh-stat-ts-val');
         // Last Updated timestamp
         if (tsStat && window._arhLastRefresh) {
-          var d = window._arhLastRefresh;
-          var hh = String(d.getHours()).padStart(2,'0');
-          var mm = String(d.getMinutes()).padStart(2,'0');
-          tsStat.textContent = hh + ':' + mm;
+          tsStat.textContent = window.CPUtil.formatClockTime(window._arhLastRefresh);
         }
         if (avStat && avCard) {
+          var avState = srcState('availability');
           var data = window._arhAvailData || [];
-          if (data.length === 0) {
+          var incomplete = avState === 'partial';
+          if (avLabel) avLabel.textContent = incomplete ? 'Resources Healthy (incomplete)' : 'Resources Healthy';
+          if (pctLabel) pctLabel.textContent = incomplete ? 'Availability % (incomplete)' : 'Availability %';
+          if (data.length === 0 || avState === 'error' || avState === 'loading') {
             avStat.textContent = '\u2014';
-            avCard.className = 'sh-stat-card';
+            setTile(avCard, 'sh-stat-card', 'unknown');
             if (pctStat) pctStat.textContent = '\u2014';
-            if (pctCard) pctCard.className = 'sh-stat-card sh-stat-pct';
+            if (pctCard) setTile(pctCard, 'sh-stat-card sh-stat-pct', 'unknown');
+            updateHealthBar(avState === 'error' ? [] : data);
           } else {
             var healthy = 0;
             for (var i = 0; i < data.length; i++) {
@@ -708,13 +843,17 @@
             }
             avStat.textContent = healthy + ' / ' + data.length;
             var allOk = healthy === data.length;
-            avCard.classList.toggle('sh-stat-ok', allOk);
-            avCard.classList.toggle('sh-stat-warn', !allOk);
-            // Availability %
+            setTile(avCard, 'sh-stat-card', incomplete ? 'partial' : (allOk ? 'ok' : 'warn'));
+            // A percentage of an unknown total would be invented precision.
             if (pctStat && pctCard) {
-              var pct = Math.round((healthy / data.length) * 100);
-              pctStat.textContent = pct + '%';
-              pctCard.classList.toggle('sh-stat-warn', pct < 100);
+              if (incomplete) {
+                pctStat.textContent = '\u2014';
+                setTile(pctCard, 'sh-stat-card sh-stat-pct', 'partial');
+              } else {
+                var pct = Math.round((healthy / data.length) * 100);
+                pctStat.textContent = pct + '%';
+                setTile(pctCard, 'sh-stat-card sh-stat-pct', pct < 100 ? 'warn' : 'ok');
+              }
             }
             // Health breakdown bar
             updateHealthBar(data);
@@ -722,6 +861,7 @@
         }
         });
       }
+      window._arhSyncStats = sync;
       function updateHealthBar(data) {
         var wrap = document.getElementById('arh-health-bar-wrap');
         var bar = document.getElementById('arh-health-bar');

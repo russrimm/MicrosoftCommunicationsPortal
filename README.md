@@ -995,7 +995,7 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /api/impact-digest?source=azure\|m365\|messagecenter\|servicehealth\|fabricroadmap&limit=5&windowDays=14` | Top N most impactful items for a source | AI provider | 10/min |
 | `GET /api/empty-products` | List product IDs cached as known-empty by the `/proxy` route | Loopback + `ADMIN_TOKEN` | — |
 | `DELETE /api/empty-products` | Clear the entire known-empty cache | Loopback + `ADMIN_TOKEN` | — |
-| `GET /static/<file>` | Shared client JS (`util.js`, `nav.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`, `subscription-picker.js`) and CSS (`common.css`, page-specific stylesheets) | None | — |
+| `GET /static/<file>` | Shared client JS (`util.js`, `nav.js`, `feed-kit.js`, `product-icons.js`, `outlook-export.js`, `ai-insights.js`, `export-formats.js`, `subscription-picker.js`) and CSS (`common.css`, page-specific stylesheets) | None | — |
 | `GET /public/<file>` | Microsoft product / service SVG icons | None | — |
 
 OAuth tokens for Microsoft Graph are cached in-memory and refreshed 60 seconds before expiry.
@@ -1043,7 +1043,8 @@ static/
   product-icons.js               Shared client-side product-icon resolver (alias map + fuzzy matcher)
   outlook-export.js              Shared client-side Outlook-friendly HTML exporter (inline styles + bgcolor)
   export-formats.js              Multi-format export (HTML, Markdown, PDF, Word) for the Generate Full Export modal
-  subscription-picker.js         Shared Azure subscription selection picker
+  subscription-picker.js         Azure subscription picker, opened from the Azure Service Health page
+  feed-kit.js                    Shared feed helpers: quick-view lenses, collapsible filters, incremental card rendering
   featuregeo.css                 Regional Release Plans page styles (map, filter rail, rollout table)
   worldmap.js                    Generated world outline (Natural Earth 110m) used by the Regional Release Plans map
 public/                          Microsoft product / service SVG icons served at /public/<file>.svg

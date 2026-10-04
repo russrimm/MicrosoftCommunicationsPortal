@@ -12,6 +12,7 @@
     })();
   </script>
   <script src="/static/util.js?v=20260929-saveas2"></script>
+  <script src="/static/feed-kit.js"></script>
   <link rel="stylesheet" href="/static/common.css">
   <link rel="stylesheet" href="/static/roadmap.css">
 </head>
@@ -20,13 +21,29 @@
 
   <div class="page-content">
     <h1 class="page-heading">Microsoft 365 Roadmap</h1>
-    <div class="au-search-bar">
-      <label for="au-search" class="sr-only">Search updates by title or description</label>
-      <input type="text" class="au-search-input" id="au-search"
-             placeholder="Search updates by title or description…"
-             aria-label="Search updates by title or description" data-act="debouncedSearch" data-on="input">
+    <div class="fk-toolbar">
+      <div class="au-search-bar">
+        <label for="au-search" class="sr-only">Search updates by title or description</label>
+        <input type="text" class="au-search-input" id="au-search"
+               placeholder="Search updates by title or description…"
+               aria-label="Search updates by title or description" data-act="debouncedSearch" data-on="input">
+      </div>
+      <button type="button" class="fk-filter-toggle" id="au-filter-toggle">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+        <span>Filters</span>
+        <span class="fk-filter-badge" hidden></span>
+      </button>
     </div>
-    <div class="au-filters">
+    <div class="fk-lens-row">
+      <div id="au-lenses"></div>
+      <div class="fk-meta">
+        <span id="au-source-status" class="au-source-status" role="status" aria-live="polite"></span>
+        <span id="au-result-count" class="fk-result-count" role="status" aria-live="polite"></span>
+        <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
+        <button class="export-btn" id="au-refresh-btn" data-act="loadM365Updates">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="au-filters fk-filters-panel" id="au-filters">
       <div class="au-filter-group">
         <label class="au-filter-label" id="au-status-filter-label">Status:</label>
         <div class="au-multi" id="au-status-multi">
@@ -85,12 +102,6 @@
         <button type="button" class="au-preset-btn" data-act="applyDatePreset" data-days="90" aria-pressed="false" aria-label="GA in the next 90 days" title="GA in the next 90 days">Next 90d</button>
         <button type="button" class="au-preset-btn" data-act="applyDatePreset" data-days="180" aria-pressed="false" aria-label="GA in the next 180 days" title="GA in the next 180 days">Next 180d</button>
         <button type="button" class="au-preset-btn" id="au-date-clear" data-act="clearDateFilter" hidden>Clear</button>
-      </div>
-      <div class="au-filter-group" style="margin-left:auto;gap:0.75rem">
-        <span id="au-source-status" class="au-source-status" role="status" aria-live="polite"></span>
-        <span id="au-result-count" role="status" aria-live="polite" style="font-size:12px;color:var(--cp-text-muted)"></span>
-        <button class="export-btn" id="au-export-btn" type="button" data-act="openExportModal" disabled>⬇ Export</button>
-        <button class="export-btn" id="au-refresh-btn" data-act="loadM365Updates">↻ Refresh</button>
       </div>
     </div>
       <div class="au-cards" id="au-cards-container">
@@ -214,6 +225,51 @@
 
     function gaInBounds(ga, bounds) {
       return !!ga && ga.start < bounds.toExclusive && ga.end > bounds.from;
+    }
+
+    // ── Quick views + collapsible filters ─────────────────────────────────
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const AI_RE = /copilot|\bai\b|\bagents?\b/i;
+    const lenses = window.FeedKit.createLenses({
+      container: 'au-lenses',
+      label: 'Quick views',
+      onChange: () => filterUpdates(),
+      lenses: [
+        { id: 'all', label: 'All updates' },
+        { id: 'rolling', label: 'Rolling out now', title: 'Status is Rolling out',
+          test: u => u.buckets.status === 'Rolling out' },
+        { id: 'next90', label: 'GA in next 90 days', title: 'General availability expected within 90 days',
+          test: u => !!u.ga && u.ga.end > Date.now() && u.ga.start < Date.now() + 90 * DAY_MS },
+        { id: 'recent', label: 'New this month', title: 'Published in the last 30 days',
+          test: u => (Date.parse(u.pubDate) || 0) > Date.now() - 30 * DAY_MS },
+        { id: 'ai', label: 'Copilot & AI', title: 'Mentions Copilot, AI, or agents',
+          test: u => AI_RE.test(u.title || '') || u.buckets.product.some(p => AI_RE.test(p)) },
+      ],
+    });
+    let filterState = { status: false, product: false, date: false };
+    const filterToggle = window.FeedKit.createFilterToggle({
+      button: 'au-filter-toggle',
+      panel: 'au-filters',
+      activeCount: () => Object.values(filterState).filter(Boolean).length,
+    });
+
+    function resetFeedView() {
+      document.getElementById('au-search').value = '';
+      statusFilter.clear();
+      productFilter.clear();
+      document.querySelectorAll('#au-status-options input, #au-product-options input').forEach(i => { i.checked = false; });
+      document.getElementById('au-date-from').value = '';
+      document.getElementById('au-date-to').value = '';
+      syncDateFilterUi();
+      updateMultiLabel('status', [], 'Statuses');
+      updateMultiLabel('product', [], 'Products');
+      lenses.reset();
+      filterUpdates();
+    }
+
+    function emptyStateHtml() {
+      return '<div class="au-empty">No updates match this view.' +
+        ' <button type="button" class="fk-more-btn" data-act="resetFeedView">Clear search, filters, and view</button></div>';
     }
 
     async function loadM365Updates(refresh) {
@@ -455,6 +511,10 @@
         return sort === 'date-asc' ? da - db : db - da;
       });
 
+      filterState = { status: statusActive, product: productActive, date: dateActive };
+      filterToggle.refresh();
+      filtered = lenses.apply(filtered);
+
       currentFiltered = filtered;
       const exportBtn = document.getElementById('au-export-btn');
       if (exportBtn) {
@@ -463,7 +523,7 @@
       }
 
       document.getElementById('au-result-count').textContent =
-        `${filtered.length} of ${allUpdates.length}`;
+        `${filtered.length.toLocaleString('en-US')} of ${allUpdates.length.toLocaleString('en-US')}`;
 
       document.getElementById('au-expand-all-label').style.display = groupByProduct ? 'flex' : 'none';
 
@@ -474,14 +534,23 @@
     function renderFlat(items) {
       const grid = document.getElementById('au-cards-container');
       grid.classList.remove('is-grouped');
-      if (!items.length) { grid.innerHTML = '<div class="au-empty">No updates match the filter.</div>'; return; }
-      grid.innerHTML = items.map(cardHtml).join('');
+      window.FeedKit.renderPaged(grid, items, cardHtml, { emptyHtml: emptyStateHtml() });
+    }
+
+    // Cards inside a collapsed product group are only built when it opens.
+    let groupedItems = new Map();
+    function fillProductGroup(group) {
+      const cards = group.querySelector('.au-product-cards');
+      if (!cards || cards.dataset.filled) return;
+      const list = groupedItems.get(group.dataset.group) || [];
+      cards.innerHTML = list.map(cardHtml).join('');
+      cards.dataset.filled = '1';
     }
 
     function renderGrouped(items) {
       const grid = document.getElementById('au-cards-container');
       grid.classList.add('is-grouped');
-      if (!items.length) { grid.innerHTML = '<div class="au-empty">No updates match the filter.</div>'; return; }
+      if (!items.length) { grid.innerHTML = emptyStateHtml(); return; }
 
       const expandAll = !!document.getElementById('au-expand-all').checked;
       const groups = new Map();
@@ -490,29 +559,30 @@
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(u);
       });
+      groupedItems = groups;
       const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
       const chevron = '<svg class="au-product-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       grid.innerHTML = sortedKeys.map(key => {
         const list = groups.get(key);
         const collapsedClass = expandAll ? '' : ' is-collapsed';
         return `
-          <div class="au-product-group${collapsedClass}">
+          <div class="au-product-group${collapsedClass}" data-group="${escapeHtml(key)}">
             <div class="au-product-header" role="button" tabindex="0" aria-expanded="${expandAll ? 'true' : 'false'}" data-act="toggleProductGroup">
               ${chevron}
               <span>${escapeHtml(key)}</span>
               <span class="au-product-count">${list.length} update${list.length !== 1 ? 's' : ''}</span>
             </div>
-            <div class="au-product-cards">
-              ${list.map(cardHtml).join('')}
-            </div>
+            <div class="au-product-cards"></div>
           </div>`;
       }).join('');
+      if (expandAll) grid.querySelectorAll('.au-product-group').forEach(fillProductGroup);
     }
 
     function toggleProductGroup(header) {
       const group = header.closest('.au-product-group');
       if (!group) return;
       const collapsed = group.classList.toggle('is-collapsed');
+      if (!collapsed) fillProductGroup(group);
       header.setAttribute('aria-expanded', String(!collapsed));
       syncExpandAllCheckbox();
     }
@@ -521,6 +591,7 @@
       const expand = !!document.getElementById('au-expand-all').checked;
       document.querySelectorAll('.au-product-group').forEach(g => {
         g.classList.toggle('is-collapsed', !expand);
+        if (expand) fillProductGroup(g);
         const h = g.querySelector('.au-product-header');
         if (h) h.setAttribute('aria-expanded', String(expand));
       });
@@ -543,7 +614,7 @@
       const date = formatDate(u.pubDate);
       const snippet = stripHtml(u.description).slice(0, 220);
       return `
-        <div class="au-card" data-act="openUpdate" data-id="${escapeHtml(u.id)}">
+        <div class="au-card" data-act="openUpdate" data-id="${escapeHtml(u.id)}" role="button" tabindex="0" aria-label="${escapeHtml(u.title || 'Untitled update')}">
           <div class="au-card-body">
             <div class="au-card-top">
               <span class="au-card-id">#${escapeHtml(u.id || '')}</span>
@@ -602,6 +673,7 @@
           </div>` : ''}
       `;
       document.getElementById('au-modal').classList.add('open');
+      window.CPUtil.openModal(document.getElementById('au-modal'));
       if (window.CportalAi && window.CportalAi.isEnabled()) {
         window.CportalAi.attachToModal(body, 'm365', u);
       }
@@ -609,6 +681,7 @@
 
     function closeUpdate() {
       document.getElementById('au-modal').classList.remove('open');
+      window.CPUtil.closeModal(document.getElementById('au-modal'));
     }
     function handleModalBackdrop(ev) {
       if (ev.target.id === 'au-modal') closeUpdate();
@@ -833,6 +906,5 @@
   <script src="/static/outlook-export.js?v=20260929-saveas2" defer></script>
   <script src="/static/export-formats.js?v=20260929-saveas2" defer></script>
   <script src="/static/ai-insights.js" defer></script>
-  <script src="/static/subscription-picker.js?v=20260411-audit2" defer></script>
 </body>
 </html>

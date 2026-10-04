@@ -115,8 +115,8 @@
       { key: 'm365', name: 'Microsoft 365 Roadmap', icon: '/public/m365.svg', desc: 'M365 feature announcements and timelines.', auth: false },
       { key: 'azure', name: 'Azure Updates', icon: '/public/Azure.svg', desc: 'Azure service updates and new features.', auth: false },
       { key: 'fabric', name: 'Microsoft Fabric', icon: '/public/fabric_48_color.svg', desc: 'Fabric data platform roadmap items.', auth: false },
-      { key: 'messagecenter', name: 'Microsoft 365 Message Center', icon: '/public/m365.svg', desc: 'Tenant-specific advisories (requires Graph auth).', auth: true },
-      { key: 'servicehealth', name: 'Service Health', icon: '/public/m365.svg', desc: 'Service incidents and advisories (requires Graph auth).', auth: true },
+      { key: 'messagecenter', name: 'Microsoft 365 Message Center', icon: '/public/m365.svg', desc: 'Advisories for your tenant. Only works if this portal is connected to Microsoft Graph.', auth: true },
+      { key: 'servicehealth', name: 'Service Health', icon: '/public/m365.svg', desc: 'Incidents and advisories for your tenant. Only works if this portal is connected to Microsoft Graph.', auth: true },
     ];
 
     const PP_PRODUCTS = [
@@ -201,12 +201,12 @@
       const grid = $('#sourceGrid');
       grid.innerHTML = SOURCES.map(s => `
         <div class="source-card" data-key="${s.key}" role="checkbox" aria-checked="false" tabindex="0"
-             aria-label="${s.name}${s.auth ? ' (requires auth)' : ''}">
+             aria-label="${s.name}${s.auth ? ' (needs Microsoft Graph access)' : ''}">
           <div class="source-card-icon"><img src="${s.icon}" alt="" aria-hidden="true"></div>
           <div class="source-card-body">
             <div class="source-card-name">${s.name}</div>
             <div class="source-card-desc">${s.desc}</div>
-            ${s.auth ? '<span class="source-card-auth">Requires auth</span>' : ''}
+            ${s.auth ? '<span class="source-card-auth">Tenant data</span>' : ''}
           </div>
           <span class="source-card-check" aria-hidden="true">
             <svg viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
