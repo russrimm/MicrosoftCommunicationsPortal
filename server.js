@@ -17,6 +17,7 @@ const {
   parseBoundedInteger,
   rateLimitBucketKey,
   retryCallback,
+  rewriteMessageCenterMessage,
   shouldRetryTransientResponse,
   shouldUseSecureCookie,
 } = require('./runtime-utils.js');
@@ -860,7 +861,13 @@ function fetchMessageCenterMessages(token, done) {
   // Cache for 60s — matches the Cache-Control we send to the browser.
   cachedGraphFetch('mc:messages',
     (cb) => graphGetAllPages(token, `/v1.0/admin/serviceAnnouncement/messages?${query.toString()}`, 20, cb),
-    done);
+    (err, result, meta) => {
+      // Point admin center Message Center deep links at MSPulse360. The rewrite is
+      // idempotent, so re-applying it to cached results is safe.
+      const messages = result && result.body && result.body.value;
+      if (Array.isArray(messages)) messages.forEach(rewriteMessageCenterMessage);
+      done(err, result, meta);
+    });
 }
 
 // Fetch Service Health from Microsoft Graph

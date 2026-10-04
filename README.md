@@ -725,7 +725,10 @@ configured data sources so you can confirm which pages are working.
   GA month from the Azure Updates API when one is available.
 - **Microsoft Fabric Roadmap** — browse Fabric release features across 14 product areas from the official roadmap.
 - **Message Center** — tenant-specific Microsoft 365 Message Center announcements,
-  filterable by severity and date.
+  filterable by severity and date. Message IDs and Microsoft 365 admin center links to
+  Message Center posts open the matching page on
+  [MSPulse360](https://www.mspulse360.app/) (for example,
+  `https://www.mspulse360.app/message/MC1484591`).
 - **Service Health** — current service incidents and advisories for your tenant.
 - **Azure Service Health** — Azure-level service health events, resource availability, and emerging issues for selected subscriptions.
 
