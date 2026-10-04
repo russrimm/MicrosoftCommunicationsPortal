@@ -273,9 +273,12 @@
     return found.slice(0, 3);
   }
 
+  // Same destination the rest of the portal uses for Message Center posts
+  // (see mspulse360MessageUrl in runtime-utils.js). Customers reading the
+  // email usually can't open admin center links.
   function messageLink(id) {
-    return /^MC\d+$/.test(String(id || ''))
-      ? 'https://admin.microsoft.com/AdminPortal/home#/MessageCenter/:/messages/' + id
+    return /^MC\d+$/i.test(String(id || ''))
+      ? 'https://www.mspulse360.app/message/' + encodeURIComponent(String(id).toUpperCase())
       : '';
   }
 

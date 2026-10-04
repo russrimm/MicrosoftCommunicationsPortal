@@ -748,7 +748,8 @@ plain-text alternative). The email is ordered for readers, not by source:
 4. **📅 Key dates** — GA, preview, rollout, retirement, and action dates parsed from
    the posts for the next 60 days.
 5. **📬 New in Message Center** — grouped by product area (Copilot Studio first), one
-   or two sentences of impact per post instead of the full body.
+   or two sentences of impact per post instead of the full body. Message IDs link to
+   the post on MSPulse360, like the rest of the portal.
 6. **🔄 What changed in the release plans** — new, now scheduled, slipped, pulled in,
    and removed features since last week.
 7. **🗺️ Coming soon** — Release Planner features reaching preview or GA in the chosen

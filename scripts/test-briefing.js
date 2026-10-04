@@ -213,7 +213,7 @@ test('parseMessage separates action items from awareness posts and extracts key 
   assert.equal(cae.summary, 'Dataverse user access is transitioning to CAE-enabled authentication. Sessions are evaluated continuously.');
   assert.deepEqual(plain(cae.keyDates.map(d => [d.label, d.date])), [['Rollout', '2026-08-10']]);
   assert.equal(cae.cleanTitle, 'New Continuous Access Evaluation (CAE) rollout nearing completion');
-  assert.equal(cae.link, 'https://admin.microsoft.com/AdminPortal/home#/MessageCenter/:/messages/MC1446723');
+  assert.equal(cae.link, 'https://www.mspulse360.app/message/MC1446723');
 
   const aware = BM.parseMessage(AWARENESS_MESSAGE);
   assert.equal(aware.area, 'copilotstudio');
