@@ -20,9 +20,13 @@ const {
   createTtlCache,
   mergeVaryHeaders,
   mergeServiceHealth,
+  isSafeLangCode,
   mspulse360MessageUrl,
   parseBoundedInteger,
   rateLimitBucketKey,
+  readBoundedString,
+  subscriptionAccessDecision,
+  subscriptionIdFromResourceUri,
   retryCallback,
   rewriteMessageCenterLinks,
   rewriteMessageCenterMessage,
@@ -287,6 +291,35 @@ test('mergeVaryHeaders preserves encoding and origin cache variants', () => {
   );
 });
 
+test('isSafeLangCode accepts locale tags and rejects query injection', () => {
+  assert.equal(isSafeLangCode('en-US'), true);
+  assert.equal(isSafeLangCode('ja'), true);
+  assert.equal(isSafeLangCode('en-US&x=1'), false);
+  assert.equal(isSafeLangCode('../etc'), false);
+  assert.equal(isSafeLangCode(''), false);
+});
+
+test('subscriptionAccessDecision fail-closes unless the identity can read that subscription', () => {
+  const id = '11111111-1111-1111-1111-111111111111';
+  assert.equal(subscriptionAccessDecision(null, id).code, 'SUBSCRIPTION_CHECK_FAILED');
+  assert.equal(subscriptionAccessDecision({ ids: new Set([id]), complete: false }, id).code, 'SUBSCRIPTION_LIST_INCOMPLETE');
+  assert.equal(subscriptionAccessDecision({ ids: new Set([id]), complete: true }, id), null);
+  assert.equal(subscriptionAccessDecision({
+    ids: new Set(['22222222-2222-2222-2222-222222222222']),
+    complete: true,
+  }, id).code, 'SUBSCRIPTION_FORBIDDEN');
+  assert.equal(subscriptionIdFromResourceUri(`/subscriptions/${id}/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm`), id);
+});
+
+test('readBoundedString stops buffering once the cap is exceeded', async () => {
+  const { Readable } = require('node:stream');
+  const stream = Readable.from([Buffer.alloc(8), Buffer.alloc(8)]);
+  await assert.rejects(
+    new Promise((resolve, reject) => readBoundedString(stream, 10, (err, value) => err ? reject(err) : resolve(value))),
+    (err) => err.code === 'UPSTREAM_TOO_LARGE'
+  );
+});
+
 test('rewriteMessageCenterLinks points admin center Message Center links at MSPulse360', () => {
   const target = 'https://www.mspulse360.app/message/MC1484591';
   for (const url of [
@@ -343,8 +376,10 @@ test('rewriteMessageCenterMessage rewrites body content and detail values', () =
     'Message Center Graph results must have admin center links rewritten');
 
   const page = fs.readFileSync(path.join(__dirname, '..', 'messagecenter.html'), 'utf8');
-  assert.match(page, /<a class="mc-modal-id" href="\$\{escapeHtml\(mspulse360MessageUrl\(msgId\)\)\}" target="_blank" rel="noopener noreferrer"/,
-    'Message Center modal ID badge must link to MSPulse360');
+  assert.match(page, /messageExternalUrl\(msgId\)/,
+    'Message Center modal ID badge must use the configurable external link');
+  assert.match(page, /www\.mspulse360\.app\/message\//,
+    'Message Center must still be able to link IDs to MSPulse360');
 });
 
 test('collectPaginated follows next links and reports complete results', async () => {
@@ -899,6 +934,7 @@ test('validateSwaPrincipal rejects malformed headers', () => {
 test('requireAuth (swa) accepts a Static Web Apps principal', () => {
   const guard = makeRequireAuth({
     mode: AUTH_MODE_SWA, apiAuthToken: '', sendJson: fakeSendJson, isAppService: true,
+    easyAuthEnabled: true,
   });
   const req = fakeReq({ 'x-ms-client-principal': encode(swaPrincipal()) });
   assert.equal(guard(req, fakeRes(), '/api/messagecenter'), true);
@@ -908,6 +944,7 @@ test('requireAuth (swa) accepts a Static Web Apps principal', () => {
 test('requireAuth (swa) also accepts an App Service Easy Auth principal', () => {
   const guard = makeRequireAuth({
     mode: AUTH_MODE_SWA, apiAuthToken: '', sendJson: fakeSendJson, isAppService: true,
+    easyAuthEnabled: true,
   });
   const req = fakeReq({
     'x-ms-client-principal': encode(makePrincipal()),
@@ -917,9 +954,22 @@ test('requireAuth (swa) also accepts an App Service Easy Auth principal', () => 
   assert.equal(req.principal.oid, 'aaa-oid');
 });
 
+test('requireAuth (swa) rejects principal headers when App Service auth is not enforced', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_SWA, apiAuthToken: '', sendJson: fakeSendJson, isAppService: true,
+    easyAuthEnabled: false,
+  });
+  const res = fakeRes();
+  const req = fakeReq({ 'x-ms-client-principal': encode(swaPrincipal()) });
+  assert.equal(guard(req, res, '/api/messagecenter'), false);
+  assert.equal(res._status, 401);
+  assert.equal(res._payload.code, 'AUTH_NOT_ENFORCED');
+});
+
 test('requireAuth (swa) rejects missing and spoofed principals', () => {
   const guard = makeRequireAuth({
     mode: AUTH_MODE_SWA, apiAuthToken: '', sendJson: fakeSendJson, isAppService: true,
+    easyAuthEnabled: true,
   });
   const missing = fakeRes();
   assert.equal(guard(fakeReq(), missing, '/api/messagecenter'), false);
@@ -934,6 +984,84 @@ test('requireAuth (swa) rejects missing and spoofed principals', () => {
   const req = fakeReq({ 'x-ms-client-principal': encode(swaPrincipal({ userRoles: ['anonymous'] })) });
   assert.equal(guard(req, anonymous, '/api/messagecenter'), false);
   assert.equal(anonymous._payload.code, 'AUTH_INVALID_PRINCIPAL');
+});
+
+test('requireAuth rejects a principal from another tenant', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_EASYAUTH,
+    apiAuthToken: '',
+    sendJson: fakeSendJson,
+    isAppService: true,
+    easyAuthEnabled: true,
+    expectedTenantId: 'expected-tid',
+  });
+  const req = fakeReq({
+    'x-ms-client-principal': encode(makePrincipal()),
+    'x-ms-client-principal-id': 'aaa-oid',
+  });
+  const res = fakeRes();
+  assert.equal(guard(req, res, '/api/messagecenter'), false);
+  assert.equal(res._status, 403);
+  assert.equal(res._payload.code, 'AUTH_TENANT_MISMATCH');
+});
+
+test('requireAuth rejects a Static Web Apps principal that does not prove the tenant', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_SWA,
+    apiAuthToken: '',
+    sendJson: fakeSendJson,
+    isAppService: true,
+    easyAuthEnabled: true,
+    expectedTenantId: 'expected-tid',
+  });
+  const res = fakeRes();
+  assert.equal(guard(fakeReq({
+    'x-ms-client-principal': encode(swaPrincipal()),
+  }), res, '/api/servicehealth'), false);
+  assert.equal(res._payload.code, 'AUTH_TENANT_UNVERIFIED');
+});
+
+test('requireAuth accepts a matching tenant and required role', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_EASYAUTH,
+    apiAuthToken: '',
+    sendJson: fakeSendJson,
+    isAppService: true,
+    easyAuthEnabled: true,
+    expectedTenantId: 'bbb-tid',
+    requiredRoles: ['Communications.Read'],
+  });
+  const principal = makePrincipal({
+    claims: [
+      { typ: 'http://schemas.microsoft.com/identity/claims/objectidentifier', val: 'aaa-oid' },
+      { typ: 'http://schemas.microsoft.com/identity/claims/tenantid', val: 'bbb-tid' },
+      { typ: 'roles', val: 'Communications.Read' },
+    ],
+  });
+  const req = fakeReq({
+    'x-ms-client-principal': encode(principal),
+    'x-ms-client-principal-id': 'aaa-oid',
+  });
+  assert.equal(guard(req, fakeRes(), '/api/summarize'), true);
+  assert.deepEqual(req.principal.roles, ['Communications.Read']);
+});
+
+test('requireAuth rejects a signed-in account that lacks the reader role', () => {
+  const guard = makeRequireAuth({
+    mode: AUTH_MODE_EASYAUTH,
+    apiAuthToken: '',
+    sendJson: fakeSendJson,
+    isAppService: true,
+    easyAuthEnabled: true,
+    requiredRoles: ['Communications.Read'],
+  });
+  const req = fakeReq({
+    'x-ms-client-principal': encode(makePrincipal()),
+    'x-ms-client-principal-id': 'aaa-oid',
+  });
+  const res = fakeRes();
+  assert.equal(guard(req, res, '/api/impact-digest'), false);
+  assert.equal(res._payload.code, 'AUTH_FORBIDDEN');
 });
 
 test('requireAuth (swa) leaves the public feed routes reachable', () => {
@@ -1067,8 +1195,10 @@ test('every bounded pagination caller surfaces partial results', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   assert.equal((source.match(/graphGetAllPages\(/g) || []).length, 3,
     'new Graph callers must explicitly preserve pagination warnings');
-  assert.equal((source.match(/armGetAllPages\(/g) || []).length, 8,
+  assert.equal((source.match(/armGetAllPages\(/g) || []).length, 9,
     'new ARM callers must explicitly preserve pagination warnings');
+  assert.match(source, /!body\.truncated && !body\.partialFailure && result\.status < 400/,
+    'subscription allow-list must fail closed on a partial ARM subscription list');
   assert.match(source, /paginationWarning\(body, 'Azure subscription discovery'\)/);
   assert.match(source, /paginationWarning\(body, 'Message Center'\)/);
   assert.match(source, /paginationWarning\(issuesBody, 'Service Health issue history'\)/);

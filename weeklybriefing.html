@@ -279,6 +279,9 @@
             state.mcState = 'error';
             state.mcError = body.error || `Message Center request failed (HTTP ${res.status}).`;
           } else {
+            if (typeof BM.setMessageLinkStyle === 'function') {
+              BM.setMessageLinkStyle(body.messageLinks === 'admin' ? 'admin' : 'mspulse360');
+            }
             state.messages = (body.messages || []).filter(BM.isInScopeMessage).map(BM.parseMessage);
             state.mcState = body.partial ? 'partial' : 'ok';
             state.mcError = body.warning || '';

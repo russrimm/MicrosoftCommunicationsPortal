@@ -88,7 +88,13 @@ module web 'modules/appservice.bicep' = {
       TRUST_PROXY: 'true'
       // Behind a static web app the caller is described by the Static Web Apps
       // client principal, which is a different shape from an Easy Auth one.
+      // The app still rejects that header unless App Service reports
+      // WEBSITE_AUTH_ENABLED=True, which the linked-backend identity provider sets.
       AUTH_MODE: useStaticWebApp ? 'swa' : 'easyauth'
+      AUTH_ALLOWED_TENANT_ID: tenant().tenantId
+      // Assign this app role to the people who should see tenant data. The
+      // post-provision script creates the role and assigns the deploying user.
+      AUTH_REQUIRED_ROLES: 'Communications.Read'
     }
   }
 }

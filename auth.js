@@ -25,6 +25,9 @@
 //     forged by an internet caller. Because the platform in front may present
 //     EITHER principal shape, this mode accepts a valid SWA principal or a
 //     valid Easy Auth principal and rejects anything else.
+//     On App Service this mode fails closed unless WEBSITE_AUTH_ENABLED is
+//     exactly "True" — a warning at startup is not enough, because a missing
+//     linked-backend provider makes the header spoofable.
 //     Never inferred — it must be set explicitly.
 //
 //   AUTH_MODE=none-loopback-only
@@ -68,6 +71,51 @@ function timingSafeEqualStr(a, b) {
     return false;
   }
   return crypto.timingSafeEqual(ab, bb);
+}
+
+const ROLE_CLAIM_TYPES = new Set([
+  'roles',
+  'role',
+  'http://schemas.microsoft.com/ws/2008/06/identity/claims/role',
+]);
+const TENANT_CLAIM_TYPES = new Set([
+  'tid',
+  'http://schemas.microsoft.com/identity/claims/tenantid',
+]);
+
+function claimValues(claims, types) {
+  const values = [];
+  if (!Array.isArray(claims)) return values;
+  for (const claim of claims) {
+    if (!claim || typeof claim !== 'object' || !types.has(claim.typ)) continue;
+    if (typeof claim.val !== 'string' || !claim.val) continue;
+    values.push(claim.val);
+  }
+  return values;
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    for (const part of String(value || '').split(',')) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(trimmed);
+    }
+  }
+  return out;
+}
+
+function rolesFromClaims(claims) {
+  return uniqueStrings(claimValues(claims, ROLE_CLAIM_TYPES));
+}
+
+function tenantFromClaims(claims) {
+  return claimValues(claims, TENANT_CLAIM_TYPES)[0] || '';
 }
 
 function redactUpstreamError(error) {
@@ -217,6 +265,7 @@ function validatePrincipal(principalHeader, principalIdHeader) {
   }
   if (!oid) return { ok: false, reason: 'principal-missing-oid' };
   if (!tid) return { ok: false, reason: 'principal-missing-tid' };
+  const roles = rolesFromClaims(parsed.claims);
   if (typeof principalIdHeader === 'string' && principalIdHeader) {
     if (!timingSafeEqualStr(oid, principalIdHeader)) {
       return { ok: false, reason: 'principal-oid-mismatch' };
@@ -226,7 +275,7 @@ function validatePrincipal(principalHeader, principalIdHeader) {
     // request always carries it. Reject.
     return { ok: false, reason: 'principal-id-header-missing' };
   }
-  return { ok: true, principal: { oid, tid, raw: parsed } };
+  return { ok: true, principal: { oid, tid, roles, raw: parsed } };
 }
 
 // Validate a Static Web Apps client principal header. SWA forwards a different
@@ -267,6 +316,10 @@ function validateSwaPrincipal(principalHeader) {
   if (!roles.includes('authenticated')) {
     return { ok: false, reason: 'principal-not-authenticated' };
   }
+  const appRoles = uniqueStrings([
+    ...roles.filter(role => role !== 'anonymous' && role !== 'authenticated'),
+    ...rolesFromClaims(parsed.claims),
+  ]);
   return {
     ok: true,
     principal: {
@@ -274,6 +327,8 @@ function validateSwaPrincipal(principalHeader) {
       userId,
       userDetails: typeof parsed.userDetails === 'string' ? parsed.userDetails : '',
       userRoles: roles,
+      tid: tenantFromClaims(parsed.claims),
+      roles: appRoles,
       raw: parsed,
     },
   };
@@ -288,10 +343,43 @@ function makeRequireAuth({
   sendJson,
   isAppService = false,
   easyAuthEnabled = false,
+  expectedTenantId = '',
+  requiredRoles = [],
 }) {
   if (!VALID_AUTH_MODES.has(mode)) {
     throw new Error('makeRequireAuth: unknown mode "' + mode + '"');
   }
+  const allowedTenant = String(expectedTenantId || '').trim();
+  const allowedRoles = uniqueStrings(Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles]);
+
+  function acceptPrincipal(req, res, principal) {
+    if (allowedTenant) {
+      const tid = principal && principal.tid ? String(principal.tid) : '';
+      if (!tid || !timingSafeEqualStr(tid.toLowerCase(), allowedTenant.toLowerCase())) {
+        sendJson(req, res, 403, {
+          error: tid
+            ? 'Signed-in account is not in the tenant this portal is configured for.'
+            : 'Sign-in token did not include a tenant id, so tenant data was not returned.',
+          code: tid ? 'AUTH_TENANT_MISMATCH' : 'AUTH_TENANT_UNVERIFIED',
+        });
+        return false;
+      }
+    }
+    if (allowedRoles.length) {
+      const have = new Set((principal.roles || []).map(role => String(role).toLowerCase()));
+      if (!allowedRoles.some(role => have.has(role.toLowerCase()))) {
+        sendJson(req, res, 403, {
+          error: 'Your account is signed in, but it is not assigned a portal reader role (' +
+            allowedRoles.join(', ') + ').',
+          code: 'AUTH_FORBIDDEN',
+        });
+        return false;
+      }
+    }
+    req.principal = principal;
+    return true;
+  }
+
   return function requireAuth(req, res, pathname) {
     if (!pathname.startsWith('/api/')) return true;
     if (AUTH_EXEMPT_API_ROUTES.has(pathname)) return true;
@@ -307,10 +395,7 @@ function makeRequireAuth({
       const principal = req.headers['x-ms-client-principal'];
       const principalId = req.headers['x-ms-client-principal-id'];
       const check = validatePrincipal(principal, principalId);
-      if (check.ok) {
-        req.principal = check.principal;
-        return true;
-      }
+      if (check.ok) return acceptPrincipal(req, res, check.principal);
       sendJson(req, res, 401, {
         error: 'Authentication required. This endpoint is protected by Entra ID Easy Auth.',
         code: check.reason === 'missing-principal-header'
@@ -320,22 +405,23 @@ function makeRequireAuth({
     }
 
     if (mode === AUTH_MODE_SWA) {
+      if (isAppService && !easyAuthEnabled) {
+        sendJson(req, res, 401, {
+          error: 'Static Web Apps authentication is not enforced by App Service; refusing to trust client principal headers.',
+          code: 'AUTH_NOT_ENFORCED',
+        });
+        return false;
+      }
       const principal = req.headers['x-ms-client-principal'];
       const swaCheck = validateSwaPrincipal(principal);
-      if (swaCheck.ok) {
-        req.principal = swaCheck.principal;
-        return true;
-      }
+      if (swaCheck.ok) return acceptPrincipal(req, res, swaCheck.principal);
       // The linked-backend platform may replace the SWA principal with an App
       // Service Easy Auth principal. Accept that shape too rather than fail
       // closed on a request the platform already authenticated.
       const easyAuthCheck = validatePrincipal(
         principal, req.headers['x-ms-client-principal-id']
       );
-      if (easyAuthCheck.ok) {
-        req.principal = easyAuthCheck.principal;
-        return true;
-      }
+      if (easyAuthCheck.ok) return acceptPrincipal(req, res, easyAuthCheck.principal);
       sendJson(req, res, 401, {
         error: 'Authentication required. This endpoint is protected by Azure Static Web Apps authentication.',
         code: swaCheck.reason === 'missing-principal-header'

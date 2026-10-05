@@ -137,6 +137,7 @@
       try {
         const res = await fetch('/api/messagecenter', { signal: request.signal });
         const data = await res.json();
+        messageLinks = data.messageLinks === 'admin' ? 'admin' : 'mspulse360';
         if (data.error) {
           container.innerHTML = `<div class="mc-empty">⚠️ ${escapeHtml(data.error)}</div>`;
           return;
@@ -557,8 +558,13 @@
     let currentFiltered = [];
 
     const MC_ID_RE = /^MC\d+$/i;
-    function mspulse360MessageUrl(messageId) {
-      return 'https://www.mspulse360.app/message/' + encodeURIComponent(String(messageId).toUpperCase());
+    let messageLinks = 'mspulse360';
+    function messageExternalUrl(messageId) {
+      const id = encodeURIComponent(String(messageId || '').toUpperCase());
+      if (messageLinks === 'admin') {
+        return 'https://admin.microsoft.com/AdminPortal/home#/MessageCenter/:/messages/' + id;
+      }
+      return 'https://www.mspulse360.app/message/' + id;
     }
 
     // escapeHtml() is provided by /static/util.js.
@@ -587,7 +593,7 @@
       if (msg.id) {
         const msgId = String(msg.id);
         badgeParts.push(MC_ID_RE.test(msgId)
-          ? `<a class="mc-modal-id" href="${escapeHtml(mspulse360MessageUrl(msgId))}" target="_blank" rel="noopener noreferrer" title="Open ${escapeHtml(msgId)} on MSPulse360" aria-label="Open ${escapeHtml(msgId)} on MSPulse360 (opens in a new tab)">${escapeHtml(msgId)}</a>`
+          ? `<a class="mc-modal-id" href="${escapeHtml(messageExternalUrl(msgId))}" target="_blank" rel="noopener noreferrer" title="Open ${escapeHtml(msgId)}" aria-label="Open ${escapeHtml(msgId)} (opens in a new tab)">${escapeHtml(msgId)}</a>`
           : `<span class="mc-modal-id">${escapeHtml(msgId)}</span>`);
       }
       badgeParts.push(`<span class="mc-modal-severity ${severity}">${escapeHtml(severity.toUpperCase())}</span>`);
@@ -819,7 +825,7 @@
         const severity = (msg.severity || 'normal');
         const messageId = msg.id ? String(msg.id) : '';
         const messageLink = messageId
-          ? window.OutlookExport.link(mspulse360MessageUrl(messageId), messageId)
+          ? window.OutlookExport.link(messageExternalUrl(messageId), messageId)
           : '—';
         const summary = String(getMessageDescription(msg) || '')
           .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
