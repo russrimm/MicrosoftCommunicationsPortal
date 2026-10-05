@@ -27,6 +27,10 @@ with a description of the issue, steps to reproduce, and any relevant details.
 - **Graph Permissions**: The app uses application-level permissions
   (`ServiceMessage.Read.All`, `ServiceHealth.Read.All`) — grant only what is
   needed and restrict access via Conditional Access policies where possible.
+  Azure deployments also require the `Communications.Read` app role
+  (`AUTH_REQUIRED_ROLES`) and reject sign-ins from any tenant other than
+  `AUTH_ALLOWED_TENANT_ID`. Assign that role only to the people who should see
+  tenant-wide Message Center and service health data.
 
 ## Implemented Protections
 

@@ -273,13 +273,20 @@
     return found.slice(0, 3);
   }
 
-  // Same destination the rest of the portal uses for Message Center posts
-  // (see mspulse360MessageUrl in runtime-utils.js). Customers reading the
-  // email usually can't open admin center links.
+  // Customers reading the email usually can't open admin center links, so the
+  // default is the public MSPulse360 page. Operators who set
+  // REWRITE_MESSAGE_CENTER_LINKS=false get admin-center links instead.
+  var messageLinkStyle = 'mspulse360';
+  function setMessageLinkStyle(style) {
+    messageLinkStyle = style === 'admin' ? 'admin' : 'mspulse360';
+  }
   function messageLink(id) {
-    return /^MC\d+$/i.test(String(id || ''))
-      ? 'https://www.mspulse360.app/message/' + encodeURIComponent(String(id).toUpperCase())
-      : '';
+    if (!/^MC\d+$/i.test(String(id || ''))) return '';
+    var encoded = encodeURIComponent(String(id).toUpperCase());
+    if (messageLinkStyle === 'admin') {
+      return 'https://admin.microsoft.com/AdminPortal/home#/MessageCenter/:/messages/' + encoded;
+    }
+    return 'https://www.mspulse360.app/message/' + encoded;
   }
 
   function parseMessage(msg) {
@@ -473,6 +480,7 @@
     monthWindow: monthWindow,
     parseDatePhrase: parseDatePhrase,
     parseMessage: parseMessage,
+    setMessageLinkStyle: setMessageLinkStyle,
     soonestDate: soonestDate
   };
 })(typeof window !== 'undefined' ? window : globalThis);

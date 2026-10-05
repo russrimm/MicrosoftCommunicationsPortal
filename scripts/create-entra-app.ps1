@@ -23,6 +23,9 @@ $ErrorActionPreference = 'Stop'
 $GRAPH_APP_ID        = '00000003-0000-0000-c000-000000000000'
 $ROLE_SERVICEMESSAGE = '1b620472-6534-4fe6-9df2-4680e8aa28ec'  # ServiceMessage.Read.All
 $ROLE_SERVICEHEALTH  = '79c261e0-fe76-4144-aad5-bdc68fbe4037'  # ServiceHealth.Read.All
+# App role assigned to people who may read tenant data through the portal.
+$PORTAL_READER_ROLE_ID = 'b7e1c4a2-5d38-4f0e-9a6c-2e8f1b0d7c53'
+$PORTAL_READER_ROLE    = 'Communications.Read'
 
 Write-Host ""
 Write-Host "=== Microsoft Communications Portal - Entra ID setup ===" -ForegroundColor Cyan
@@ -71,6 +74,62 @@ if (-not $sp) {
     Write-Host "  Created SP objectId=$($sp.id)"
 } else {
     Write-Host "  Reusing SP objectId=$($sp.id)"
+}
+
+# Ensure the portal reader app role exists, then assign it to the signed-in
+# admin so a fresh deployment is not locked out of tenant pages. Other users
+# still need an explicit assignment.
+Write-Host ""
+Write-Host "[2b] Portal reader role ($PORTAL_READER_ROLE)" -ForegroundColor Yellow
+$appObject = az ad app show --id $appId --only-show-errors | ConvertFrom-Json
+$appRoles = @($appObject.appRoles | Where-Object { $_ })
+$readerRole = $appRoles | Where-Object { $_.value -eq $PORTAL_READER_ROLE } | Select-Object -First 1
+if (-not $readerRole) {
+    $appRoles += [pscustomobject]@{
+        allowedMemberTypes = @('User')
+        description        = 'Read tenant Message Center, service health, and Azure health data in the Communications Portal.'
+        displayName        = 'Communications Reader'
+        id                 = $PORTAL_READER_ROLE_ID
+        isEnabled          = $true
+        origin             = 'Application'
+        value              = $PORTAL_READER_ROLE
+    }
+    $roleFile = Join-Path ([System.IO.Path]::GetTempPath()) ("portal-app-roles-" + [guid]::NewGuid().ToString() + '.json')
+    $rolesJson = @($appRoles) | ConvertTo-Json -Depth 6 -Compress
+    if ($rolesJson.TrimStart().StartsWith('{')) { $rolesJson = "[$rolesJson]" }
+    "{`"appRoles`":$rolesJson}" | Set-Content -Path $roleFile -Encoding utf8
+    az rest --method PATCH `
+        --uri "https://graph.microsoft.com/v1.0/applications/$($appObject.id)" `
+        --body "@$roleFile" `
+        --only-show-errors | Out-Null
+    Remove-Item $roleFile -ErrorAction SilentlyContinue
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "  Could not create the $PORTAL_READER_ROLE app role. Assign it manually before relying on AUTH_REQUIRED_ROLES."
+    } else {
+        Write-Host "  Created app role $PORTAL_READER_ROLE" -ForegroundColor Green
+    }
+} else {
+    Write-Host "  App role already present." -ForegroundColor DarkGray
+    $PORTAL_READER_ROLE_ID = $readerRole.id
+}
+$signedInId = az ad signed-in-user show --query id -o tsv --only-show-errors 2>$null
+if ($signedInId -and $sp.id) {
+    $assignBody = @{
+        principalId = $signedInId
+        resourceId  = $sp.id
+        appRoleId   = $PORTAL_READER_ROLE_ID
+    } | ConvertTo-Json -Compress
+    az rest --method POST `
+        --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$($sp.id)/appRoleAssignedTo" `
+        --body $assignBody `
+        --only-show-errors 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Assigned $PORTAL_READER_ROLE to the signed-in user. Sign out and back in to pick up the role." -ForegroundColor Green
+    } else {
+        Write-Host "  Signed-in user already has the role, or the assignment could not be created. Assign $PORTAL_READER_ROLE to each reader in Entra." -ForegroundColor DarkGray
+    }
+} else {
+    Write-Host "  Assign $PORTAL_READER_ROLE to each person who should open tenant pages." -ForegroundColor DarkGray
 }
 
 # 4. Add required Graph app permissions (idempotent)

@@ -21,6 +21,68 @@ function mergeVaryHeaders() {
   return Array.from(new Set(values.map(value => value.trim()).filter(Boolean))).join(', ');
 }
 
+function isSafeLangCode(value) {
+  return /^[a-zA-Z]{2,3}(?:-[a-zA-Z]{2})?$/.test(String(value || ''));
+}
+
+function subscriptionIdFromResourceUri(uri) {
+  const match = /^\/?subscriptions\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\//i
+    .exec(String(uri || ''));
+  return match ? match[1] : '';
+}
+
+function subscriptionAccessDecision(snapshot, subscriptionId) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(subscriptionId || ''))) {
+    return { status: 400, code: 'INVALID_SUBSCRIPTION', error: 'Invalid subscriptionId — must be a GUID' };
+  }
+  if (!snapshot || !snapshot.ids) {
+    return { status: 502, code: 'SUBSCRIPTION_CHECK_FAILED', error: 'Unable to verify subscription access.' };
+  }
+  if (!snapshot.complete) {
+    return {
+      status: 503,
+      code: 'SUBSCRIPTION_LIST_INCOMPLETE',
+      error: 'Subscription discovery is incomplete. Retry after the Azure subscription list refreshes.',
+    };
+  }
+  const id = subscriptionId.toLowerCase();
+  const ids = snapshot.ids;
+  const allowed = typeof ids.has === 'function'
+    ? ids.has(id)
+    : Array.isArray(ids) && ids.some(item => String(item).toLowerCase() === id);
+  if (!allowed) {
+    return { status: 403, code: 'SUBSCRIPTION_FORBIDDEN', error: 'That subscription is not accessible to this service.' };
+  }
+  return null;
+}
+
+function readBoundedString(stream, maxBytes, done) {
+  const limit = maxBytes > 0 ? maxBytes : 8 * 1024 * 1024;
+  const chunks = [];
+  let received = 0;
+  let settled = false;
+  const finish = (err, value) => {
+    if (settled) return;
+    settled = true;
+    done(err, value);
+  };
+  stream.on('data', (chunk) => {
+    if (settled) return;
+    const size = Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
+    received += size;
+    if (received > limit) {
+      const err = new Error('Upstream response exceeded size limit');
+      err.code = 'UPSTREAM_TOO_LARGE';
+      finish(err);
+      if (typeof stream.destroy === 'function') stream.destroy();
+      return;
+    }
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  });
+  stream.on('end', () => finish(null, Buffer.concat(chunks).toString('utf8')));
+  stream.on('error', (err) => finish(err));
+}
+
 function shouldUseSecureCookie(options) {
   const config = options || {};
   if (config.networkFacing || config.socketEncrypted) return true;
@@ -273,14 +335,18 @@ function rewriteMessageCenterMessage(msg) {
 module.exports = {
   collectPaginated,
   createTtlCache,
+  isSafeLangCode,
   mergeServiceHealth,
   mergeVaryHeaders,
   mspulse360MessageUrl,
   parseBoundedInteger,
   rateLimitBucketKey,
+  readBoundedString,
   retryCallback,
   rewriteMessageCenterLinks,
   rewriteMessageCenterMessage,
   shouldRetryTransientResponse,
   shouldUseSecureCookie,
+  subscriptionAccessDecision,
+  subscriptionIdFromResourceUri,
 };

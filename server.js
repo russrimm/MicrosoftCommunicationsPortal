@@ -14,12 +14,16 @@ const {
   createTtlCache,
   mergeServiceHealth,
   mergeVaryHeaders,
+  isSafeLangCode,
   parseBoundedInteger,
   rateLimitBucketKey,
+  readBoundedString,
   retryCallback,
   rewriteMessageCenterMessage,
   shouldRetryTransientResponse,
   shouldUseSecureCookie,
+  subscriptionAccessDecision,
+  subscriptionIdFromResourceUri,
 } = require('./runtime-utils.js');
 const { loadEnvironment } = require('./env-config.js');
 const envFile = loadEnvironment();
@@ -44,6 +48,14 @@ const keepAliveAgent = new https.Agent({ keepAlive: true, maxSockets: 32 });
 
 // Default outbound request timeout (ms). Avoids hung sockets on slow upstreams.
 const UPSTREAM_TIMEOUT_MS = 15000;
+// Cap buffered upstream and model responses so a huge feed or completion
+// cannot grow process memory without bound.
+const UPSTREAM_BODY_MAX = 8 * 1024 * 1024;
+const LLM_BODY_MAX = 2 * 1024 * 1024;
+// Keep admin-center Message Center links unless an operator opts out. The
+// public viewer is useful in customer emails; internal deployments can set
+// REWRITE_MESSAGE_CENTER_LINKS=false to leave links on admin.microsoft.com.
+const REWRITE_MESSAGE_CENTER_LINKS = process.env.REWRITE_MESSAGE_CENTER_LINKS !== 'false';
 
 // ── Upstream response cache ─────────────────────────────────────────────────
 // Simple in-memory TTL cache plus an in-flight map that coalesces concurrent
@@ -430,12 +442,10 @@ function callLlm(opts, done) {
     }, AI_PROVIDER.headers),
   };
   const req = https.request(reqOpts, (res) => {
-    let raw = '';
-    res.setEncoding('utf8');
-    res.on('data', (c) => { raw += c; });
-    res.on('end', () => {
+    readBoundedString(res, LLM_BODY_MAX, (readErr, raw) => {
+      if (readErr) return done(readErr);
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        return done(new Error(`LLM HTTP ${res.statusCode}: ${raw.slice(0, 300)}`));
+        return done(new Error(`LLM HTTP ${res.statusCode}: ${String(raw || '').slice(0, 300)}`));
       }
       let parsed;
       try { parsed = JSON.parse(raw); }
@@ -767,9 +777,8 @@ function graphGet(token, pathOrUrl, done) {
     },
   };
   const req = https.request(options, (res) => {
-    let body = '';
-    res.on('data', chunk => { body += chunk; });
-    res.on('end', () => {
+    readBoundedString(res, UPSTREAM_BODY_MAX, (readErr, body) => {
+      if (readErr) return done(readErr);
       try {
         done(null, {
           status: res.statusCode,
@@ -865,7 +874,9 @@ function fetchMessageCenterMessages(token, done) {
       // Point admin center Message Center deep links at MSPulse360. The rewrite is
       // idempotent, so re-applying it to cached results is safe.
       const messages = result && result.body && result.body.value;
-      if (Array.isArray(messages)) messages.forEach(rewriteMessageCenterMessage);
+      if (REWRITE_MESSAGE_CENTER_LINKS && Array.isArray(messages)) {
+        messages.forEach(rewriteMessageCenterMessage);
+      }
       done(err, result, meta);
     });
 }
@@ -974,6 +985,45 @@ function getAccessibleSubscriptionSnapshot() {
     ids: new Set(subs.map(s => (s.subscriptionId || '').toLowerCase())),
     complete: !!body && !body.truncated && !body.partialFailure,
   };
+}
+
+function denyUnlessSubscriptionAllowed(req, res, subscriptionId, next) {
+  const cached = getAccessibleSubscriptionSnapshot();
+  if (cached) {
+    const denied = subscriptionAccessDecision(cached, subscriptionId);
+    if (denied) {
+      sendJson(req, res, denied.status, { error: denied.error, code: denied.code });
+      return;
+    }
+    next();
+    return;
+  }
+  getArmAccessToken((err, token) => {
+    if (err) {
+      console.error('[resource-health] subscription allow-list token error:', err.message);
+      sendJson(req, res, 502, { error: 'Unable to verify subscription access.', code: 'SUBSCRIPTION_CHECK_FAILED' });
+      return;
+    }
+    cachedFetch('arm:subscriptions', 300_000,
+      (cb) => armGetAllPages(token, '/subscriptions?api-version=2022-12-01', 10, cb),
+      (err2, result) => {
+        if (err2 || !result) {
+          console.error('[resource-health] subscription allow-list error:', err2 && err2.message);
+          sendJson(req, res, 502, { error: 'Unable to verify subscription access.', code: 'SUBSCRIPTION_CHECK_FAILED' });
+          return;
+        }
+        const body = result.body;
+        const denied = subscriptionAccessDecision({
+          ids: new Set(((body && body.value) || []).map(s => String(s.subscriptionId || '').toLowerCase())),
+          complete: !!body && !body.truncated && !body.partialFailure && result.status < 400,
+        }, subscriptionId);
+        if (denied) {
+          sendJson(req, res, denied.status, { error: denied.error, code: denied.code });
+          return;
+        }
+        next();
+      });
+  });
 }
 
 // Strict UUID v4-ish format guard for subscription IDs.
@@ -1146,9 +1196,8 @@ function armGet(token, pathOrUrl, done) {
     },
   };
   const req = https.request(options, (res) => {
-    let body = '';
-    res.on('data', chunk => { body += chunk; });
-    res.on('end', () => {
+    readBoundedString(res, UPSTREAM_BODY_MAX, (readErr, body) => {
+      if (readErr) return done(readErr);
       try { done(null, { status: res.statusCode, body: JSON.parse(body) }); }
       catch (e) { done(new Error(`ARM parse error: ${e.message}`)); }
     });
@@ -1350,11 +1399,10 @@ function httpsGetFollow(hostname, pathname, redirectsLeft, done) {
     let stream = apiRes;
     if (enc === 'gzip') stream = apiRes.pipe(zlib.createGunzip());
     else if (enc === 'deflate') stream = apiRes.pipe(zlib.createInflate());
-    let body = '';
-    stream.setEncoding('utf8');
-    stream.on('data', chunk => { body += chunk; });
-    stream.on('end', () => { done(null, { status, body }); });
-    stream.on('error', done);
+    readBoundedString(stream, UPSTREAM_BODY_MAX, (readErr, body) => {
+      if (readErr) return done(readErr);
+      done(null, { status, body });
+    });
   });
 
   req.on('error', done);
@@ -1676,13 +1724,10 @@ function requestReleasePlans(pathname, redirectsLeft, done) {
     let stream = apiRes;
     if (enc === 'gzip') stream = apiRes.pipe(zlib.createGunzip());
     else if (enc === 'deflate') stream = apiRes.pipe(zlib.createInflate());
-    let body = '';
-    stream.setEncoding('utf8');
-    stream.on('data', chunk => { body += chunk; });
-    stream.on('end', () => {
+    readBoundedString(stream, UPSTREAM_BODY_MAX, (readErr, body) => {
+      if (readErr) return done(readErr);
       done(null, { status, body });
     });
-    stream.on('error', done);
   });
 
   req.on('error', (err) => {
@@ -1818,12 +1863,20 @@ try {
   process.exit(1);
 }
 
+const AUTH_ALLOWED_TENANT_ID = (process.env.AUTH_ALLOWED_TENANT_ID || process.env.AZURE_TENANT_ID || '').trim();
+const AUTH_REQUIRED_ROLES = (process.env.AUTH_REQUIRED_ROLES || '')
+  .split(',')
+  .map(role => role.trim())
+  .filter(Boolean);
+
 const requireAuth = makeRequireAuth({
   mode: RESOLVED_AUTH_MODE,
   apiAuthToken: API_AUTH_TOKEN,
   sendJson,
   isAppService: IS_APP_SERVICE,
   easyAuthEnabled: process.env.WEBSITE_AUTH_ENABLED === 'True',
+  expectedTenantId: AUTH_ALLOWED_TENANT_ID,
+  requiredRoles: AUTH_REQUIRED_ROLES,
 });
 let isShuttingDown = false;
 const server = http.createServer((req, res) => {
@@ -2355,6 +2408,7 @@ const server = http.createServer((req, res) => {
         sendJson(req, res, paginatedResponseStatus(status, body), {
           messages: body.value || [],
           count: (body.value || []).length,
+          messageLinks: REWRITE_MESSAGE_CENTER_LINKS ? 'mspulse360' : 'admin',
           error: warning ? null : error,
           partial: !!warning,
           warning,
@@ -2557,9 +2611,13 @@ const server = http.createServer((req, res) => {
     if (productId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
       return sendJson(req, res, 400, { error: 'Invalid productId — must be a GUID' }, corsHeaders(req));
     }
+    if (!isSafeLangCode(langCode)) {
+      return sendJson(req, res, 400, { error: 'Invalid langCode' }, corsHeaders(req));
+    }
 
     // Short-circuit IDs that recently returned 0 results — skip the upstream call entirely.
-    if (productId && !force && isKnownEmpty(productId)) {
+    // That memory is for the en-US picker; other locales must not inherit the skip.
+    if (productId && langCode.toLowerCase() === 'en-us' && !force && isKnownEmpty(productId)) {
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'max-age=300, stale-while-revalidate=600',
@@ -2571,7 +2629,13 @@ const server = http.createServer((req, res) => {
     }
 
     const proxyPath = `${API_PATH}?langCode=${encodeURIComponent(langCode)}&productId=${encodeURIComponent(productId)}`;
-    requestReleasePlans(proxyPath, MAX_REDIRECTS, (err, upstream) => {
+    const cacheKey = `releaseplans:${langCode.toLowerCase()}:${productId || 'all'}`;
+    cachedFetch(cacheKey, 10 * 60_000, (cb) => {
+      requestReleasePlans(proxyPath, MAX_REDIRECTS, (err, upstream) => {
+        if (err) return cb(err);
+        cb(null, upstream);
+      });
+    }, (err, upstream) => {
       if (err) {
         console.error('[proxy] error:', err.message);
         res.writeHead(502, { 'Content-Type': 'application/json', ...corsHeaders(req) });
@@ -2630,6 +2694,14 @@ const server = http.createServer((req, res) => {
             error: `Upstream returned non-JSON (status ${status}, ${body.length} bytes)`,
           }));
         }
+    }, {
+      force,
+      staleIfErrorMs: 60 * 60_000,
+      shouldCache: (value) => {
+        if (!value || value.status >= 400 || typeof value.body !== 'string') return false;
+        try { return !!JSON.parse(value.body); }
+        catch { return false; }
+      },
     });
     return;
   }
@@ -2926,6 +2998,7 @@ const server = http.createServer((req, res) => {
       if (!validArmParam(filter) || !validArmParam(queryStartTime)) {
         return sendJson(req, res, 400, { error: 'Invalid filter/queryStartTime parameter' });
       }
+      denyUnlessSubscriptionAllowed(req, res, subscriptionId, () => {
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -2941,6 +3014,7 @@ const server = http.createServer((req, res) => {
             armListPayload(body, { subscriptionId }, 'Azure Resource Health events'),
             { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
+      });
       });
       return;
     }
@@ -2961,6 +3035,7 @@ const server = http.createServer((req, res) => {
       if (!validArmParam(filter) || !validArmParam(expand)) {
         return sendJson(req, res, 400, { error: 'Invalid filter/expand parameter' });
       }
+      denyUnlessSubscriptionAllowed(req, res, subscriptionId, () => {
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -2976,6 +3051,7 @@ const server = http.createServer((req, res) => {
             armListPayload(body, { subscriptionId }, 'Azure availability statuses'),
             { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
+      });
       });
       return;
     }
@@ -2998,6 +3074,7 @@ const server = http.createServer((req, res) => {
       if (!EVENT_TRACKING_ID_RE.test(eventTrackingId)) {
         return sendJson(req, res, 400, { error: 'Invalid eventTrackingId format' });
       }
+      denyUnlessSubscriptionAllowed(req, res, subscriptionId, () => {
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -3013,6 +3090,7 @@ const server = http.createServer((req, res) => {
             armListPayload(body, { subscriptionId, eventTrackingId }, 'Azure impacted resources'),
             { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
+      });
       });
       return;
     }
@@ -3030,6 +3108,7 @@ const server = http.createServer((req, res) => {
           error: 'Invalid resourceUri — must be a valid ARM resource path starting with /subscriptions/{guid}/'
         });
       }
+      denyUnlessSubscriptionAllowed(req, res, subscriptionIdFromResourceUri(resourceUri), () => {
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -3045,6 +3124,7 @@ const server = http.createServer((req, res) => {
             armListPayload(body, { resourceUri }, 'Azure resource events'),
             { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
+      });
       });
       return;
     }
@@ -3063,6 +3143,7 @@ const server = http.createServer((req, res) => {
         });
       }
       const expand = parsed.searchParams.get('expand') || 'recommendedactions';
+      denyUnlessSubscriptionAllowed(req, res, subscriptionIdFromResourceUri(resourceUri), () => {
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -3078,6 +3159,7 @@ const server = http.createServer((req, res) => {
             armListPayload(body, { resourceUri }, 'Azure resource availability'),
             { 'Cache-Control': 'max-age=120, stale-while-revalidate=240' });
         });
+      });
       });
       return;
     }
@@ -3096,6 +3178,7 @@ const server = http.createServer((req, res) => {
         });
       }
       const expand = parsed.searchParams.get('expand') || 'recommendedactions';
+      denyUnlessSubscriptionAllowed(req, res, subscriptionIdFromResourceUri(resourceUri), () => {
       getArmAccessToken((err, token) => {
         if (err) {
           console.error('[resource-health] ARM token error:', err.message);
@@ -3114,6 +3197,7 @@ const server = http.createServer((req, res) => {
           }
           sendJson(req, res, 200, body || {}, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
         });
+      });
       });
       return;
     }
@@ -3181,6 +3265,16 @@ server.listen(PORT, HOST, () => {
       : RESOLVED_AUTH_MODE === AUTH_MODE_REVERSE_PROXY
         ? ' (Bearer token behind authenticating reverse proxy)'
         : ' (loopback-only; no auth required on localhost)'));
+  if (AUTH_ALLOWED_TENANT_ID) {
+    console.log('  → Allowed tenant: ' + AUTH_ALLOWED_TENANT_ID);
+  } else if (RESOLVED_AUTH_MODE === AUTH_MODE_EASYAUTH || RESOLVED_AUTH_MODE === 'swa') {
+    console.warn('[startup] ⚠ AUTH_ALLOWED_TENANT_ID is unset. Set it to your Entra tenant id so a token from another tenant cannot read this deployment.');
+  }
+  if (AUTH_REQUIRED_ROLES.length) {
+    console.log('  → Required roles: ' + AUTH_REQUIRED_ROLES.join(', '));
+  } else if (RESOLVED_AUTH_MODE === AUTH_MODE_EASYAUTH || RESOLVED_AUTH_MODE === 'swa') {
+    console.warn('[startup] ⚠ AUTH_REQUIRED_ROLES is unset. Any signed-in account can read tenant Message Center, service health, and Azure data.');
+  }
   if (AZURE_AUTH_MODE) {
     console.log(`  → Graph auth: ${AZURE_AUTH_MODE}${AZURE_AUTH_MODE === 'managed-identity' && MI_CLIENT_ID ? ` (user-assigned ${MI_CLIENT_ID} from ${MI_CLIENT_ID_SOURCE})` : ''}`);
   } else {

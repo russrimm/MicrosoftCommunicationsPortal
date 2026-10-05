@@ -728,7 +728,9 @@ configured data sources so you can confirm which pages are working.
   filterable by severity and date. Message IDs and Microsoft 365 admin center links to
   Message Center posts open the matching page on
   [MSPulse360](https://www.mspulse360.app/) (for example,
-  `https://www.mspulse360.app/message/MC1484591`).
+  `https://www.mspulse360.app/message/MC1484591`). Set
+  `REWRITE_MESSAGE_CENTER_LINKS=false` to keep those links on the Microsoft 365
+  admin center instead.
 - **Service Health** — current service incidents and advisories for your tenant.
 - **Azure Service Health** — Azure-level service health events, resource availability, and emerging issues for selected subscriptions.
 
@@ -842,7 +844,7 @@ the `AUTH_MODE` environment variable (auto-inferred when it can be done safely):
 | `easyauth` | Azure App Service with Entra ID Easy Auth enabled. **Auto-inferred** when `WEBSITE_INSTANCE_ID` is present. | Every `/api/*` request must carry a valid `X-MS-CLIENT-PRINCIPAL` header. The server base64-decodes the header, JSON-parses it, and requires `auth_typ=aad` plus an `oid` claim that matches the platform-injected `X-MS-CLIENT-PRINCIPAL-ID` header. **Header presence alone is not sufficient.** On App Service, protected requests are rejected with `AUTH_NOT_ENFORCED` unless the read-only platform signal `WEBSITE_AUTH_ENABLED` is `True`. |
 | `reverse-proxy` | Docker / VM / on-prem behind an authenticating reverse proxy (nginx, Traefik, Azure Front Door, etc.) on a trusted network. | Every `/api/*` request must carry `Authorization: Bearer <API_AUTH_TOKEN>`. `API_AUTH_TOKEN` is **required** — the server refuses to start without it. Compared in constant time. This is defense-in-depth between the proxy and the app: even if the proxy misroutes an unauthenticated request, the token still gates access. |
 | `none-loopback-only` | Local development on `127.0.0.1`/`::1`. **Auto-inferred** when `HOST` is loopback. | No token required. The server refuses to start under this mode if `HOST` is non-loopback. |
-| `swa` | App Service used as a **linked backend** of an Azure Static Web App (see [Quick Deploy option 2](#option-2--azure-static-web-apps--linked-app-service-backend)). **Never auto-inferred** — it must be set explicitly. | Every `/api/*` request must carry an `X-MS-CLIENT-PRINCIPAL` header holding either a Static Web Apps client principal (`userId` + `userDetails`, with `authenticated` present in `userRoles`) or an App Service Easy Auth principal. Both shapes are accepted because the linked-backend hop may re-encode the header; anything else is rejected. This is safe only because linking auto-configures the *Azure Static Web Apps (Linked)* identity provider, which blocks any request that did not arrive through the Static Web App. |
+| `swa` | App Service used as a **linked backend** of an Azure Static Web App (see [Quick Deploy option 2](#option-2--azure-static-web-apps--linked-app-service-backend)). **Never auto-inferred** — it must be set explicitly. | Every `/api/*` request must carry an `X-MS-CLIENT-PRINCIPAL` header holding either a Static Web Apps client principal (`userId` + `userDetails`, with `authenticated` present in `userRoles`) or an App Service Easy Auth principal. Both shapes are accepted because the linked-backend hop may re-encode the header; anything else is rejected. On App Service, protected requests are rejected with `AUTH_NOT_ENFORCED` unless `WEBSITE_AUTH_ENABLED` is `True`. Linking sets that signal through the *Azure Static Web Apps (Linked)* identity provider; without it, the header is spoofable and is not trusted. |
 
 **Fail-fast behavior.** The server calls `process.exit(1)` at startup on any of
 these misconfigurations:
@@ -854,8 +856,18 @@ these misconfigurations:
 - Binding to a non-loopback host without `ALLOW_REMOTE_BIND=true` (defense in depth against accidental exposure).
 
 `AUTH_MODE=swa` additionally logs a warning when it is used outside App Service
-(`WEBSITE_INSTANCE_ID` unset) or when `WEBSITE_AUTH_ENABLED` is not `True`,
-since both suggest the linked-backend identity provider is missing.
+(`WEBSITE_INSTANCE_ID` unset) or when `WEBSITE_AUTH_ENABLED` is not `True`.
+On App Service, that second case is not only a warning: protected APIs return
+`AUTH_NOT_ENFORCED` until the linked-backend provider is actually enforcing
+authentication.
+
+Azure deployments also set `AUTH_ALLOWED_TENANT_ID` to the deployment tenant
+and `AUTH_REQUIRED_ROLES=Communications.Read`. A signed-in account from another
+tenant is rejected, and an account without that app role cannot call tenant,
+Azure, or AI APIs. `scripts/create-entra-app.ps1` creates the role and assigns
+it to the account that runs the script. Assign the same role to every other
+reader, then have them sign in again. Reverse-proxy mode does not have a user
+principal, so it does not apply these checks.
 
 **Migration from earlier versions.** Older builds accepted a `HOST=0.0.0.0`
 container as long as `API_AUTH_TOKEN` was set. That still works, but you must
