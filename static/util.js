@@ -168,14 +168,77 @@
   // will NOT load sub-resources (<img src>, <script>, etc.) — unlike the legacy
   // detached-div approach (document.createElement + innerHTML) which triggers
   // resource loads in the live document context.
+  // Preserves block boundaries and list bullets so plain-text exports / tables
+  // format properly without squashing lines or omitting list markers.
+  function fallbackStripHtml(html) {
+    return String(html == null ? '' : html)
+      .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<li\b[^>]*>/gi, '\n\u2022 ')
+      .replace(/<\/li>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/[ \t]*\n[ \t]*/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   function stripHtml(html) {
     if (!html) return '';
     try {
       var doc = new DOMParser().parseFromString(String(html), 'text/html');
-      return (doc.body ? doc.body.textContent : '').trim();
+      if (!doc || !doc.body) return fallbackStripHtml(html);
+      var scripts = doc.body.querySelectorAll('script, style');
+      for (var s = 0; s < scripts.length; s++) {
+        var sc = scripts[s];
+        if (sc.parentNode) sc.parentNode.removeChild(sc);
+      }
+      var blocks = doc.body.querySelectorAll('p, div, li, br, h1, h2, h3, h4, h5, h6, tr');
+      for (var i = 0; i < blocks.length; i++) {
+        var el = blocks[i];
+        var tag = el.tagName;
+        if (tag === 'BR') {
+          if (el.parentNode) el.parentNode.replaceChild(doc.createTextNode('\n'), el);
+        } else if (tag === 'LI') {
+          el.insertBefore(doc.createTextNode('\u2022 '), el.firstChild);
+          el.appendChild(doc.createTextNode('\n'));
+        } else if (tag === 'P' || tag === 'DIV' || tag === 'TR' || /^H[1-6]$/.test(tag)) {
+          el.appendChild(doc.createTextNode('\n\n'));
+        }
+      }
+      var text = doc.body.textContent || '';
+      return text
+        .replace(/\r\n/g, '\n')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/[ \t]*\n[ \t]*/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
     } catch (_e) {
-      return '';
+      return fallbackStripHtml(html);
     }
+  }
+
+  function parseDate(value) {
+    if (!value) return null;
+    if (value instanceof Date && !isNaN(value.getTime())) return value;
+    var s = String(value).trim();
+    var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+    if (m) {
+      var d = new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    var parsed = new Date(s);
+    return isNaN(parsed.getTime()) ? null : parsed;
   }
 
   function parseDateInput(value) {
@@ -484,6 +547,7 @@
     safeUrl: safeUrl,
     sanitizeHtml: sanitizeHtml,
     stripHtml: stripHtml,
+    parseDate: parseDate,
     formatDateInput: formatDateInput,
     dateInputBounds: dateInputBounds,
     releaseMonthCutoff: releaseMonthCutoff,
