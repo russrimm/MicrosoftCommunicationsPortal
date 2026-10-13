@@ -170,6 +170,20 @@
     const $$ = s => document.querySelectorAll(s);
     const announce = msg => { const el = $('#wizard-live'); el.textContent = ''; requestAnimationFrame(() => { el.textContent = msg; }); };
 
+    function parseDate(val) {
+      if (!val) return null;
+      if (window.CPUtil && window.CPUtil.parseDate) return window.CPUtil.parseDate(val);
+      if (val instanceof Date && !isNaN(val.getTime())) return val;
+      const s = String(val).trim();
+      const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+      if (m) {
+        const d = new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]));
+        return isNaN(d.getTime()) ? null : d;
+      }
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
     /* ── Step navigation ── */
     function goToStep(n) {
       state.currentStep = n;
@@ -555,7 +569,20 @@
                 }));
                 results.push(...batchResults.flat());
               }
-              allData[key] = results;
+              // Only show updates from 7 days prior through the current and next month
+              const now = new Date();
+              const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0, 0);
+              const endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59, 999);
+              allData[key] = results.filter(f => {
+                const ga = parseDate(f.GADate) || parseDate(f.GADateValue);
+                const pp = parseDate(f.PublicPreviewDate) || parseDate(f.PPDateValue);
+                return (ga && ga >= startDate && ga <= endDate) || (pp && pp >= startDate && pp <= endDate);
+              });
+              allData[key].sort((a, b) => {
+                const da = parseDate(a.GADate) || parseDate(a.PublicPreviewDate) || 0;
+                const db = parseDate(b.GADate) || parseDate(b.PublicPreviewDate) || 0;
+                return da - db;
+              });
               break;
             }
             case 'fabric': {
@@ -666,14 +693,22 @@
 
         switch (key) {
           case 'powerplatform':
-            headers = ['Product', 'Feature', 'Preview Date', 'GA Date', 'Type'];
-            rows = items.map(f => [
-              f.productName || f.Product || '',
-              (f.FeatureName || f.title || f.name || '').substring(0, 60),
-              f.PublicPreviewDate ? new Date(f.PublicPreviewDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
-              f.GADate ? new Date(f.GADate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
-              f.FeatureType || ''
-            ]);
+            headers = ['Product', 'Feature', 'Preview Date', 'GA Date', 'Details'];
+            rows = items.map(f => {
+              const pp = parseDate(f.PublicPreviewDate) || parseDate(f.PPDateValue);
+              const ga = parseDate(f.GADate) || parseDate(f.GADateValue);
+              const ppStr = pp ? pp.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—';
+              const gaStr = ga ? ga.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—';
+              const rawDetails = f.FeatureDetails || f.BusinessValue || '';
+              const details = (window.CPUtil && window.CPUtil.stripHtml ? window.CPUtil.stripHtml(rawDetails) : rawDetails.replace(/<[^>]+>/g, ' ').trim()).substring(0, 240);
+              return [
+                f.productName || f.Product || '',
+                (f.FeatureName || f.title || f.name || '').substring(0, 60),
+                ppStr,
+                gaStr,
+                details
+              ];
+            });
             break;
           case 'fabric':
             headers = ['Product', 'Feature', 'Release Date', 'Release Type', 'Status'];
@@ -691,9 +726,7 @@
             rows = items.map(it => {
               let desc = it.description || '';
               // Strip HTML tags for plain-text slide content
-              const tmp = document.createElement('div');
-              tmp.innerHTML = desc;
-              desc = (tmp.textContent || tmp.innerText || '').trim().substring(0, 120);
+              desc = (window.CPUtil && window.CPUtil.stripHtml ? window.CPUtil.stripHtml(desc) : desc.replace(/<[^>]+>/g, ' ').trim()).substring(0, 120);
               return [
                 (it.title || '').substring(0, 70),
                 desc,
@@ -745,7 +778,10 @@
           }
         } else {
           // Table slides
-          const colW = headers.map(() => (12.2 / headers.length));
+          let colW = headers.map(() => (12.2 / headers.length));
+          if (key === 'powerplatform') {
+            colW = [2.2, 3.0, 1.4, 1.4, 4.4];
+          }
           for (let i = 0; i < rows.length; i += rowsPerSlide) {
             const chunk = rows.slice(i, i + rowsPerSlide);
             const slide = pptx.addSlide();
