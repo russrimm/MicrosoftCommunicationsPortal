@@ -370,7 +370,7 @@
     return '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="' + C.page +
       '" style="border-collapse:collapse;background-color:' + C.page + ';">' +
       '<tr><td align="center" style="padding:0;">' +
-      '<table role="presentation" width="680" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;width:680px;max-width:680px;background-color:' + C.page + ';">' +
+      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;width:100%;background-color:' + C.page + ';">' +
       '<tr><td style="padding:0;">' + renderHeader(m) + '</td></tr>' +
       '<tr><td style="padding:0 24px 24px;font-family:' + FONT + ';color:' + C.text + ';">' + body + '</td></tr>' +
       '</table></td></tr></table>';

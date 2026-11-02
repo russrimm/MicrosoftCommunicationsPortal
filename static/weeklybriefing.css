@@ -183,7 +183,7 @@ html[data-theme="dark"] .wb-preview { box-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
 .wb-preview {
   color-scheme: light;
   background: #ffffff;
-  max-width: 680px;
+  /* The email fills the whole compose body in Outlook, so the preview fills its pane. */
   margin: 0 auto;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.12);
 }
