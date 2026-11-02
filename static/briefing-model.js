@@ -466,37 +466,100 @@
     return entries;
   }
 
+  // How much a post matters to this week's reader: big changes, things that
+  // need action, retirements, and dates that are close all rank higher.
+  function importance(item, weekIso) {
+    var score = 0;
+    if (item.isMajor) score += 3;
+    if (item.isAction) score += 2;
+    if (item.actionReason === 'deadline') score += 2;
+    if (item.isRetirement) score += 2;
+    if (item.isRoutine) score -= 3;
+    if (item.area === 'copilotstudio') score += 1;
+    var next = nextKeyDate(item, weekIso);
+    if (next) {
+      var days = Math.round((parseIso(next.date) - parseIso(weekIso)) / DAY_MS);
+      if (days <= 7) score += 4;
+      else if (days <= 14) score += 3;
+      else if (days <= 30) score += 2;
+      else if (days <= 60) score += 1;
+    }
+    return score;
+  }
+
+  function nextKeyDate(item, weekIso) {
+    var dates = (item.keyDates || []).filter(function (d) { return !weekIso || d.date >= weekIso; });
+    dates.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    return dates[0] || null;
+  }
+
   // Deterministic draft used when no AI provider is configured (or the
   // author prefers not to use it). Mirrors the AI output shape.
   function fallbackDraft(model) {
     var actions = model.actionItems || [];
     var mc = model.messages || [];
     var rpCount = model.featureCount || 0;
+    var weekIso = model.weekIso || '';
     var areas = [];
     mc.concat(model.features || []).forEach(function (item) {
       var label = AREA_BY_KEY[item.area] ? AREA_BY_KEY[item.area].label : '';
       if (label && areas.indexOf(label) === -1 && areas.length < 3) areas.push(label);
     });
+
+    var seen = {};
+    var ranked = actions.concat(mc, model.upcoming || [])
+      .filter(function (item) {
+        var key = String(item.cleanTitle || item.title).toLowerCase();
+        if (seen[key]) return false;
+        seen[key] = true;
+        return true;
+      })
+      .map(function (item, i) {
+        var next = nextKeyDate(item, weekIso);
+        return { item: item, score: importance(item, weekIso), when: next ? next.date : '9999-12-31', order: i };
+      })
+      .sort(function (a, b) {
+        return b.score - a.score || (a.when < b.when ? -1 : a.when > b.when ? 1 : 0) || a.order - b.order;
+      })
+      .map(function (r) { return r.item; });
+
+    var describe = function (item) {
+      var date = nextKeyDate(item, weekIso) || (item.keyDates || [])[0];
+      var title = String(item.cleanTitle || item.title);
+      if (title.length > 120) title = title.slice(0, 119).replace(/\s+\S*$/, '') + '…';
+      var when = date ? (date.label === 'Date' ? '' : date.label + ' ') + formatDate(date.date, 'short') : '';
+      return '“' + title + '”' + (when ? ' (' + when + ')' : '');
+    };
+
     var parts = [];
     parts.push('This week brings ' + mc.length + ' new Message Center announcement' + (mc.length === 1 ? '' : 's') +
       (areas.length ? ', led by updates to ' + joinList(areas) : '') + '.');
     if (actions.length) {
-      parts.push(actions.length + ' item' + (actions.length === 1 ? ' needs' : 's need') +
-        ' your attention, starting with “' + actions[0].cleanTitle + '.”');
+      parts.push(actions.length + ' item' + (actions.length === 1 ? ' needs' : 's need') + ' your attention.');
+    }
+    var upcomingCount = (model.upcoming || []).length;
+    if (upcomingCount) {
+      parts.push(upcomingCount + ' earlier announcement' + (upcomingCount === 1 ? ' also lands' : 's also land') +
+        ' in the next ' + (model.upcomingDays || 30) + ' days.');
     }
     if (rpCount) {
       parts.push(rpCount + ' release plan feature' + (rpCount === 1 ? ' is' : 's are') +
         ' scheduled to reach preview or general availability in ' + (model.windowLabel || 'the coming weeks') + '.');
     }
-    var ranked = actions.concat(mc.filter(function (m) { return actions.indexOf(m) === -1; }));
+    var intro = parts.join(' ');
+    var top = ranked.slice(0, 3);
+    if (top.length) {
+      intro += '\n\nStart with ' + joinList(top.map(describe)) + '.';
+    }
+
     var highlights = ranked.slice(0, 5).map(function (item) {
-      var date = (item.keyDates || [])[0];
+      var date = nextKeyDate(item, weekIso) || (item.keyDates || [])[0];
       return {
         itemId: item.key,
         text: item.cleanTitle + (date ? ' (' + date.label + ' ' + formatDate(date.date, 'short') + ')' : '')
       };
     });
-    return { intro: parts.join(' '), highlights: highlights };
+    return { intro: intro, highlights: highlights };
   }
 
   function joinList(list) {

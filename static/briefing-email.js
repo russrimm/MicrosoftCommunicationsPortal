@@ -3,10 +3,16 @@
  *
  * Builds the email body from a prepared view model (see weeklybriefing.html).
  * Outlook's compose surface strips <style> blocks, classes, and CSS
- * variables, so every element carries inline styles, layout uses tables, and
- * the palette is a single high-contrast light theme (Outlook converts it for
- * dark mode itself). Images are avoided: product SVGs don't render in Outlook
- * and relative URLs break once pasted.
+ * variables, and drops font size and color from <div>/<span> (and often from
+ * everything but table cells), so:
+ *   - every element carries inline styles and layout uses tables,
+ *   - each block of text is its own table row, so styles sit on a cell,
+ *   - a cell holds at most one nested table (Outlook adds a blank line
+ *     between sibling tables),
+ *   - the header and buttons are light with dark text, so they stay readable
+ *     even when text color is dropped.
+ * Images are avoided: product SVGs don't render in Outlook and relative URLs
+ * break once pasted.
  */
 (function (root) {
   'use strict';
@@ -48,6 +54,8 @@
     Major: { bg: '#fee2e2', fg: '#991b1b' },
     id: { bg: '#f3f4f6', fg: '#4b5563' }
   };
+  var BASE = 'font-family:' + FONT + ';mso-line-height-rule:exactly;';
+  var TABLE = 'role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"';
 
   function esc(value) {
     return String(value == null ? '' : value)
@@ -72,12 +80,7 @@
       ';text-decoration:underline;' + (extraStyle || '') + '">' + esc(label) + '</a>';
   }
 
-  // Outlook's compose surface drops font-size, color, and letter-spacing from
-  // <div> and <span>, but keeps them on table cells. So every block of text
-  // lives in its own cell, color is repeated in a <font> tag, and chips are
-  // cells (not inline-block spans).
-  var BASE = 'font-family:' + FONT + ';mso-line-height-rule:exactly;';
-
+  // ── Building blocks ─────────────────────────────────────────────────────
   function fontColor(css, inner) {
     var all = String(css).match(/(?:^|;)\s*color:\s*(#[0-9a-f]{3,6})/gi);
     if (!all) return inner;
@@ -85,10 +88,18 @@
     return '<font color="' + hex + '">' + inner + '</font>';
   }
 
-  function txt(css, inner, attrs) {
-    var style = String(css).replace(/margin-top:/g, 'padding-top:');
-    return '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' +
-      '<tr><td' + (attrs || '') + ' style="' + BASE + style + '">' + fontColor(style, inner) + '</td></tr></table>';
+  // One row of text. Styles live on the cell, color is repeated in <font>.
+  function trow(css, inner, attrs) {
+    return '<tr><td' + (attrs || '') + ' style="' + BASE + css + '">' + fontColor(css, inner) + '</td></tr>';
+  }
+
+  // A row whose single cell holds one nested block (a table).
+  function wrap(block, css) {
+    return '<tr><td style="' + BASE + (css || 'padding:0;') + '">' + block + '</td></tr>';
+  }
+
+  function tbl(rows, extra) {
+    return '<table ' + TABLE + ' style="border-collapse:collapse;' + (extra || '') + '">' + rows + '</table>';
   }
 
   function chip(label, kind, href) {
@@ -108,72 +119,67 @@
     return '<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;"><tr>' + cells + '</tr></table>';
   }
 
-  function p(html, style) {
-    return txt('padding-bottom:10px;font-size:14px;line-height:22px;color:' + C.text + ';' + (style || ''), html);
-  }
-
-  function sectionHeading(icon, title, note) {
-    var edge = 'border-bottom:2px solid ' + C.border + ';padding:26px 0 6px;';
-    return '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' +
-      '<tr><td nowrap="nowrap" style="' + BASE + edge + 'font-size:17px;font-weight:700;color:' + C.strong + ';">' +
-      fontColor('color:' + C.strong, icon + '&nbsp; ' + esc(title)) + '</td>' +
-      '<td width="100%" style="' + BASE + edge + 'padding-left:10px;font-size:12px;color:' + C.soft + ';">' +
-      (note ? fontColor('color:' + C.soft, esc(note)) : '&nbsp;') + '</td></tr></table>' +
-      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td height="10" style="height:10px;font-size:0;line-height:0;">&nbsp;</td></tr></table>';
-  }
-
-  function calloutBox(bg, bar, inner) {
-    return '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' +
-      '<tr><td width="4" bgcolor="' + bar + '" style="background-color:' + bar + ';width:4px;font-size:0;line-height:0;">&nbsp;</td>' +
-      '<td bgcolor="' + bg + '" style="background-color:' + bg + ';padding:12px 16px;font-family:' + FONT + ';">' + inner +
-      '</td></tr></table>';
-  }
-
   function dateChips(item) {
     return (item.keyDates || []).map(function (d) {
       return chip(d.label + ' ' + d.dateLabel, d.label);
     }).join('');
   }
 
-  // ── Sections ────────────────────────────────────────────────────────────
+  function p(html, style) {
+    return trow('padding:0 0 10px;font-size:14px;line-height:22px;color:' + C.text + ';' + (style || ''), html);
+  }
+
+  function sectionHeading(icon, title, note) {
+    var edge = 'border-bottom:2px solid ' + C.border + ';padding:24px 0 6px;';
+    return wrap(tbl('<tr><td nowrap="nowrap" style="' + BASE + edge + 'font-size:17px;font-weight:700;color:' + C.strong + ';">' +
+      fontColor('color:' + C.strong, icon + '&nbsp; ' + esc(title)) + '</td>' +
+      '<td width="100%" style="' + BASE + edge + 'padding-left:10px;font-size:12px;color:' + C.soft + ';">' +
+      (note ? fontColor('color:' + C.soft, esc(note)) : '&nbsp;') + '</td></tr>')) +
+      '<tr><td height="8" style="height:8px;font-size:0;line-height:0;">&nbsp;</td></tr>';
+  }
+
+  function calloutBox(bg, bar, inner) {
+    return tbl('<tr><td width="4" bgcolor="' + bar + '" style="background-color:' + bar + ';width:4px;font-size:0;line-height:0;">&nbsp;</td>' +
+      '<td bgcolor="' + bg + '" style="background-color:' + bg + ';padding:12px 16px;font-family:' + FONT + ';">' + inner + '</td></tr>');
+  }
+
+  // ── Sections (each returns table rows for the single body table) ────────
   // The header is light with dark text on purpose: when a mail client drops
   // text color on paste, default dark text must still be readable on it.
   function renderHeader(m) {
-    return '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' +
+    return tbl(
       '<tr><td height="6" bgcolor="' + C.headerBar + '" style="background-color:' + C.headerBar + ';height:6px;font-size:0;line-height:0;">&nbsp;</td></tr>' +
       '<tr><td bgcolor="' + C.headerBg + '" style="background-color:' + C.headerBg + ';padding:20px 24px 18px;font-family:' + FONT + ';">' +
-      txt('font-size:12px;font-weight:600;color:' + C.headerSub + ';', esc(String(m.dateLabel).toUpperCase())) +
-      txt('font-size:24px;font-weight:700;line-height:30px;color:' + C.headerText + ';padding-top:4px;', esc(m.headline)) +
-      (m.coverageLabel ? txt('font-size:12px;color:' + C.headerSub + ';padding-top:6px;', esc(m.coverageLabel)) : '') +
-      '</td></tr>' +
-      '<tr><td height="4" bgcolor="' + C.accent + '" style="background-color:' + C.accent + ';height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>' +
-      '</table>';
+      tbl(
+        trow('font-size:12px;font-weight:600;color:' + C.headerSub + ';', esc(String(m.dateLabel).toUpperCase())) +
+        trow('font-size:24px;font-weight:700;line-height:30px;color:' + C.headerText + ';padding-top:4px;', esc(m.headline)) +
+        (m.coverageLabel ? trow('font-size:12px;color:' + C.headerSub + ';padding-top:6px;', esc(m.coverageLabel)) : '')
+      ) + '</td></tr>' +
+      '<tr><td height="4" bgcolor="' + C.accent + '" style="background-color:' + C.accent + ';height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>');
   }
 
   function renderIntro(m) {
-    var html = '';
-    if (m.greeting) html += p('<strong>' + esc(m.greeting) + '</strong>', 'margin-top:18px;');
+    var rows = '';
+    if (m.greeting) rows += p('<strong>' + esc(m.greeting) + '</strong>', 'padding-top:18px;');
     if (m.intro) {
       String(m.intro).split(/\n{2,}/).forEach(function (para) {
-        if (para.trim()) html += p(esc(para.trim()).replace(/\n/g, '<br>'));
+        if (para.trim()) rows += p(esc(para.trim()).replace(/\n/g, '<br>'));
       });
     }
     if (m.stats && m.stats.length) {
-      var cells = m.stats.map(function (s) {
-        return '<td align="center" valign="top" bgcolor="' + C.statBg + '" style="background-color:' + C.statBg +
+      var cells = [];
+      m.stats.forEach(function (s, i) {
+        if (i) cells.push('<td width="8" style="width:8px;font-size:0;">&nbsp;</td>');
+        cells.push('<td align="center" valign="top" bgcolor="' + C.statBg + '" style="background-color:' + C.statBg +
           ';border:1px solid ' + C.border + ';padding:10px 6px;font-family:' + FONT + ';">' +
-          txt('text-align:center;font-size:22px;font-weight:700;line-height:26px;color:' + (s.color || C.strong) + ';', esc(s.value), ' align="center"') +
-          txt('text-align:center;font-size:11px;color:' + C.muted + ';padding-top:3px;', esc(s.label), ' align="center"') + '</td>';
+          tbl(
+            trow('text-align:center;font-size:22px;font-weight:700;line-height:26px;color:' + (s.color || C.strong) + ';', esc(s.value), ' align="center"') +
+            trow('text-align:center;font-size:11px;color:' + C.muted + ';padding-top:3px;', esc(s.label), ' align="center"')
+          ) + '</td>');
       });
-      var spaced = [];
-      cells.forEach(function (c, i) {
-        if (i) spaced.push('<td width="8" style="width:8px;font-size:0;">&nbsp;</td>');
-        spaced.push(c);
-      });
-      html += '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;">' +
-        '<tr>' + spaced.join('') + '</tr></table>';
+      rows += wrap('<table ' + TABLE + ' style="border-collapse:separate;"><tr>' + cells.join('') + '</tr></table>', 'padding:4px 0 0;');
     }
-    return html;
+    return rows;
   }
 
   function renderActions(m) {
@@ -183,56 +189,57 @@
         : item.actionReason === 'retirement' ? 'Retirement'
           : item.actionReason === 'pinned' ? 'Recommended' : 'Prepare now';
       var label = reason + (item.carried ? ' · Reminder' : '') + (item.areaInfo ? ' · ' + item.areaInfo.label : '');
-      return '<tr><td style="padding:' + (i ? '12px' : '2px') + ' 0 2px;' + (i ? 'border-top:1px solid #fed7aa;' : '') + 'font-family:' + FONT + ';">' +
-        txt('font-size:11px;font-weight:700;color:' + C.actionText + ';', esc(label.toUpperCase())) +
-        txt('font-size:15px;font-weight:700;line-height:20px;color:' + C.strong + ';padding:2px 0 4px;', link(item.href, item.cleanTitle || item.title, 'color:' + C.strong + ';')) +
-        (item.keyDates && item.keyDates.length ? txt('padding-bottom:4px;', chipRow(dateChips(item))) : '') +
-        txt('font-size:13px;line-height:20px;color:' + C.text + ';',
-          item.actionText ? '<strong>What to do:</strong> ' + esc(item.actionText) : esc(item.summary)) +
-        '</td></tr>';
+      return wrap(tbl(
+        trow('font-size:11px;font-weight:700;color:' + C.actionText + ';', esc(label.toUpperCase())) +
+        trow('font-size:15px;font-weight:700;line-height:20px;color:' + C.strong + ';padding:2px 0 4px;', link(item.href, item.cleanTitle || item.title, 'color:' + C.strong + ';')) +
+        (item.keyDates && item.keyDates.length ? wrap(chipRow(dateChips(item)), 'padding:0 0 4px;') : '') +
+        trow('font-size:13px;line-height:20px;color:' + C.text + ';',
+          item.actionText ? '<strong>What to do:</strong> ' + esc(item.actionText) : esc(item.summary))
+      ), 'padding:' + (i ? '10px' : '0') + ' 0 2px;' + (i ? 'border-top:1px solid #fed7aa;' : ''));
     }).join('');
     return sectionHeading('⚠️', 'Action required & upcoming retirements', m.actions.length + (m.actions.length === 1 ? ' item' : ' items')) +
-      calloutBox(C.actionBg, C.actionBar,
-        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' + rows + '</table>');
+      wrap(calloutBox(C.actionBg, C.actionBar, tbl(rows)));
   }
 
   function renderHighlights(m) {
     if (!m.highlights || !m.highlights.length) return '';
     var rows = m.highlights.map(function (h) {
-      return '<tr><td valign="top" width="18" style="width:18px;padding:3px 0;font-size:14px;color:' + C.highlightBar + ';font-family:' + FONT + ';">' +
+      return '<tr><td valign="top" width="18" style="' + BASE + 'width:18px;padding:3px 0;font-size:14px;color:' + C.highlightBar + ';">' +
         fontColor('color:' + C.highlightBar, '★') + '</td>' +
-        '<td valign="top" style="padding:3px 0;font-size:14px;line-height:21px;color:' + C.text + ';font-family:' + FONT + ';">' +
+        '<td valign="top" style="' + BASE + 'padding:3px 0;font-size:14px;line-height:21px;color:' + C.text + ';">' +
         fontColor('color:' + C.text, esc(h.text) + (url(h.href) ? ' ' + link(h.href, 'Details') : '')) + '</td></tr>';
     }).join('');
     return sectionHeading('✨', 'Top highlights') +
-      calloutBox(C.highlightBg, C.highlightBar,
-        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' + rows + '</table>');
+      wrap(calloutBox(C.highlightBg, C.highlightBar, tbl(rows)));
   }
 
   function renderKeyDates(m) {
     if (!m.keyDates || !m.keyDates.length) return '';
     var rows = m.keyDates.map(function (d, i) {
       var bg = i % 2 ? '#f9fafb' : '#ffffff';
+      var td = 'background-color:' + bg + ';border-bottom:1px solid ' + C.border + ';' + BASE;
       return '<tr>' +
-        '<td valign="top" nowrap="nowrap" bgcolor="' + bg + '" style="background-color:' + bg + ';padding:7px 10px;border-bottom:1px solid ' + C.border +
-        ';font-size:13px;font-weight:700;color:' + C.strong + ';white-space:nowrap;font-family:' + FONT + ';">' + fontColor('color:' + C.strong, esc(d.dateLabel)) +
-        (d.past ? txt('font-size:11px;font-weight:400;color:' + C.soft + ';', 'just passed') : '') + '</td>' +
-        '<td valign="top" nowrap="nowrap" bgcolor="' + bg + '" style="background-color:' + bg + ';padding:7px 6px;border-bottom:1px solid ' + C.border + ';font-family:' + FONT + ';">' + chipRow(chip(d.label)) + '</td>' +
-        '<td valign="top" bgcolor="' + bg + '" style="background-color:' + bg + ';padding:7px 10px;border-bottom:1px solid ' + C.border +
-        ';font-size:13px;line-height:19px;color:' + C.text + ';font-family:' + FONT + ';">' + fontColor('color:' + C.text, link(d.href, d.title)) +
-        (d.areaInfo ? txt('font-size:11px;color:' + C.soft + ';', esc(d.areaInfo.label)) : '') + '</td></tr>';
+        '<td valign="top" nowrap="nowrap" bgcolor="' + bg + '" style="' + td + 'padding:7px 10px;font-size:13px;font-weight:700;color:' + C.strong + ';white-space:nowrap;">' +
+        (d.past
+          ? tbl(trow('font-size:13px;font-weight:700;color:' + C.strong + ';', esc(d.dateLabel)) +
+            trow('font-size:11px;color:' + C.soft + ';', 'just passed'))
+          : fontColor('color:' + C.strong, esc(d.dateLabel))) + '</td>' +
+        '<td valign="top" nowrap="nowrap" bgcolor="' + bg + '" style="' + td + 'padding:7px 6px;">' + chipRow(chip(d.label)) + '</td>' +
+        '<td valign="top" bgcolor="' + bg + '" style="' + td + 'padding:7px 10px;font-size:13px;line-height:19px;color:' + C.text + ';">' +
+        (d.areaInfo
+          ? tbl(trow('font-size:13px;line-height:19px;color:' + C.text + ';', link(d.href, d.title)) +
+            trow('font-size:11px;color:' + C.soft + ';', esc(d.areaInfo.label)))
+          : fontColor('color:' + C.text, link(d.href, d.title))) + '</td></tr>';
     }).join('');
     return sectionHeading('📅', 'Key dates', m.keyDatesNote || '') +
-      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;border-top:1px solid ' + C.border + ';">' +
-      rows + '</table>';
+      wrap(tbl(rows, 'border-top:1px solid ' + C.border + ';'));
   }
 
   function renderMessageGroups(groups) {
     var html = '';
     groups.forEach(function (group) {
-      html += txt('font-size:13px;font-weight:700;color:' + group.area.color + ';padding-top:14px;padding-bottom:4px;', esc(group.area.label));
-      html += '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">';
-      group.items.forEach(function (item) {
+      html += trow('font-size:13px;font-weight:700;color:' + group.area.color + ';padding:12px 0 4px;', esc(group.area.label));
+      var items = group.items.map(function (item) {
         var chips = '';
         if (item.isMajor) chips += chip('Major', 'Major');
         if (item.updated) chips += chip('Updated', 'Updated');
@@ -241,14 +248,15 @@
         if (url(item.learnUrl)) {
           chips += '<td nowrap="nowrap" style="' + BASE + 'font-size:12px;padding-left:4px;">' + link(item.learnUrl, 'Learn more', 'font-size:12px;') + '</td>';
         }
-        html += '<tr><td width="3" bgcolor="' + group.area.color + '" style="background-color:' + group.area.color + ';width:3px;font-size:0;line-height:0;">&nbsp;</td>' +
-          '<td style="padding:8px 0 10px 12px;border-bottom:1px solid ' + C.border + ';font-family:' + FONT + ';">' +
-          txt('font-size:14px;font-weight:600;line-height:20px;color:' + C.strong + ';', link(item.href, item.cleanTitle || item.title, 'color:' + C.strong + ';text-decoration:none;')) +
-          (item.summary ? txt('font-size:13px;line-height:20px;color:' + C.muted + ';padding:2px 0 5px;', esc(item.summary)) : '') +
-          chipRow(chips) +
-          '</td></tr>';
-      });
-      html += '</table>';
+        return '<tr><td width="3" bgcolor="' + group.area.color + '" style="background-color:' + group.area.color + ';width:3px;font-size:0;line-height:0;">&nbsp;</td>' +
+          '<td style="' + BASE + 'padding:7px 0 8px 12px;border-bottom:1px solid ' + C.border + ';">' +
+          tbl(
+            trow('font-size:14px;font-weight:600;line-height:20px;color:' + C.strong + ';', link(item.href, item.cleanTitle || item.title, 'color:' + C.strong + ';text-decoration:none;')) +
+            (item.summary ? trow('font-size:13px;line-height:19px;color:' + C.muted + ';padding:1px 0 4px;', esc(item.summary)) : '') +
+            wrap(chipRow(chips))
+          ) + '</td></tr>';
+      }).join('');
+      html += wrap(tbl(items));
     });
     return html;
   }
@@ -261,27 +269,26 @@
       return '';
     }
     var html = sectionHeading('📬', 'New in Message Center', m.messagesNote || '') + renderMessageGroups(m.messageGroups);
-    if (m.messagesFootnote) html += p(esc(m.messagesFootnote), 'font-size:12px;color:' + C.soft + ';margin-top:8px;');
+    if (m.messagesFootnote) html += p(esc(m.messagesFootnote), 'font-size:12px;color:' + C.soft + ';padding-top:8px;');
     return html;
   }
 
   function renderUpcoming(m) {
     if (!m.upcomingGroups || !m.upcomingGroups.length) return '';
     var html = sectionHeading('🔭', 'Impact in the coming weeks', m.upcomingNote || '') + renderMessageGroups(m.upcomingGroups);
-    if (m.upcomingFootnote) html += p(esc(m.upcomingFootnote), 'font-size:12px;color:' + C.soft + ';margin-top:8px;');
+    if (m.upcomingFootnote) html += p(esc(m.upcomingFootnote), 'font-size:12px;color:' + C.soft + ';padding-top:8px;');
     return html;
   }
 
   function changeList(icon, label, entries) {
     if (!entries || !entries.length) return '';
-    var rows = entries.map(function (e) {
-      return '<tr><td valign="top" width="22" style="width:22px;padding:3px 0;font-size:13px;font-family:' + FONT + ';">' + icon + '</td>' +
-        '<td valign="top" style="padding:3px 0;font-size:13px;line-height:1.45;color:' + C.text + ';font-family:' + FONT + ';">' +
-        '<strong>' + esc(label) + ':</strong> ' + link(e.url, e.name) +
-        (e.product ? ' <font color="' + C.soft + '">(' + esc(e.product) + ')</font>' : '') +
-        (e.detail ? ' — ' + esc(e.detail) : '') + '</td></tr>';
+    return entries.map(function (e) {
+      return '<tr><td valign="top" width="22" style="' + BASE + 'width:22px;padding:3px 0;font-size:13px;">' + icon + '</td>' +
+        '<td valign="top" style="' + BASE + 'padding:3px 0;font-size:13px;line-height:19px;color:' + C.text + ';">' +
+        fontColor('color:' + C.text, '<strong>' + esc(label) + ':</strong> ' + link(e.url, e.name) +
+          (e.product ? ' <font color="' + C.soft + '">(' + esc(e.product) + ')</font>' : '') +
+          (e.detail ? ' — ' + esc(e.detail) : '')) + '</td></tr>';
     }).join('');
-    return rows;
   }
 
   function renderChanges(m) {
@@ -291,8 +298,8 @@
     var rows = changeList('➕', 'New', c.added) + changeList('📅', 'Now scheduled', c.scheduled) +
       changeList('⏳', 'Slipped', c.slipped) + changeList('⏩', 'Pulled in', c.pulledIn) + changeList('✖️', 'Removed', c.removed);
     if (rows) {
-      html += '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' + rows + '</table>';
-      if (c.overflowNote) html += p(esc(c.overflowNote), 'font-size:12px;color:' + C.soft + ';margin-top:6px;');
+      html += wrap(tbl(rows));
+      if (c.overflowNote) html += p(esc(c.overflowNote), 'font-size:12px;color:' + C.soft + ';padding-top:6px;');
     } else {
       html += p(esc(c.emptyNote || 'No changes to the tracked release plans since last week.'), 'color:' + C.muted + ';');
     }
@@ -307,30 +314,29 @@
       return '';
     }
     var th = function (label, width) {
-      return '<th align="left" valign="top"' + (width ? ' width="' + width + '"' : '') + ' bgcolor="' + C.tableHead + '" style="background-color:' + C.tableHead +
-        ';padding:6px 10px;border-bottom:1px solid ' + C.border + ';font-size:12px;font-weight:700;color:' + C.muted + ';text-align:left;font-family:' + FONT + ';">' + esc(label) + '</th>';
+      return '<th align="left" valign="top"' + (width ? ' width="' + width + '"' : '') + ' bgcolor="' + C.tableHead + '" style="' + BASE + 'background-color:' + C.tableHead +
+        ';padding:6px 10px;border-bottom:1px solid ' + C.border + ';font-size:12px;font-weight:700;color:' + C.muted + ';text-align:left;">' + fontColor('color:' + C.muted, esc(label)) + '</th>';
     };
     var html = sectionHeading('🗺️', 'Coming soon', m.featuresNote || '');
     m.featureGroups.forEach(function (group) {
-      html += txt('font-size:13px;font-weight:700;color:' + group.area.color + ';padding-top:14px;padding-bottom:6px;', esc(group.area.label));
-      html += '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;border:1px solid ' + C.border + ';">' +
-        '<tr>' + th('Feature', '38%') + th('When', '17%') + th('Why it matters') + '</tr>';
+      html += trow('font-size:13px;font-weight:700;color:' + group.area.color + ';padding:12px 0 6px;', esc(group.area.label));
+      var body = '<tr>' + th('Feature', '38%') + th('When', '17%') + th('Why it matters') + '</tr>';
       group.items.forEach(function (f, i) {
         var bg = i % 2 ? '#f9fafb' : '#ffffff';
         var td = function (inner, extra) {
-          return '<td valign="top" bgcolor="' + bg + '" style="background-color:' + bg + ';padding:7px 10px;border-bottom:1px solid ' + C.border +
-            ';font-size:13px;line-height:1.45;color:' + C.text + ';font-family:' + FONT + ';' + (extra || '') + '">' + inner + '</td>';
+          return '<td valign="top" bgcolor="' + bg + '" style="' + BASE + 'background-color:' + bg + ';padding:7px 10px;border-bottom:1px solid ' + C.border +
+            ';font-size:13px;line-height:19px;color:' + C.text + ';' + (extra || '') + '">' + inner + '</td>';
         };
-        html += '<tr>' +
-          td((f.badge ? chipRow(chip(f.badge)) : '') + link(f.url, f.name, 'font-weight:600;') +
-            (f.productArea ? txt('font-size:11px;color:' + C.soft + ';', esc(f.productArea)) : '')) +
-          td(esc(f.phaseLabel), 'white-space:nowrap;') +
-          td(esc(f.benefit || '')) +
-          '</tr>';
+        var name = tbl(
+          (f.badge ? wrap(chipRow(chip(f.badge)), 'padding:0 0 3px;') : '') +
+          trow('font-size:13px;font-weight:600;line-height:19px;color:' + C.text + ';', link(f.url, f.name, 'font-weight:600;')) +
+          (f.productArea ? trow('font-size:11px;color:' + C.soft + ';', esc(f.productArea)) : ''));
+        body += '<tr>' + td(name) + td(fontColor('color:' + C.text, esc(f.phaseLabel)), 'white-space:nowrap;') +
+          td(fontColor('color:' + C.text, esc(f.benefit || ''))) + '</tr>';
       });
-      html += '</table>';
+      html += wrap(tbl(body, 'border:1px solid ' + C.border + ';'));
     });
-    if (m.featuresFootnote) html += p(esc(m.featuresFootnote), 'font-size:12px;color:' + C.soft + ';margin-top:8px;');
+    if (m.featuresFootnote) html += p(esc(m.featuresFootnote), 'font-size:12px;color:' + C.soft + ';padding-top:8px;');
     return html;
   }
 
@@ -338,28 +344,27 @@
     var list = (m.resources || []).filter(function (r) { return r.label && url(r.url); });
     if (!list.length) return '';
     var rows = list.map(function (r) {
-      return '<tr><td valign="top" width="18" style="width:18px;padding:3px 0;font-size:14px;color:' + C.link + ';font-family:' + FONT + ';">›</td>' +
-        '<td style="padding:3px 0;font-size:14px;line-height:1.45;font-family:' + FONT + ';">' + link(r.url, r.label) +
+      return '<tr><td valign="top" width="18" style="' + BASE + 'width:18px;padding:3px 0;font-size:14px;color:' + C.link + ';">' + fontColor('color:' + C.link, '›') + '</td>' +
+        '<td style="' + BASE + 'padding:3px 0;font-size:14px;line-height:20px;">' + link(r.url, r.label) +
         (r.note ? ' <font color="' + C.soft + '">— ' + esc(r.note) + '</font>' : '') + '</td></tr>';
     }).join('');
-    return sectionHeading('📚', 'Resources') +
-      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' + rows + '</table>';
+    return sectionHeading('📚', 'Resources') + wrap(tbl(rows));
   }
 
   // Buttons are light with dark text for the same reason as the header.
   function button(href, label, bg, edge) {
     var safe = url(href);
     if (!safe) return '';
-    return '<td bgcolor="' + bg + '" style="background-color:' + bg + ';border:1px solid ' + edge + ';padding:8px 14px;font-family:' + FONT + ';">' +
+    return '<td bgcolor="' + bg + '" style="' + BASE + 'background-color:' + bg + ';border:1px solid ' + edge + ';padding:8px 14px;">' +
       '<a href="' + esc(safe) + '" target="_blank" rel="noopener noreferrer" style="color:' + C.strong + ';text-decoration:none;font-size:13px;font-weight:600;">' +
       esc(label) + '</a></td>';
   }
 
   function renderSignature(m) {
     var s = m.signature || {};
-    var html = '';
-    if (s.closing) html += p(esc(s.closing), 'margin-top:24px;');
-    if (!s.name && !s.title && !s.email) return html;
+    var rows = '';
+    if (s.closing) rows += p(esc(s.closing), 'padding-top:20px;');
+    if (!s.name && !s.title && !s.email) return rows;
     var lines = [];
     if (s.title) lines.push(esc(s.title));
     var contact = [];
@@ -371,20 +376,18 @@
       .filter(Boolean);
     var buttonRow = '';
     if (buttons.length) {
-      buttonRow = '<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;margin-top:10px;"><tr>' +
-        buttons.join('<td width="8" style="width:8px;font-size:0;">&nbsp;</td>') + '</tr></table>';
+      buttonRow = wrap('<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;"><tr>' +
+        buttons.join('<td width="8" style="width:8px;font-size:0;">&nbsp;</td>') + '</tr></table>', 'padding:10px 0 0;');
     }
-    html += '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin-top:8px;">' +
-      '<tr><td style="border-top:1px solid ' + C.border + ';padding:14px 0 0;font-family:' + FONT + ';">' +
-      (s.name ? txt('font-size:15px;font-weight:700;color:' + C.strong + ';', esc(s.name)) : '') +
-      lines.map(function (l) { return txt('font-size:13px;line-height:20px;color:' + C.muted + ';', l); }).join('') +
-      buttonRow + '</td></tr></table>';
-    return html;
+    var card = (s.name ? trow('font-size:15px;font-weight:700;color:' + C.strong + ';padding-top:14px;border-top:1px solid ' + C.border + ';', esc(s.name)) : '') +
+      lines.map(function (l) { return trow('font-size:13px;line-height:20px;color:' + C.muted + ';', l); }).join('') +
+      buttonRow;
+    return rows + wrap(tbl(card));
   }
 
   function renderFooter(m) {
     if (!m.footerNote) return '';
-    return p(esc(m.footerNote), 'font-size:11px;color:' + C.soft + ';margin-top:20px;');
+    return p(esc(m.footerNote), 'font-size:11px;color:' + C.soft + ';padding-top:16px;');
   }
 
   var SECTION_RENDERERS = {
@@ -399,17 +402,16 @@
   };
 
   function buildHtml(m) {
-    var body = renderIntro(m);
+    var rows = renderIntro(m);
     (m.sectionOrder || []).forEach(function (key) {
-      if (SECTION_RENDERERS[key]) body += SECTION_RENDERERS[key](m);
+      if (SECTION_RENDERERS[key]) rows += SECTION_RENDERERS[key](m);
     });
-    body += renderSignature(m) + renderFooter(m);
-    return '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="' + C.page +
-      '" style="border-collapse:collapse;background-color:' + C.page + ';">' +
+    rows += renderSignature(m) + renderFooter(m);
+    return '<table ' + TABLE + ' bgcolor="' + C.page + '" style="border-collapse:collapse;background-color:' + C.page + ';">' +
       '<tr><td align="center" style="padding:0;">' +
-      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;width:100%;background-color:' + C.page + ';">' +
+      '<table ' + TABLE + ' style="border-collapse:collapse;width:100%;background-color:' + C.page + ';">' +
       '<tr><td style="padding:0;">' + renderHeader(m) + '</td></tr>' +
-      '<tr><td style="padding:0 24px 24px;font-family:' + FONT + ';color:' + C.text + ';">' + body + '</td></tr>' +
+      '<tr><td style="padding:0 24px 24px;font-family:' + FONT + ';color:' + C.text + ';">' + tbl(rows) + '</td></tr>' +
       '</table></td></tr></table>';
   }
 

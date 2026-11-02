@@ -374,6 +374,9 @@
         if (!state.draft.source) {
           if (state.aiEnabled) await draftWithAi(true);
           else applyAutoDraft(true);
+        } else if (state.draft.source === 'auto') {
+          // Automatic drafts follow the live data; AI and hand-edited ones stay put.
+          applyAutoDraft(true);
         }
         render();
       }
@@ -577,6 +580,9 @@
         const draft = BM.fallbackDraft({
           actionItems: k.actionItems,
           messages: k.included,
+          upcoming: k.upcoming,
+          upcomingDays: Number(state.settings.upcomingDays || 30),
+          weekIso: state.week,
           features: k.features,
           featureCount: k.features.length,
           windowLabel: k.windowLabel,

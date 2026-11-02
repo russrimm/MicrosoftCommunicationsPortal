@@ -334,6 +334,35 @@ test('email renderer escapes feed text, drops unsafe links, and stays Outlook-sa
   assert.doesNotMatch(text, /Bad: data:/);
 });
 
+test('fallback draft leads with the most important items and their dates', () => {
+  const { BM } = loadBrowserModules();
+  const mk = (id, title, extra) => Object.assign({
+    key: 'mc:' + id, id, cleanTitle: title, title, area: 'powerapps', keyDates: [], isAction: false,
+    isMajor: false, isRetirement: false, isRoutine: false, actionReason: '', published: '2026-10-30',
+  }, extra);
+  const retire = mk('MC1', 'Copresence ends in model-driven apps', {
+    isAction: true, isRetirement: true, actionReason: 'retirement', keyDates: [{ label: 'Retires', date: '2026-11-30' }],
+  });
+  const soon = mk('MC2', 'Storage validation for Dataverse-only tenants', {
+    isAction: true, actionReason: 'prepare', keyDates: [{ label: 'Starts', date: '2026-11-09' }],
+  });
+  const quiet = mk('MC3', 'Minor wording change', {});
+  const later = mk('MC4', 'Prompt columns support multiple lines', { keyDates: [{ label: 'GA', date: '2026-11-16' }] });
+  const draft = BM.fallbackDraft({
+    actionItems: [retire, soon], messages: [quiet, retire, soon], upcoming: [later],
+    featureCount: 0, weekIso: '2026-11-02', upcomingDays: 30,
+  });
+  const [summary, top] = draft.intro.split('\n\n');
+  assert.match(summary, /3 new Message Center announcements/);
+  assert.match(summary, /2 items need your attention/);
+  assert.match(summary, /1 earlier announcement also lands in the next 30 days/);
+  assert.match(top, /^Start with “Storage validation for Dataverse-only tenants” \(Starts Nov 9\)/);
+  assert.match(top, /“Copresence ends in model-driven apps” \(Retires Nov 30\)/);
+  assert.doesNotMatch(top, /Minor wording change/);
+  assert.equal(draft.highlights[0].itemId, soon.key);
+  assert.equal(draft.highlights.length, 4);
+});
+
 test('fallback draft leads with action items', () => {
   const { BM } = loadBrowserModules();
   const cae = BM.parseMessage(CAE_MESSAGE);
