@@ -391,6 +391,39 @@
     return a.published < b.published ? 1 : a.published > b.published ? -1 : 0;
   }
 
+  // Older posts that land within [weekIso, weekIso + days): rollouts, GA,
+  // retirements and deadlines that readers should plan for even though the
+  // post itself wasn't published this week. `skip` holds posts already shown
+  // elsewhere in the briefing; "Updated message" re-issues share a title with
+  // the original, so titles are de-duplicated too.
+  function upcomingMessages(items, skip, weekIso, days) {
+    var endIso = addDays(weekIso, days);
+    var seenKeys = {};
+    var seenTitles = {};
+    (skip || []).forEach(function (m) {
+      seenKeys[m.key] = true;
+      seenTitles[String(m.cleanTitle).toLowerCase()] = true;
+    });
+    var out = [];
+    items
+      .map(function (m) {
+        var next = (m.keyDates || []).filter(function (d) { return d.date >= weekIso && d.date < endIso; })[0];
+        return next ? Object.assign({}, m, { upcoming: true, upcomingDate: next.date }) : null;
+      })
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return a.upcomingDate < b.upcomingDate ? -1 : a.upcomingDate > b.upcomingDate ? 1 : compareMessages(a, b);
+      })
+      .forEach(function (m) {
+        var title = String(m.cleanTitle).toLowerCase();
+        if (seenKeys[m.key] || seenTitles[title]) return;
+        seenKeys[m.key] = true;
+        seenTitles[title] = true;
+        out.push(m);
+      });
+    return out;
+  }
+
   function soonestDate(item) {
     var dates = (item.keyDates || []).map(function (d) { return d.date; }).sort();
     return dates[0] || '9999-12-31';
@@ -475,6 +508,7 @@
     isoDate: isoDate,
     keyDateEntries: keyDateEntries,
     messageInWindow: messageInWindow,
+    upcomingMessages: upcomingMessages,
     mondayOf: mondayOf,
     monthRangeLabel: monthRangeLabel,
     monthWindow: monthWindow,

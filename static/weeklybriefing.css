@@ -72,8 +72,8 @@ details.wb-card[open] > summary { margin-bottom: 0.65rem; }
 .wb-field:last-child { margin-bottom: 0; }
 .wb-field label, .wb-label { font-size: 12px; font-weight: 600; color: var(--cp-text-muted); }
 .wb-hint { font-size: 11px; color: var(--cp-text-soft); }
-.wb-row { display: flex; gap: 0.5rem; }
-.wb-row > .wb-field { flex: 1; min-width: 0; }
+.wb-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.wb-row > .wb-field { flex: 1 1 8rem; min-width: 0; }
 
 .wb-input, .wb-select, .wb-textarea {
   width: 100%;

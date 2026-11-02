@@ -192,15 +192,9 @@
       rows + '</table>';
   }
 
-  function renderMessages(m) {
-    if (!m.messageGroups || !m.messageGroups.length) {
-      if (m.messagesEmptyNote) {
-        return sectionHeading('📬', 'New in Message Center') + p(esc(m.messagesEmptyNote), 'color:' + C.muted + ';');
-      }
-      return '';
-    }
-    var html = sectionHeading('📬', 'New in Message Center', m.messagesNote || '');
-    m.messageGroups.forEach(function (group) {
+  function renderMessageGroups(groups) {
+    var html = '';
+    groups.forEach(function (group) {
       html += '<div style="font-size:13px;font-weight:700;color:' + group.area.color + ';margin:14px 0 4px;font-family:' + FONT + ';">' +
         esc(group.area.label) + '</div>';
       html += '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">';
@@ -219,7 +213,25 @@
       });
       html += '</table>';
     });
+    return html;
+  }
+
+  function renderMessages(m) {
+    if (!m.messageGroups || !m.messageGroups.length) {
+      if (m.messagesEmptyNote) {
+        return sectionHeading('📬', 'New in Message Center') + p(esc(m.messagesEmptyNote), 'color:' + C.muted + ';');
+      }
+      return '';
+    }
+    var html = sectionHeading('📬', 'New in Message Center', m.messagesNote || '') + renderMessageGroups(m.messageGroups);
     if (m.messagesFootnote) html += p(esc(m.messagesFootnote), 'font-size:12px;color:' + C.soft + ';margin-top:8px;');
+    return html;
+  }
+
+  function renderUpcoming(m) {
+    if (!m.upcomingGroups || !m.upcomingGroups.length) return '';
+    var html = sectionHeading('🔭', 'Impact in the coming weeks', m.upcomingNote || '') + renderMessageGroups(m.upcomingGroups);
+    if (m.upcomingFootnote) html += p(esc(m.upcomingFootnote), 'font-size:12px;color:' + C.soft + ';margin-top:8px;');
     return html;
   }
 
@@ -343,6 +355,7 @@
     highlights: renderHighlights,
     keydates: renderKeyDates,
     messages: renderMessages,
+    upcoming: renderUpcoming,
     changes: renderChanges,
     releaseplan: renderReleasePlan,
     resources: renderResources
@@ -395,6 +408,15 @@
       } else if (key === 'messages' && m.messageGroups && m.messageGroups.length) {
         rule('New in Message Center');
         m.messageGroups.forEach(function (g) {
+          out.push('', g.area.label);
+          g.items.forEach(function (item) {
+            out.push('* ' + (item.cleanTitle || item.title) + ' (' + item.id + ')' + (dates(item) ? ' [' + dates(item) + ']' : ''));
+            if (item.summary) out.push('  ' + item.summary);
+          });
+        });
+      } else if (key === 'upcoming' && m.upcomingGroups && m.upcomingGroups.length) {
+        rule('Impact in the coming weeks' + (m.upcomingNote ? ' (' + m.upcomingNote + ')' : ''));
+        m.upcomingGroups.forEach(function (g) {
           out.push('', g.area.label);
           g.items.forEach(function (item) {
             out.push('* ' + (item.cleanTitle || item.title) + ' (' + item.id + ')' + (dates(item) ? ' [' + dates(item) + ']' : ''));

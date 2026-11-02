@@ -246,6 +246,29 @@ test('message scope, routine detection, and retirements', () => {
   assert.equal(versioned.cleanTitle, 'End of support for the GPT-5.5 Chat model');
 });
 
+test('upcomingMessages keeps older posts landing in the window and de-duplicates re-issued titles', () => {
+  const { BM } = loadBrowserModules();
+  const mk = (id, title, keyDates, extra) => Object.assign({
+    key: 'mc:' + id, id, cleanTitle: title, keyDates: keyDates.map(date => ({ label: 'GA', date })),
+    isAction: false, isMajor: false, published: '2026-08-01',
+  }, extra);
+  const shown = mk('MC1', 'Already shown', ['2026-09-10']);
+  const items = [
+    shown,
+    mk('MC2', 'Lands later', ['2026-09-25']),
+    mk('MC3', 'Lands soon', ['2026-09-09']),
+    mk('MC4', 'Too far out', ['2026-11-30']),
+    mk('MC5', 'Already passed', ['2026-09-01']),
+    mk('MC6', 'No dates', []),
+    mk('MC7', 'Lands soon', ['2026-09-09'], { published: '2026-08-20' }),
+    mk('MC8', 'Mixed dates', ['2026-08-30', '2026-09-20']),
+  ];
+  const result = BM.upcomingMessages(items, [shown], '2026-09-07', 30);
+  assert.deepEqual(plain(result.map(m => [m.id, m.upcomingDate])), [
+    ['MC7', '2026-09-09'], ['MC8', '2026-09-20'], ['MC2', '2026-09-25'],
+  ]);
+});
+
 test('briefing dates: weekend prep targets the coming Monday, release windows use whole months', () => {
   const { BM } = loadBrowserModules();
   assert.equal(BM.defaultBriefingDate(new Date(2026, 9, 4)), '2026-10-05'); // Sunday
