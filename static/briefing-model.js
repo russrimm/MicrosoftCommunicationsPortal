@@ -246,8 +246,11 @@
 
   function extractKeyDates(text, msg, isRetirement) {
     var found = [];
+    var publishedIso = String(msg.startDateTime || '').slice(0, 10);
     function add(label, iso) {
       if (!iso) return;
+      // Dates before the post existed describe history, not what's coming.
+      if (publishedIso && iso < publishedIso) return;
       for (var i = 0; i < found.length; i++) {
         if (found[i].date === iso) return;
       }
@@ -269,6 +272,19 @@
       var m = p.re.exec(text);
       if (m) add(p.label, parseDatePhrase(m[1]));
     });
+    // Posts whose wording doesn't match a known pattern still often name the
+    // date that matters. Use the earliest date on or after the post's own
+    // publish date, so earlier history ("GA'd on October 15") isn't promoted.
+    if (!found.length) {
+      var all = new RegExp(DATE_PHRASE, 'gi');
+      var hit;
+      var earliest = '';
+      while ((hit = all.exec(text))) {
+        var iso = parseDatePhrase(hit[1]);
+        if (iso && iso >= publishedIso && (!earliest || iso < earliest)) earliest = iso;
+      }
+      add('Date', earliest);
+    }
     found.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
     return found.slice(0, 3);
   }

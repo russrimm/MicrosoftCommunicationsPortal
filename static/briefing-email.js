@@ -40,6 +40,7 @@
     Preview: { bg: '#ede9fe', fg: '#5b21b6' },
     Rollout: { bg: '#e0f2fe', fg: '#075985' },
     Starts: { bg: '#e0f2fe', fg: '#075985' },
+    Date: { bg: '#e0f2fe', fg: '#075985' },
     NEW: { bg: '#dcfce7', fg: '#166534' },
     MOVED: { bg: '#fef3c7', fg: '#92400e' },
     Updated: { bg: '#fef3c7', fg: '#92400e' },

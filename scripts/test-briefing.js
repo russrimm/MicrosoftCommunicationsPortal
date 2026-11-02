@@ -246,6 +246,22 @@ test('message scope, routine detection, and retirements', () => {
   assert.equal(versioned.cleanTitle, 'End of support for the GPT-5.5 Chat model');
 });
 
+test('key dates ignore history from before the post and fall back to the first date that follows', () => {
+  const { BM } = loadBrowserModules();
+  const stale = BM.parseMessage({
+    id: 'MC10', title: 'Copilot Studio - Evaluation Viewer role', services: ['Microsoft Copilot (Power Platform)'],
+    startDateTime: '2026-10-30T10:00:00Z',
+    body: { content: 'This feature reached general availability on October 15, 2026.' },
+  });
+  assert.deepEqual(plain(stale.keyDates), []);
+  const fallback = BM.parseMessage({
+    id: 'MC11', title: 'Copilot Studio - Cost controls', services: ['Microsoft Copilot (Power Platform)'],
+    startDateTime: '2026-10-29T10:00:00Z',
+    body: { content: 'Starting in October 2026 and again on November 20, 2026 admins see changes. Earlier, on October 15, 2026, a preview began.' },
+  });
+  assert.deepEqual(plain(fallback.keyDates.map(d => [d.label, d.date])), [['Date', '2026-11-20']]);
+});
+
 test('upcomingMessages keeps older posts landing in the window and de-duplicates re-issued titles', () => {
   const { BM } = loadBrowserModules();
   const mk = (id, title, keyDates, extra) => Object.assign({
