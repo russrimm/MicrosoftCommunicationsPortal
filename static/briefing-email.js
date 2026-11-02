@@ -20,9 +20,10 @@
     soft: '#6b7280',
     border: '#e5e7eb',
     link: '#0f6cbd',
-    headerBg: '#0f3d7a',
-    headerText: '#ffffff',
-    headerSub: '#d6e4f5',
+    headerBg: '#dbe8f8',
+    headerBar: '#0f3d7a',
+    headerText: '#0b2a55',
+    headerSub: '#2f4a73',
     accent: '#6d28d9',
     actionBg: '#fff7ed',
     actionBar: '#c2410c',
@@ -135,9 +136,12 @@
   }
 
   // ── Sections ────────────────────────────────────────────────────────────
+  // The header is light with dark text on purpose: when a mail client drops
+  // text color on paste, default dark text must still be readable on it.
   function renderHeader(m) {
     return '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' +
-      '<tr><td bgcolor="' + C.headerBg + '" style="background-color:' + C.headerBg + ';padding:22px 24px 18px;font-family:' + FONT + ';">' +
+      '<tr><td height="6" bgcolor="' + C.headerBar + '" style="background-color:' + C.headerBar + ';height:6px;font-size:0;line-height:0;">&nbsp;</td></tr>' +
+      '<tr><td bgcolor="' + C.headerBg + '" style="background-color:' + C.headerBg + ';padding:20px 24px 18px;font-family:' + FONT + ';">' +
       txt('font-size:12px;font-weight:600;color:' + C.headerSub + ';', esc(String(m.dateLabel).toUpperCase())) +
       txt('font-size:24px;font-weight:700;line-height:30px;color:' + C.headerText + ';padding-top:4px;', esc(m.headline)) +
       (m.coverageLabel ? txt('font-size:12px;color:' + C.headerSub + ';padding-top:6px;', esc(m.coverageLabel)) : '') +
@@ -342,11 +346,12 @@
       '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">' + rows + '</table>';
   }
 
-  function button(href, label, bg) {
+  // Buttons are light with dark text for the same reason as the header.
+  function button(href, label, bg, edge) {
     var safe = url(href);
     if (!safe) return '';
-    return '<td bgcolor="' + bg + '" style="background-color:' + bg + ';border-radius:4px;padding:8px 14px;font-family:' + FONT + ';">' +
-      '<a href="' + esc(safe) + '" target="_blank" rel="noopener noreferrer" style="color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;">' +
+    return '<td bgcolor="' + bg + '" style="background-color:' + bg + ';border:1px solid ' + edge + ';padding:8px 14px;font-family:' + FONT + ';">' +
+      '<a href="' + esc(safe) + '" target="_blank" rel="noopener noreferrer" style="color:' + C.strong + ';text-decoration:none;font-size:13px;font-weight:600;">' +
       esc(label) + '</a></td>';
   }
 
@@ -362,7 +367,7 @@
     if (s.phone) contact.push(link('tel:' + String(s.phone).replace(/[^\d+]/g, ''), s.phone));
     if (s.linkedin) contact.push(link(s.linkedin, 'LinkedIn'));
     if (contact.length) lines.push(contact.join(' &nbsp;·&nbsp; '));
-    var buttons = [button(s.bookingUrl, '📅 Book time with me', C.link), button(s.feedbackUrl, '💬 Share feedback', C.accent)]
+    var buttons = [button(s.bookingUrl, '📅 Book time with me', '#dbe8f8', C.link), button(s.feedbackUrl, '💬 Share feedback', '#ede9fe', C.accent)]
       .filter(Boolean);
     var buttonRow = '';
     if (buttons.length) {
