@@ -77,6 +77,14 @@
               </select>
             </div>
             <div class="wb-field">
+              <label for="wb-upcoming-days">Upcoming impact window</label>
+              <select class="wb-select" id="wb-upcoming-days">
+                <option value="14">Next 14 days</option>
+                <option value="30">Next 30 days</option>
+                <option value="60">Next 60 days</option>
+              </select>
+            </div>
+            <div class="wb-field">
               <label for="wb-rp-months">Release plans for</label>
               <select class="wb-select" id="wb-rp-months">
                 <option value="1">This month</option>
@@ -182,6 +190,7 @@
         highlights: 'Top highlights',
         keydates: 'Key dates',
         messages: 'New in Message Center',
+        upcoming: 'Impact in the coming weeks',
         changes: 'Release plan changes',
         releaseplan: 'Coming soon (release plans)',
         resources: 'Resources',
@@ -189,6 +198,7 @@
       const DEFAULT_SETTINGS = {
         areas: Object.fromEntries(BM.AREAS.map(a => [a.key, a.defaultOn])),
         mcDays: 7,
+        upcomingDays: 30,
         rpMonths: 2,
         hideRoutine: true,
         headline: 'Power Platform & Copilot Studio Weekly',
@@ -219,7 +229,11 @@
         const known = new Set(Object.keys(SECTION_LABELS));
         const order = (Array.isArray(saved.sections) ? saved.sections : []).filter(x => x && known.has(x.key));
         Object.keys(SECTION_LABELS).forEach(key => {
-          if (!order.some(x => x.key === key)) order.push({ key, on: true });
+          if (order.some(x => x.key === key)) return;
+          // Sections added after a user saved their layout land next to the
+          // section they relate to rather than at the very end.
+          const after = key === 'upcoming' ? order.findIndex(x => x.key === 'messages') : -1;
+          order.splice(after >= 0 ? after + 1 : order.length, 0, { key, on: true });
         });
         s.sections = order;
         s.resources = Array.isArray(saved.resources) ? saved.resources.slice(0, 20) : [];
@@ -360,6 +374,9 @@
         if (!state.draft.source) {
           if (state.aiEnabled) await draftWithAi(true);
           else applyAutoDraft(true);
+        } else if (state.draft.source === 'auto') {
+          // Automatic drafts follow the live data; AI and hand-edited ones stay put.
+          applyAutoDraft(true);
         }
         render();
       }
@@ -393,6 +410,8 @@
             (m.actionReason === 'deadline' || m.actionReason === 'retirement') &&
             m.keyDates.some(d => d.date >= week))
           .map(m => Object.assign({}, m, { carried: true }));
+        const upcomingDays = Number(state.settings.upcomingDays || 30);
+        const upcoming = BM.upcomingMessages(inScope, recent.concat(carried), week, upcomingDays);
 
         const win = BM.monthWindow(week, Number(state.settings.rpMonths || 2));
         const diff = state.rp && state.rp.diff;
@@ -407,7 +426,7 @@
           BM.AREA_BY_KEY[a.area].order - BM.AREA_BY_KEY[b.area].order ||
           (a.phase.sortKey < b.phase.sortKey ? -1 : a.phase.sortKey > b.phase.sortKey ? 1 : 0) ||
           a.name.localeCompare(b.name));
-        return { recent, carried, features, win, mcStart, mcEnd, diff };
+        return { recent, carried, upcoming, upcomingDays, features, win, mcStart, mcEnd, diff };
       }
 
       function buildChanges(diff) {
@@ -451,6 +470,7 @@
         const c = computeCandidates();
         const included = c.recent.filter(m => !isExcluded(m.key));
         const carried = c.carried.filter(m => !isExcluded(m.key));
+        const upcoming = c.upcoming.filter(m => !isExcluded(m.key));
         const features = c.features.filter(f => !isExcluded(f.key));
 
         const actionItems = included.filter(isActionItem).concat(carried)
@@ -465,7 +485,7 @@
 
         const keyDateStart = BM.addDays(state.week, -7);
         const keyDateEnd = BM.addDays(state.week, 60);
-        const keyDates = BM.keyDateEntries(included.concat(carried), keyDateStart, keyDateEnd)
+        const keyDates = BM.keyDateEntries(included.concat(carried, upcoming), keyDateStart, keyDateEnd)
           .slice(0, MAX_KEY_DATES)
           .map(d => ({
             date: d.date,
@@ -492,7 +512,7 @@
         }));
 
         const byKey = new Map();
-        included.concat(carried).forEach(m => byKey.set(m.key, m.link || m.learnUrl));
+        included.concat(carried, upcoming).forEach(m => byKey.set(m.key, m.link || m.learnUrl));
         features.forEach(f => byKey.set(f.key, f.url || f.docsUrl));
         // Highlights tied to an item disappear with it (excluded, out of
         // scope, or outside the window); free-text highlights always stay.
@@ -503,6 +523,7 @@
         const stats = [];
         stats.push({ value: actionItems.length, label: 'need attention', color: actionItems.length ? '#b91c1c' : '' });
         stats.push({ value: included.length, label: 'new announcements' });
+        stats.push({ value: upcoming.length, label: 'more landing in ' + c.upcomingDays + ' days' });
         stats.push({ value: features.length, label: 'features landing ' + windowLabel });
         if (changes) stats.push({ value: changes.total, label: 'release plan changes' });
 
@@ -534,6 +555,9 @@
           messagesNote: mcRange,
           messagesEmptyNote,
           messagesFootnote: otherMessages.length && actionItems.length ? 'Posts that need action are listed under “Action required” above.' : '',
+          upcomingGroups: BM.groupByArea(upcoming.map(withDateLabels)),
+          upcomingNote: BM.formatDate(state.week, 'short') + ' – ' + BM.formatDate(BM.addDays(state.week, c.upcomingDays - 1), 'short'),
+          upcomingFootnote: 'Earlier announcements with a rollout, general availability, retirement, or deadline date in this window.',
           changes,
           featureGroups,
           featuresNote: windowLabel,
@@ -543,7 +567,7 @@
           signature: s.signature,
           footerNote: 'Sources: Microsoft 365 Message Center and the Microsoft Power Platform release plans on Microsoft Learn. Compiled ' + dateNoWeekday + '.',
           // For the AI / fallback draft
-          _candidates: { included, carried, features, actionItems, windowLabel },
+          _candidates: { included, carried, upcoming, features, actionItems, windowLabel },
         };
       }
 
@@ -556,6 +580,9 @@
         const draft = BM.fallbackDraft({
           actionItems: k.actionItems,
           messages: k.included,
+          upcoming: k.upcoming,
+          upcomingDays: Number(state.settings.upcomingDays || 30),
+          weekIso: state.week,
           features: k.features,
           featureCount: k.features.length,
           windowLabel: k.windowLabel,
@@ -578,6 +605,10 @@
           dates: a.keyDates.map(d => d.label + ' ' + d.date).join('; '),
         }));
         k.included.filter(m => !items.some(i => i.id === m.key)).forEach(m => items.push({
+          id: m.key, kind: 'mc', area: BM.AREA_BY_KEY[m.area].label, title: m.cleanTitle, summary: m.summary,
+          actionRequired: false, dates: m.keyDates.map(d => d.label + ' ' + d.date).join('; '),
+        }));
+        k.upcoming.filter(m => !items.some(i => i.id === m.key)).slice(0, 10).forEach(m => items.push({
           id: m.key, kind: 'mc', area: BM.AREA_BY_KEY[m.area].label, title: m.cleanTitle, summary: m.summary,
           actionRequired: false, dates: m.keyDates.map(d => d.label + ' ' + d.date).join('; '),
         }));
@@ -671,7 +702,7 @@
 
       function renderItemsPanel() {
         const c = computeCandidates();
-        const mc = c.carried.concat(c.recent.slice().sort(BM.compareMessages));
+        const mc = c.carried.concat(c.recent.slice().sort(BM.compareMessages), c.upcoming);
         const row = (key, title, meta, flagState) => {
           const excluded = isExcluded(key);
           const id = 'wb-item-' + key.replace(/[^a-z0-9]/gi, '_');
@@ -682,8 +713,9 @@
           </li>`;
         };
         const mcRows = mc.map(m => row(m.key, m.cleanTitle,
-          [BM.AREA_BY_KEY[m.area].label, m.id, m.carried ? 'reminder' : BM.formatDate(m.published, 'short')].join(' · '),
-          m.carried ? null : isActionItem(m))).join('');
+          [BM.AREA_BY_KEY[m.area].label, m.id,
+            m.carried ? 'reminder' : m.upcoming ? 'lands ' + BM.formatDate(m.upcomingDate, 'short') : BM.formatDate(m.published, 'short')].join(' · '),
+          m.carried || m.upcoming ? null : isActionItem(m))).join('');
         const rpRows = c.features.map(f => row(f.key, f.name, BM.AREA_BY_KEY[f.area].label + ' · ' + f.phase.label, null)).join('');
         const included = mc.filter(m => !isExcluded(m.key)).length + c.features.filter(f => !isExcluded(f.key)).length;
         $('wb-items-count').textContent = `${included} of ${mc.length + c.features.length} included`;
@@ -730,6 +762,7 @@
         $('wb-subject-template').value = s.subjectTemplate;
         $('wb-greeting').value = s.greeting;
         $('wb-mc-days').value = String(s.mcDays);
+        $('wb-upcoming-days').value = String(s.upcomingDays);
         $('wb-rp-months').value = String(s.rpMonths);
         $('wb-hide-routine').checked = !!s.hideRoutine;
         document.querySelectorAll('[data-sig]').forEach(el => { el.value = s.signature[el.dataset.sig] || ''; });
@@ -865,6 +898,7 @@
       $('wb-greeting').addEventListener('input', (e) => { state.settings.greeting = e.target.value; onSettingsChange(); });
       $('wb-mc-days').addEventListener('change', (e) => { state.settings.mcDays = Number(e.target.value); onSettingsChange(true); });
       $('wb-rp-months').addEventListener('change', (e) => { state.settings.rpMonths = Number(e.target.value); onSettingsChange(true); });
+      $('wb-upcoming-days').addEventListener('change', (e) => { state.settings.upcomingDays = Number(e.target.value); onSettingsChange(true); });
       $('wb-hide-routine').addEventListener('change', (e) => { state.settings.hideRoutine = e.target.checked; onSettingsChange(true); });
 
       $('wb-areas').addEventListener('change', (e) => {

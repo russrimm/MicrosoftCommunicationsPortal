@@ -38,6 +38,7 @@
       <div id="mc-lenses"></div>
       <div class="fk-meta">
         <span id="mc-result-count" class="fk-result-count" role="status" aria-live="polite"></span>
+        <button class="export-btn" id="mc-weekly-export-btn" type="button" disabled title="Download an HTML file of Power Apps, Power Automate, Power Pages, Dataverse and Copilot Studio posts updated in the last 7 days. Ignores the filters on this page.">⚡ Power Platform: last 7 days</button>
         <button class="export-btn" id="mc-export-btn" type="button" disabled>⬇ Export</button>
         <button class="export-btn" id="mc-refresh-btn">↻ Refresh</button>
       </div>
@@ -148,6 +149,8 @@
         allMessages = data.messages || [];
         populateServiceFilter();
         filterMessages();
+        updateWeeklyExportButton();
+        maybeAutoExport();
       } catch (err) {
         if (err.name === 'AbortError') return;
         container.innerHTML = `<div class="mc-empty">❌ Failed to load: ${escapeHtml(err.message)}</div>`;
@@ -800,9 +803,54 @@
     }
 
     // ════════════════════════════════
+    // ONE-CLICK WEEKLY POWER PLATFORM EXPORT
+    // ════════════════════════════════
+    const MC_WEEKLY_DAYS = 7;
+    const MC_WEEKLY_SCOPE_RE = /power platform|power automate|power apps|power pages|dataverse|copilot studio/i;
+
+    // Ignores every on-page filter: scope is product plus last-modified date only.
+    function getWeeklyPowerPlatformRows(now) {
+      const cutoff = (now || Date.now()) - MC_WEEKLY_DAYS * 24 * 60 * 60 * 1000;
+      return allMessages
+        .filter(msg => {
+          const modified = Date.parse(msg.lastModifiedDateTime || '');
+          if (isNaN(modified) || modified < cutoff) return false;
+          const services = (msg.services || []).map(getServiceName).join(' | ');
+          return MC_WEEKLY_SCOPE_RE.test(services) || MC_WEEKLY_SCOPE_RE.test(msg.title || '');
+        })
+        .sort((a, b) => Date.parse(b.lastModifiedDateTime) - Date.parse(a.lastModifiedDateTime));
+    }
+
+    function updateWeeklyExportButton() {
+      const btn = document.getElementById('mc-weekly-export-btn');
+      if (!btn) return;
+      const n = getWeeklyPowerPlatformRows().length;
+      btn.disabled = allMessages.length === 0;
+      btn.textContent = `⚡ Power Platform: last ${MC_WEEKLY_DAYS} days (${n})`;
+    }
+
+    function exportWeeklyPowerPlatform() {
+      const rows = getWeeklyPowerPlatformRows();
+      if (!rows.length) { alert(`No Power Platform or Copilot Studio posts were updated in the last ${MC_WEEKLY_DAYS} days.`); return; }
+      exportMessagesToHtml(rows, 'html', {
+        title: 'Power Platform & Copilot Studio Message Center: last ' + MC_WEEKLY_DAYS + ' days',
+        filenamePrefix: 'messagecenter-powerplatform-last' + MC_WEEKLY_DAYS + 'd-',
+      });
+    }
+
+    // Bookmarkable: /messagecenter?export=weekly downloads the file once data and helpers are ready.
+    let autoExportPending = !!(window.CPUtil && window.CPUtil.queryValue('export') === 'weekly');
+    function maybeAutoExport() {
+      if (!autoExportPending || !allMessages.length || !window.ExportFormats || !window.OutlookExport) return;
+      autoExportPending = false;
+      exportWeeklyPowerPlatform();
+    }
+
+    // ════════════════════════════════
     // EXPORT
     // ════════════════════════════════
-    function exportMessagesToHtml(customRows, format) {
+    function exportMessagesToHtml(customRows, format, options) {
+      const opts = options || {};
       const rows = (customRows && customRows.length) ? customRows : (currentFiltered || []);
       if (!rows.length) { alert('No messages to export with current filters.'); return; }
       if (!window.ExportFormats || !window.OutlookExport) { alert('Export helper still loading. Please try again in a moment.'); return; }
@@ -845,11 +893,11 @@
 
       const now = new Date().toLocaleString();
       window.ExportFormats.download({
-        title:    'Microsoft 365 Message Center',
+        title:    opts.title || 'Microsoft 365 Message Center',
         subtitle: 'Exported ' + now + ' • ' + rows.length + ' message' + (rows.length !== 1 ? 's' : '') +
           (messageCenterWarning ? ' • Partial data: ' + messageCenterWarning : ''),
-        filename: 'messagecenter-export-' + window.CPUtil.formatDateInput(new Date()) + '.html',
-        baseFilename: 'messagecenter-export-' + window.CPUtil.formatDateInput(new Date()),
+        filename: (opts.filenamePrefix || 'messagecenter-export-') + window.CPUtil.formatDateInput(new Date()) + '.html',
+        baseFilename: (opts.filenamePrefix || 'messagecenter-export-') + window.CPUtil.formatDateInput(new Date()),
         columns:  ['Message ID', 'Product / Service', 'Title', 'Category', 'Severity', 'Status',
                    'Published', 'Last Modified', 'Summary'],
         rows: tableRows,
@@ -904,6 +952,7 @@
     document.getElementById('mc-preset-30').addEventListener('click', function() { applyDatePreset(30); });
     document.getElementById('mc-preset-60').addEventListener('click', function() { applyDatePreset(60); });
     document.getElementById('mc-export-btn').addEventListener('click', openExportModal);
+    document.getElementById('mc-weekly-export-btn').addEventListener('click', exportWeeklyPowerPlatform);
     document.getElementById('mc-refresh-btn').addEventListener('click', loadMessageCenter);
     document.getElementById('mc-modal').addEventListener('click', function(e) { handleModalBackdrop(e); });
     document.getElementById('mc-modal-close-btn').addEventListener('click', closeMessage);
@@ -931,6 +980,7 @@
         populateServiceFilter();
         filterMessages();
       }
+      maybeAutoExport();
     });
   </script>
   <div class="gen-modal" id="gen-modal" hidden>

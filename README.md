@@ -8,6 +8,31 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/russrimm/MicrosoftCommunicationsPortal)
 
+**One place to keep up with everything Microsoft is changing — roadmaps, release
+plans, tenant announcements, and service health — and a ready-to-send weekly
+customer briefing built from it.**
+
+![Microsoft Communications Portal home page](screenshots/home-light.png)
+
+<p align="center">
+  <a href="#what-you-get">What you get</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#quick-deploy">Quick deploy</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#setup">Setup</a>
+</p>
+
+## What you get
+
+| | |
+|---|---|
+| 🗺️ **Roadmaps in one view** | Power Platform release plans (including regional rollout), the Microsoft 365 roadmap, Azure updates, and the Microsoft Fabric roadmap — searchable, filterable, and shareable by URL. |
+| 📬 **Your tenant's announcements** | Microsoft 365 Message Center posts and Service Health incidents for your own tenant, with severity, product, and date filters. |
+| ✉️ **A weekly briefing that writes itself** | Builds the Monday "Power Platform & Copilot Studio" customer email from live data, puts what needs action first, and copies it to Outlook as rich HTML. |
+| ⚡ **One-click Power Platform digest** | Download every Power Apps, Power Automate, Power Pages, Dataverse, and Copilot Studio Message Center post updated in the last 7 days — no filtering required. |
+| ✨ **Optional AI summaries** | Plain-language impact summaries and a "top 5 changes this week" digest, using Azure OpenAI, OpenAI, or GitHub Models. |
+| 🌗 **Light and dark mode** | Every page supports both themes, and the portal runs on your own infrastructure or in Azure. |
+
 ## About
 
 This project grew out of a recurring request from customers: they wanted a **single
@@ -348,67 +373,105 @@ need updating when the client secret expires or is rotated.
 
 ## Screenshots
 
-Nine of the eleven pages are shown in light and dark mode below (18 screenshots).
-The Feature Geography and Weekly Customer Briefing pages do not yet have checked-in screenshots. Regenerate with
-`node scripts/capture-screenshots.js` (Playwright) while the server is running
-on `http://localhost:3000`. The script visits each route with both theme query
-strings, waits for any visible "Loading…" banner to clear (up to 45 s, since
-the Power Platform page fans out ~20 upstream calls on a cold cache), and writes
-1440×900 × 2 DPR PNGs to `screenshots/`.
+Every page ships with light and dark themes. Screenshots below show live data from a
+real tenant, captured at 1440×900.
+
+### Featured: Weekly Customer Briefing
+
+Build the Monday customer email in minutes. The control rail on the left sets the
+briefing week, product areas, and how far back and ahead to look; the live preview on
+the right is exactly what lands in Outlook. [Learn more](#weekly-customer-briefing).
+
+| Light | Dark |
+|---|---|
+| ![Weekly Customer Briefing — light](screenshots/weekly-briefing-light.png) | ![Weekly Customer Briefing — dark](screenshots/weekly-briefing-dark.png) |
+
+The generated email puts what needs action first, then new announcements, what lands
+in the next 30 days, release plan changes, and what is coming soon:
+
+| Light | Dark |
+|---|---|
+| ![Weekly briefing email — light](screenshots/weekly-briefing-email-light.png) | ![Weekly briefing email — dark](screenshots/weekly-briefing-email-dark.png) |
 
 ### Home
+
+Status cards for every data source, so you can see at a glance which pages are live.
 
 | Light | Dark |
 |---|---|
 | ![Home — light](screenshots/home-light.png) | ![Home — dark](screenshots/home-dark.png) |
 
-### Power Platform Release Planner
+### Roadmaps and release plans
+
+#### Power Platform Release Planner
+
+Browse release features by product, wave, and date.
 
 | Light | Dark |
 |---|---|
 | ![Power Platform Release Planner — light](screenshots/power-platform-light.png) | ![Power Platform Release Planner — dark](screenshots/power-platform-dark.png) |
 
-### Microsoft 365 Roadmap
+#### Regional Release Plans
+
+See which features reach which geographies, on a map and in a rollout table.
+
+| Light | Dark |
+|---|---|
+| ![Regional Release Plans — light](screenshots/feature-geography-light.png) | ![Regional Release Plans — dark](screenshots/feature-geography-dark.png) |
+
+#### Microsoft 365 Roadmap
 
 | Light | Dark |
 |---|---|
 | ![Microsoft 365 Roadmap — light](screenshots/m365-roadmap-light.png) | ![Microsoft 365 Roadmap — dark](screenshots/m365-roadmap-dark.png) |
 
-### Azure Updates
+#### Azure Updates
 
 | Light | Dark |
 |---|---|
 | ![Azure Updates — light](screenshots/azure-updates-light.png) | ![Azure Updates — dark](screenshots/azure-updates-dark.png) |
 
-### Microsoft Fabric Roadmap
+#### Microsoft Fabric Roadmap
 
 | Light | Dark |
 |---|---|
 | ![Microsoft Fabric Roadmap — light](screenshots/fabric-roadmap-light.png) | ![Microsoft Fabric Roadmap — dark](screenshots/fabric-roadmap-dark.png) |
 
-### Microsoft 365 Message Center
+### Your tenant
+
+#### Microsoft 365 Message Center
+
+Quick views for action required, major changes, retirements, and Copilot & AI. The
+**⚡ Power Platform: last 7 days** button downloads a ready-to-share HTML digest in one
+click.
 
 | Light | Dark |
 |---|---|
 | ![Microsoft 365 Message Center — light](screenshots/message-center-light.png) | ![Microsoft 365 Message Center — dark](screenshots/message-center-dark.png) |
 
-### Microsoft 365 Service Health
+#### Microsoft 365 Service Health
 
 | Light | Dark |
 |---|---|
 | ![Microsoft 365 Service Health — light](screenshots/service-health-light.png) | ![Microsoft 365 Service Health — dark](screenshots/service-health-dark.png) |
 
-### Azure Service Health
+#### Azure Service Health
 
 | Light | Dark |
 |---|---|
 | ![Azure Service Health — light](screenshots/azure-service-health-light.png) | ![Azure Service Health — dark](screenshots/azure-service-health-dark.png) |
 
-### Guided Report
+### Reports
+
+#### Guided Report
 
 | Light | Dark |
 |---|---|
 | ![Guided Report — light](screenshots/guided-report-light.png) | ![Guided Report — dark](screenshots/guided-report-dark.png) |
+
+> **Regenerating the screenshots:** run `node scripts/capture-screenshots.js` with the
+> server running (set `BASE_URL` if it is not on `http://localhost:3000`). See
+> [`screenshots/README.md`](screenshots/README.md) for options.
 
 ## Setup
 
@@ -725,7 +788,11 @@ configured data sources so you can confirm which pages are working.
   GA month from the Azure Updates API when one is available.
 - **Microsoft Fabric Roadmap** — browse Fabric release features across 14 product areas from the official roadmap.
 - **Message Center** — tenant-specific Microsoft 365 Message Center announcements,
-  filterable by severity and date. Message IDs and Microsoft 365 admin center links to
+  filterable by severity and date. The **⚡ Power Platform: last 7 days** button
+  downloads one HTML file with every Power Apps, Power Automate, Power Pages,
+  Dataverse, and Copilot Studio post updated in the last 7 days. It ignores the
+  on-page filters and shows a live count. Bookmark `/messagecenter?export=weekly` to
+  start the same download as soon as the page loads. Message IDs and Microsoft 365 admin center links to
   Message Center posts open the matching page on
   [MSPulse360](https://www.mspulse360.app/) (for example,
   `https://www.mspulse360.app/message/MC1484591`). Set
@@ -736,12 +803,15 @@ configured data sources so you can confirm which pages are working.
 
 ### Weekly Customer Briefing
 
+![Weekly Customer Briefing](screenshots/weekly-briefing-light.png)
+
 `/weeklybriefing` builds the Monday "Power Platform & Copilot Studio" customer email
 from live data and copies it to the clipboard as Outlook-ready rich HTML (plus a
 plain-text alternative). The email is ordered for readers, not by source:
 
 1. **Header, intro, and at-a-glance counts** — items that need attention, new
-   announcements, features landing in the release window, and release plan changes.
+   announcements, more changes landing in the coming weeks, features landing in the
+   release window, and release plan changes.
 2. **⚠️ Action required & upcoming retirements** — Message Center posts with a
    deadline, real "what do I need to do to prepare" steps, or a retirement, sorted by
    the soonest date. Older posts whose deadline is still ahead stay as reminders.
@@ -752,15 +822,25 @@ plain-text alternative). The email is ordered for readers, not by source:
 5. **📬 New in Message Center** — grouped by product area (Copilot Studio first), one
    or two sentences of impact per post instead of the full body. Message IDs link to
    the post on MSPulse360, like the rest of the portal.
-6. **🔄 What changed in the release plans** — new, now scheduled, slipped, pulled in,
+6. **🔭 Impact in the coming weeks** — earlier Message Center posts with a rollout,
+   preview, GA, retirement, or deadline date from the briefing week through the next
+   30 days (choose 14, 30, or 60). It surfaces changes readers should plan for even
+   though the announcement wasn't new this week, and skips anything already shown
+   above.
+7. **🔄 What changed in the release plans** — new, now scheduled, slipped, pulled in,
    and removed features since last week.
-7. **🗺️ Coming soon** — Release Planner features reaching preview or GA in the chosen
+8. **🗺️ Coming soon** — Release Planner features reaching preview or GA in the chosen
    months, with a one-sentence benefit from the plan's business value.
-8. **📚 Resources** and a **signature card** with "Book time" and feedback buttons.
+9. **📚 Resources** and a **signature card** with "Book time" and feedback buttons.
+
+| Light | Dark |
+|---|---|
+| ![Weekly briefing email — light](screenshots/weekly-briefing-email-light.png) | ![Weekly briefing email — dark](screenshots/weekly-briefing-email-dark.png) |
 
 The author controls the briefing date, product areas (Power BI is off by default),
-Message Center window, release-plan months, routine-post filtering, section order and
-visibility, per-item inclusion, and which posts appear under "Action required".
+Message Center window, upcoming impact window, release-plan months, routine-post
+filtering, section order and visibility, per-item inclusion, and which posts appear
+under "Action required".
 Settings, the signature, resources, and each week's draft are saved in the browser.
 
 "What changed" relies on server-side snapshots: the first complete Release Planner
