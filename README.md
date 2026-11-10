@@ -227,6 +227,9 @@ az staticwebapp secrets list --name <static-web-app-name> \
   build drops the custom Entra registration and falls back to the preconfigured
   multi-tenant provider.
 
+The workflow runs manually (**Actions → Run workflow**). It no longer deploys on
+push; add a `push` trigger back to the workflow once your Static Web App exists.
+
 To preview the payload locally:
 
 ```bash
