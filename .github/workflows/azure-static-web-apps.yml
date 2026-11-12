@@ -4,6 +4,9 @@ name: Deploy front end to Azure Static Web Apps
 # /api/* routes are served by the App Service linked as the static web app's
 # backend, so this workflow never deploys server-side code.
 #
+# This workflow is manual-only (workflow_dispatch). Re-add a push trigger once
+# a Static Web App is provisioned and the secret below is set.
+#
 # Required repository configuration:
 #   secrets.AZURE_STATIC_WEB_APPS_API_TOKEN
 #       az staticwebapp secrets list --name <static-web-app> --query "properties.apiKey" -o tsv
@@ -13,15 +16,6 @@ name: Deploy front end to Azure Static Web Apps
 #       preconfigured Static Web Apps identity providers.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '*.html'
-      - 'static/**'
-      - 'public/**'
-      - 'staticwebapp.config.json'
-      - 'scripts/build-swa.js'
-      - '.github/workflows/azure-static-web-apps.yml'
   workflow_dispatch:
 
 permissions:
@@ -58,4 +52,3 @@ jobs:
           api_location: ''
           output_location: ''
           skip_app_build: true
-          skip_api_build: true
