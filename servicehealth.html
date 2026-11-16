@@ -172,6 +172,19 @@
         </div>
       </section>
 
+      <!-- Post-incident reviews — resolved issues Microsoft has published a PIR for -->
+      <section class="sh-panel sh-issues-panel" id="sh-pir-panel" aria-labelledby="sh-pir-title" hidden>
+        <div class="sh-panel-head">
+          <div class="sh-panel-title">
+            <span id="sh-pir-title">Post-incident Reviews</span>
+            <span class="sh-panel-title-count" id="sh-pir-total">—</span>
+            <span class="sh-panel-title-sub">Resolved issues with a published review</span>
+          </div>
+          <button class="ghost-btn" id="sh-pir-expand-btn" type="button" aria-expanded="false">Show all</button>
+        </div>
+        <div class="sh-issues-list" id="sh-pir-list"></div>
+      </section>
+
     </div>
   </div>
 
@@ -252,6 +265,19 @@
         .replace(/([a-z])([A-Z])/g, '$1 $2')
         .replace(/^service\s+/i, '')
         .toLowerCase();
+    }
+
+    // Graph publishes a post-incident review (PIR) document only for issues
+    // whose status is postIncidentReviewPublished.
+    function hasPir(it) {
+      return !!(it && it.id && it.status === 'postIncidentReviewPublished');
+    }
+
+    function pirLinkHtml(it) {
+      if (!hasPir(it)) return '';
+      const href = '/api/servicehealth/incident-report?id=' + encodeURIComponent(it.id);
+      return `<a class="sh-pir-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer"
+                 aria-label="Post-incident review for ${escapeHtml(it.id)} (opens or downloads the report)">Post-incident review</a>`;
     }
 
     function humanizeClassification(c) {
@@ -386,6 +412,7 @@
         renderStats();
         renderBreakdown();
         renderSidebar();
+        renderPirList();
         renderRecentActivity();
         renderHeatmap();
         renderTrend();
@@ -505,12 +532,12 @@
         </div>`).join('');
     }
 
-    function flatIssues() {
+    function flatIssues(include = isActiveIssue) {
       const out = [];
       for (const svc of allServices) {
         const name = svc.service || svc.displayName || 'Unknown Service';
         for (const i of (svc.issues || [])) {
-          if (!isActiveIssue(i)) continue;
+          if (!include(i)) continue;
           out.push({
             service: name,
             id: i.id || '',
@@ -566,6 +593,46 @@
             <div class="sh-issue-title">${escapeHtml(it.title)}</div>
             <div class="sh-issue-foot">
               <span class="sh-issue-id">${escapeHtml(it.id)}</span>
+              ${pirLinkHtml(it)}
+              <span class="sh-issue-time">${escapeHtml(timeStr)}</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    let expandedPirs = false;
+
+    function renderPirList() {
+      const panel = document.getElementById('sh-pir-panel');
+      const container = document.getElementById('sh-pir-list');
+      const list = flatIssues(hasPir);
+      panel.hidden = list.length === 0;
+      if (!list.length) { container.innerHTML = ''; return; }
+      // Merge into (rather than replace) the lookup the issue modal reads from.
+      for (const it of list) issuesById.set(it.id, it);
+      document.getElementById('sh-pir-total').textContent = list.length;
+      const expandBtn = document.getElementById('sh-pir-expand-btn');
+      expandBtn.style.display = list.length > 12 ? '' : 'none';
+      const items = expandedPirs ? list : list.slice(0, 12);
+      container.innerHTML = items.map(it => {
+        const sev = severityFromIssue(it);
+        const dt = it.lastModifiedDateTime ? new Date(it.lastModifiedDateTime) : null;
+        const timeStr = dt ? `${formatShortDate(dt)} · ${formatShortTime(dt)}` : '';
+        const cls = humanizeClassification(it.classification);
+        return `
+          <div class="sh-issue-card sev-${sev}"
+               role="button" tabindex="0"
+               data-issue-id="${escapeHtml(it.id)}"
+               aria-label="${escapeHtml(it.title)}, ${escapeHtml(it.service)}"
+               title="${escapeHtml(it.title)}">
+            <div class="sh-issue-head">
+              ${cls ? `<span class="sh-issue-class">${escapeHtml(cls)}</span>` : ''}
+              <span class="sh-issue-service">${(window.ProductIcons ? window.ProductIcons.productIconImg(it.service) : '')}<span>${escapeHtml(it.service)}</span></span>
+            </div>
+            <div class="sh-issue-title">${escapeHtml(it.title)}</div>
+            <div class="sh-issue-foot">
+              <span class="sh-issue-id">${escapeHtml(it.id)}</span>
+              ${pirLinkHtml(it)}
               <span class="sh-issue-time">${escapeHtml(timeStr)}</span>
             </div>
           </div>`;
@@ -796,6 +863,7 @@
             <div class="sh-modal-post-body" style="font-weight:600">${escapeHtml(it.title)}</div>
             <div style="font-size:12px;color:var(--cp-text-muted);margin-top:0.3rem">
               ${cls ? `<span>${escapeHtml(cls)}</span> · ` : ''}${escapeHtml(it.feature || '')}
+              ${hasPir(it) ? `<span style="margin-left:0.5rem">${pirLinkHtml(it)}</span>` : ''}
             </div>
           </div>`;
       }).join('');
@@ -1020,11 +1088,12 @@
         { label: 'Feature',         value: it.feature || '—' },
         { label: 'Feature group',   value: it.featureGroup || '—' },
         { label: 'High impact',     value: it.highImpact ? 'Yes' : 'No' },
+        ...(hasPir(it) ? [{ label: 'Post-incident review', html: pirLinkHtml(it) }] : []),
       ];
       document.getElementById('sh-modal-meta').innerHTML = meta.map(m => `
         <div class="sh-modal-meta-item">
           <div class="sh-modal-meta-label">${escapeHtml(m.label)}</div>
-          <div class="sh-modal-meta-val"${m.mono ? ' style="font-family:ui-monospace,Consolas,monospace"' : ''}>${escapeHtml(m.value)}</div>
+          <div class="sh-modal-meta-val"${m.mono ? ' style="font-family:ui-monospace,Consolas,monospace"' : ''}>${m.html || escapeHtml(m.value)}</div>
         </div>`).join('');
 
       const impactEl = document.getElementById('sh-modal-impact');
@@ -1086,19 +1155,30 @@
       document.body.style.overflow = '';
     }
 
-    document.getElementById('sh-sidebar-list').addEventListener('click', (ev) => {
-      const card = ev.target.closest('.sh-issue-card');
-      if (!card) return;
-      const id = card.getAttribute('data-issue-id');
-      if (id) openIssueModal(id);
-    });
-    document.getElementById('sh-sidebar-list').addEventListener('keydown', (ev) => {
-      if (ev.key !== 'Enter' && ev.key !== ' ') return;
-      const card = ev.target.closest('.sh-issue-card');
-      if (!card) return;
-      ev.preventDefault();
-      const id = card.getAttribute('data-issue-id');
-      if (id) openIssueModal(id);
+    for (const listEl of [document.getElementById('sh-sidebar-list'), document.getElementById('sh-pir-list')]) {
+      listEl.addEventListener('click', (ev) => {
+        if (ev.target.closest('a')) return;
+        const card = ev.target.closest('.sh-issue-card');
+        if (!card) return;
+        const id = card.getAttribute('data-issue-id');
+        if (id) openIssueModal(id);
+      });
+      listEl.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        if (ev.target.closest('a')) return;
+        const card = ev.target.closest('.sh-issue-card');
+        if (!card) return;
+        ev.preventDefault();
+        const id = card.getAttribute('data-issue-id');
+        if (id) openIssueModal(id);
+      });
+    }
+    document.getElementById('sh-pir-expand-btn').addEventListener('click', () => {
+      expandedPirs = !expandedPirs;
+      const btn = document.getElementById('sh-pir-expand-btn');
+      btn.textContent = expandedPirs ? 'Show less' : 'Show all';
+      btn.setAttribute('aria-expanded', String(expandedPirs));
+      renderPirList();
     });
     // Delegated handler for the "multiple issues on this day" heatmap picker
     // list rendered by openHeatmapIssuePicker(). Regular issue update posts
@@ -1110,11 +1190,13 @@
       setTimeout(() => openIssueModal(id), 160);
     }
     document.getElementById('sh-modal-posts').addEventListener('click', (ev) => {
+      if (ev.target.closest('a')) return;
       const row = ev.target.closest('.sh-modal-post[data-issue-id]');
       if (row) openIssueFromPicker(row.getAttribute('data-issue-id'));
     });
     document.getElementById('sh-modal-posts').addEventListener('keydown', (ev) => {
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      if (ev.target.closest('a')) return;
       const row = ev.target.closest('.sh-modal-post[data-issue-id]');
       if (!row) return;
       ev.preventDefault();

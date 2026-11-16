@@ -312,6 +312,7 @@ html[data-theme="dark"] {
   display: flex; flex-direction: column;
   padding-bottom: 0.875rem;
 }
+.sh-issues-panel[hidden] { display: none; }
 .sh-issues-list {
   max-height: 600px;
   overflow-y: auto;
@@ -504,7 +505,17 @@ html[data-theme="dark"] .sh-trend-toggle button.active { color: #10223a; }
   font-size: 12px;
   color: var(--cp-text-muted);
 }
-.sh-issue-time { font-variant-numeric: tabular-nums; }
+.sh-issue-time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sh-issue-foot { flex-wrap: wrap; }
+.sh-pir-link {
+  white-space: nowrap;
+  color: var(--cp-link-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sh-pir-link:hover { text-decoration-thickness: 2px; }
+.sh-pir-link:focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 2px; border-radius: 2px; }
 
 /* Issue detail modal */
 .sh-modal-backdrop {

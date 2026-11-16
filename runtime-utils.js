@@ -207,6 +207,33 @@ function mergeServiceHealth(services, issues) {
   return merged;
 }
 
+// Service Health issue IDs look like "MO248163" or "EX123456".
+const SERVICE_HEALTH_ISSUE_ID_RE = /^[A-Za-z]{2,4}\d{3,10}$/;
+
+function isValidServiceHealthIssueId(id) {
+  return typeof id === 'string' && SERVICE_HEALTH_ISSUE_ID_RE.test(id);
+}
+
+// Decide how to relay a Graph incidentReport stream. Graph serves Word (.docx)
+// documents today; PDFs are also recognized. Only a PDF is shown inline, and
+// everything else is forced to download so upstream content can never render
+// as HTML on the portal's origin.
+function describeIncidentReport(buffer, issueId) {
+  const head = Buffer.isBuffer(buffer) ? buffer.subarray(0, 5).toString('latin1') : '';
+  const isPdf = head === '%PDF-';
+  const isDocx = !isPdf && Buffer.isBuffer(buffer) && head.startsWith('PK\u0003\u0004') &&
+    buffer.includes('word/');
+  const kind = isPdf
+    ? { type: 'application/pdf', ext: 'pdf', disposition: 'inline' }
+    : isDocx
+      ? { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx', disposition: 'attachment' }
+      : { type: 'application/octet-stream', ext: 'bin', disposition: 'attachment' };
+  return {
+    contentType: kind.type,
+    contentDisposition: `${kind.disposition}; filename="${issueId}-post-incident-review.${kind.ext}"`,
+  };
+}
+
 function createTtlCache(options) {
   const config = options || {};
   const maxEntries = config.maxEntries || 500;
@@ -335,7 +362,9 @@ function rewriteMessageCenterMessage(msg) {
 module.exports = {
   collectPaginated,
   createTtlCache,
+  describeIncidentReport,
   isSafeLangCode,
+  isValidServiceHealthIssueId,
   mergeServiceHealth,
   mergeVaryHeaders,
   mspulse360MessageUrl,

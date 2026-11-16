@@ -12,9 +12,11 @@ const crypto = require('crypto');
 const {
   collectPaginated,
   createTtlCache,
+  describeIncidentReport,
   mergeServiceHealth,
   mergeVaryHeaders,
   isSafeLangCode,
+  isValidServiceHealthIssueId,
   parseBoundedInteger,
   rateLimitBucketKey,
   readBoundedString,
@@ -788,6 +790,47 @@ function graphGet(token, pathOrUrl, done) {
       }
       catch (e) { done(new Error(`Parse error: ${e.message}`)); }
     });
+  });
+  req.on('error', done);
+  req.setTimeout(UPSTREAM_TIMEOUT_MS, () => req.destroy(new Error('graph request timeout')));
+  req.end();
+}
+
+// Graph GET for binary payloads (e.g. the post-incident review document).
+// Like graphGet, it only ever sends the token to graph.microsoft.com.
+const INCIDENT_REPORT_MAX_BYTES = 25 * 1024 * 1024;
+function graphGetBinary(token, graphPath, maxBytes, done) {
+  const req = https.request({
+    hostname: 'graph.microsoft.com',
+    path: graphPath,
+    method: 'GET',
+    agent: keepAliveAgent,
+    headers: { 'Authorization': `Bearer ${token}`, 'Accept': '*/*' },
+  }, (res) => {
+    const chunks = [];
+    let received = 0;
+    let settled = false;
+    const finish = (err, value) => {
+      if (settled) return;
+      settled = true;
+      done(err, value);
+    };
+    res.on('data', (chunk) => {
+      if (settled) return;
+      received += chunk.length;
+      if (received > maxBytes) {
+        finish(new Error('Upstream response exceeded size limit'));
+        res.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    res.on('end', () => finish(null, {
+      status: res.statusCode,
+      body: Buffer.concat(chunks),
+      headers: res.headers,
+    }));
+    res.on('error', finish);
   });
   req.on('error', done);
   req.setTimeout(UPSTREAM_TIMEOUT_MS, () => req.destroy(new Error('graph request timeout')));
@@ -2414,6 +2457,66 @@ const server = http.createServer((req, res) => {
           warning,
         }, { 'Cache-Control': 'max-age=60, stale-while-revalidate=120' });
       });
+    });
+    return;
+  }
+
+  // ── Service Health post-incident review (PIR) document ────────────────────
+  // Graph only serves the PIR to an authenticated app, so the browser can't link
+  // to it directly. This relays the document for issues that have one.
+  if (parsed.pathname === '/api/servicehealth/incident-report') {
+    if (!checkRateLimit(req, res, 30, 60_000)) return;
+    const issueId = parsed.searchParams.get('id') || '';
+    if (!isValidServiceHealthIssueId(issueId)) {
+      sendJson(req, res, 400, { error: 'Invalid issue id.', code: 'INVALID_ISSUE_ID' });
+      return;
+    }
+    if (!AZURE_AUTH_MODE) {
+      sendJson(req, res, 503, {
+        error: 'Microsoft Graph not configured. Set USE_MANAGED_IDENTITY=true (on Azure) or AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID in .env.',
+        code: 'AUTH_NOT_CONFIGURED'
+      });
+      return;
+    }
+    getM365AccessToken((err, token) => {
+      if (err) {
+        console.error('[servicehealth] token error:', err.message);
+        sendJson(req, res, 502, { error: 'Could not authenticate to Microsoft Graph.' });
+        return;
+      }
+      graphGetBinary(token,
+        `/v1.0/admin/serviceAnnouncement/issues/${encodeURIComponent(issueId)}/incidentReport`,
+        INCIDENT_REPORT_MAX_BYTES, (fetchErr, result) => {
+          if (fetchErr) {
+            console.error('[servicehealth] incident report fetch error:', fetchErr.message);
+            sendJson(req, res, 502, { error: 'The post-incident review is temporarily unavailable.' });
+            return;
+          }
+          if (result.status === 404 || result.status === 400) {
+            sendJson(req, res, 404, {
+              error: 'No post-incident review has been published for this issue.',
+              code: 'PIR_NOT_FOUND',
+            });
+            return;
+          }
+          if (result.status >= 400) {
+            let graphError = null;
+            try { graphError = JSON.parse(result.body.toString('utf8')).error; } catch { /* non-JSON error body */ }
+            console.error('[servicehealth] incident report graph error:', result.status,
+              describeGraphError(result.status, graphError, 'ServiceHealth.Read.All'));
+            sendJson(req, res, 502, { error: 'The post-incident review is temporarily unavailable.' });
+            return;
+          }
+          const { contentType, contentDisposition } = describeIncidentReport(result.body, issueId);
+          res.writeHead(200, {
+            'Content-Type': contentType,
+            'Content-Disposition': contentDisposition,
+            'Content-Length': result.body.length,
+            'X-Content-Type-Options': 'nosniff',
+            'Cache-Control': 'private, max-age=300',
+          });
+          res.end(result.body);
+        });
     });
     return;
   }

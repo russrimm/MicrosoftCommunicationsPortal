@@ -18,9 +18,11 @@ const vm = require('node:vm');
 const {
   collectPaginated,
   createTtlCache,
+  describeIncidentReport,
   mergeVaryHeaders,
   mergeServiceHealth,
   isSafeLangCode,
+  isValidServiceHealthIssueId,
   mspulse360MessageUrl,
   parseBoundedInteger,
   rateLimitBucketKey,
@@ -459,6 +461,28 @@ test('mergeServiceHealth does not mutate cached services and deduplicates issues
   assert.deepEqual(merged[0].issues.map(issue => issue.id), ['EX1', 'EX2']);
   assert.equal(merged[1].service, 'SharePoint Online');
   assert.deepEqual(merged[1].issues.map(issue => issue.id), ['SP1']);
+});
+
+test('isValidServiceHealthIssueId only accepts Service Health issue ids', () => {
+  for (const id of ['MO248163', 'EX123456', 'SP1234']) assert.equal(isValidServiceHealthIssueId(id), true, id);
+  for (const id of ['', 'MO', '../MO248163', 'MO248163/incidentReport', 'MO24816?x=1', '12345', null, undefined]) {
+    assert.equal(isValidServiceHealthIssueId(id), false, String(id));
+  }
+});
+
+test('describeIncidentReport only renders PDFs inline and labels Word documents', () => {
+  const pdf = describeIncidentReport(Buffer.from('%PDF-1.7\n...'), 'MO248163');
+  assert.equal(pdf.contentType, 'application/pdf');
+  assert.equal(pdf.contentDisposition, 'inline; filename="MO248163-post-incident-review.pdf"');
+
+  const docx = describeIncidentReport(Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('....word/document.xml')]), 'EX1500900');
+  assert.equal(docx.contentType, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  assert.equal(docx.contentDisposition, 'attachment; filename="EX1500900-post-incident-review.docx"');
+
+  const html = describeIncidentReport(Buffer.from('<script>alert(1)</script>'), 'MO248163');
+  assert.equal(html.contentType, 'application/octet-stream');
+  assert.match(html.contentDisposition, /^attachment;/);
+  assert.equal(describeIncidentReport(Buffer.alloc(0), 'MO248163').contentType, 'application/octet-stream');
 });
 
 test('client date helpers preserve local calendar days across DST boundaries', () => {
@@ -1159,6 +1183,7 @@ test('the Static Web Apps config protects every tenant-scoped API route', () => 
     '/api/messagecenter',
     '/api/servicemessages',
     '/api/servicehealth',
+    '/api/servicehealth/*',
     '/api/subscriptions*',
     '/api/azure-resource-health/*',
   ]) {
