@@ -27,6 +27,10 @@
       "allowedRoles": ["authenticated"]
     },
     {
+      "route": "/api/servicehealth/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
       "route": "/api/subscriptions*",
       "allowedRoles": ["authenticated"]
     },

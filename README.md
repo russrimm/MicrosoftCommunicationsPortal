@@ -27,7 +27,7 @@ customer briefing built from it.**
 | | |
 |---|---|
 | 🗺️ **Roadmaps in one view** | Power Platform release plans (including regional rollout), the Microsoft 365 roadmap, Azure updates, and the Microsoft Fabric roadmap — searchable, filterable, and shareable by URL. |
-| 📬 **Your tenant's announcements** | Microsoft 365 Message Center posts and Service Health incidents for your own tenant, with severity, product, and date filters. |
+| 📬 **Your tenant's announcements** | Microsoft 365 Message Center posts and Service Health incidents for your own tenant, with severity, product, and date filters. Resolved incidents link to their post-incident review when Microsoft has published one. |
 | ✉️ **A weekly briefing that writes itself** | Builds the Monday "Power Platform & Copilot Studio" customer email from live data, puts what needs action first, and copies it to Outlook as rich HTML. |
 | ⚡ **One-click Power Platform digest** | Download every Power Apps, Power Automate, Power Pages, Dataverse, and Copilot Studio Message Center post updated in the last 7 days — no filtering required. |
 | ✨ **Optional AI summaries** | Plain-language impact summaries and a "top 5 changes this week" digest, using Azure OpenAI, OpenAI, or GitHub Models. |
@@ -1118,6 +1118,7 @@ The Node server exposes the following local endpoints (all return JSON):
 | `GET /api/featuregeo[?refresh=1]` | Regional release plans (feature availability by geography), normalised from the public release plans site (30 min server cache) | None | 60/min |
 | `GET /api/messagecenter` | Microsoft 365 Message Center via Microsoft Graph | `.env` | 60/min |
 | `GET /api/servicehealth` | Microsoft 365 Service Health via Microsoft Graph | `.env` | 60/min |
+| `GET /api/servicehealth/incident-report?id=<issueId>` | Post-incident review document (Word or PDF) for a Service Health issue whose status is `postIncidentReviewPublished`; `404` when none exists | `.env` | 30/min |
 | `GET /api/subscriptions` | List Azure subscriptions (for subscription picker) | `.env` | 30/min |
 | `GET /api/subscriptions/selected` | Get currently selected Azure subscriptions | None | 30/min |
 | `POST /api/subscriptions/selected` | Save selected Azure subscriptions | None | 30/min |
